@@ -1,0 +1,632 @@
+{
+  "port": 41218,
+  "baseUrl": "http://127.0.0.1:41218",
+  "workdir": "../..",
+  "includeHistory": true,
+  "historyMax": 6,
+  "roleRouting": {
+    "secretary": {
+      "label": "秘书",
+      "runner": "claude"
+    },
+    "orchestrator": {
+      "label": "CEO(总指挥)",
+      "runner": "codex"
+    },
+    "supervisor": {
+      "label": "主管 Supervisor",
+      "runner": "codex"
+    },
+    "reasoning_architect": {
+      "label": "架构/推理 (Codex)",
+      "runner": "codex",
+      "archived": true,
+      "archivedAt": "2026-07-03",
+      "archivedReason": "历史零任务,弹性编制收编;需要时移除本字段即复活",
+      "archivedNote": "软归档文档标记(NR11:本字段当前无代码消费者):归档=进 INDEX 与绩效报告的闲置区,路由仍可用(roleMapFromConfig/ceo-worker 不读本字段)。硬归档(路由拒绝/队列剔除,经 agent.json status 或路由层)待观察期后由质量运营提议、老板拍板。策略见 board/角色编制-弹性策略-20260703.md"
+    },
+    "worker_code": {
+      "label": "后端程序员 / Codex",
+      "runner": "codex"
+    },
+    "worker_narrow": {
+      "label": "外包员工 / GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "auto_tool_harness",
+        "requiresWritableRunnerForImplement": true
+      }
+    },
+    "quality_ops": {
+      "label": "质量运营/硬化 (GLM)",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "auto_tool_harness",
+        "requiresWritableRunnerForImplement": true
+      }
+    },
+    "governance": {
+      "label": "监管/复盘",
+      "runner": "codex"
+    },
+    "insight-scout": {
+      "label": "洞察员 / GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "text_only",
+        "requiresWritableRunnerForImplement": false
+      }
+    },
+    "memory_officer": {
+      "label": "记忆官",
+      "runner": "codex"
+    },
+    "it_engineer": {
+      "label": "IT 工程师 / GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "auto_tool_harness",
+        "requiresWritableRunnerForImplement": true,
+        "highRiskRequiresOwnerConfirmation": true
+      }
+    },
+    "repair-lead": {
+      "label": "维修主管 / Codex 特权",
+      "runner": "claude-code",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true,
+        "privileged": true,
+        "engineSlotBypass": true,
+        "delegatesTo": "repair",
+        "highRiskRequiresOwnerConfirmation": true
+      }
+    },
+    "repair": {
+      "label": "维修员",
+      "runner": "codex-privileged"
+    },
+    "gui_desktop_control": {
+      "label": "桌面控制 (Codex + Peekaboo CLI)",
+      "runner": "codex-privileged",
+      "model": "codex"
+    },
+    "ui_optimizer": {
+      "label": "自动优化师 / Codex",
+      "runner": "codex",
+      "model": "codex",
+      "rollout": {
+        "percent": 100,
+        "envOverride": "UI_OPTIMIZER_CODEX_ROLLOUT_PERCENT",
+        "disableEnv": "UI_OPTIMIZER_CODEX_ENABLED=0",
+        "rollbackRunner": "codex"
+      }
+    },
+    "frontend_designer": {
+      "label": "前端程序员 / GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "auto_tool_harness",
+        "requiresWritableRunnerForImplement": true
+      }
+    },
+    "hr_manager": {
+      "label": "HR主管",
+      "runner": "codex"
+    },
+    "hr_specialist": {
+      "label": "HR专员 / GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "auto_tool_harness",
+        "requiresWritableRunnerForImplement": true
+      }
+    },
+    "board_deepseek": {
+      "label": "董事 · DeepSeek",
+      "runner": "new-api",
+      "execution": {
+        "delivery": "text_only",
+        "requiresWritableRunnerForImplement": false
+      }
+    },
+    "board_glm52": {
+      "label": "董事 · GLM-5.2",
+      "runner": "zhipu-glm",
+      "execution": {
+        "delivery": "text_only",
+        "requiresWritableRunnerForImplement": false
+      }
+    },
+    "board_claude": {
+      "label": "董事 · Claude(暂用 Opus-4.8)",
+      "runner": "claude-opus-4-8",
+      "execution": {
+        "delivery": "text_only",
+        "requiresWritableRunnerForImplement": false
+      }
+    },
+    "board_opus48": {
+      "label": "董事 · Codex/GPT-5.5",
+      "runner": "codex"
+    }
+  },
+  "versionManagement": {
+    "ownerRole": "it_engineer",
+    "ownerAgent": "it-engineer",
+    "ownerLabel": "IT 工程师",
+    "remoteName": "gitee",
+    "remoteWebUrl": "https://gitee.com/songdingqing/yutu6",
+    "remotePushUrl": "git@gitee.com:songdingqing/yutu6.git",
+    "versionFile": "VERSION.json",
+    "scope": [
+      "Gitee push",
+      "Gitee pull",
+      "安全回滚",
+      "版本回滚",
+      "远端同步",
+      "四段版本号"
+    ],
+    "versionParts": {
+      "manual": "手动",
+      "major": "大功能模块变动",
+      "minor": "小功能增加/改动",
+      "fix": "UI及bug修复"
+    },
+    "fixedInterfaces": {
+      "release": "node projects/控制台/tools/version-manager.js release --part <manual|major|minor|fix> --message \"...\" --path <file> --push",
+      "rollbackRequest": "node projects/控制台/secretary-tools.js it-rollback-request --target <version-or-commit> --reason \"...\"",
+      "rollbackDryRun": "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --dry-run",
+      "rollbackConfirm": "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --confirm --reason \"...\" --push"
+    },
+    "decision": "已单设 IT 工程师负责版本管理/发布。维修员只在页面完全无法修复时通过 it-rollback-request 联系 IT 工程师;IT 工程师先 dry-run,主人确认后用安全 revert 生成新的四段版本 commit 并 push Gitee。"
+  },
+  "boardReviewControl": {
+    "enabled": true,
+    "enabledAt": "2026-06-22",
+    "status": "preflight",
+    "statusLabel": "事前评审",
+    "maxRounds": 1,
+    "reason": "老板最高优先:董事会改为架构/性能/并发事前单轮评审;合理改动默认可通过,仅硬阻断/误判风险才拍板"
+  },
+  "frontDoorPolicy": {
+    "enabled": true,
+    "updatedAt": "2026-07-01",
+    "ownerInstruction": "老板后续传递的任务,只要不涉及维修/救火,都先由秘书接收、补背景、补 task 信封,再转交 CEO;由 CEO 决策项目路线和后续分派。",
+    "defaultIntakeAgent": "secretary",
+    "defaultIntakeRole": "secretary",
+    "normalTaskRoute": [
+      "chairman",
+      "secretary",
+      "ceo",
+      "supervisor",
+      "worker"
+    ],
+    "repairTaskRoute": [
+      "chairman",
+      "repair-lead",
+      "repair"
+    ],
+    "repairKeywords": [
+      "维修",
+      "修复系统",
+      "救火",
+      "卡死",
+      "重启服务",
+      "权限授权",
+      "孤儿进程",
+      "内存止血",
+      "worker",
+      "engine",
+      "queue",
+      "done gate"
+    ],
+    "manualRoleOverrideAllowed": true,
+    "manualOverrideReason": "保留控制台高级调试/显式直派入口;默认老板入口仍为秘书。",
+    "persistence": [
+      "projects/控制台/config.json",
+      "shared/agents/secretary/prompt.md",
+      "shared/agents/orchestrator/prompt.md",
+      "board/decisions.md",
+      "memory/decisions.md"
+    ]
+  },
+  "glm52Delegation": {
+    "enabledAt": "2026-06-20",
+    "updatedAt": "2026-06-22",
+    "auditArtifact": "projects/控制台/artifacts/model-cost-optimization-20260622.md",
+    "migrationArtifact": "projects/控制台/artifacts/glm52-engineering-migration-20260622.md",
+    "handoffIndex": "shared/knowledge/engineering/INDEX.md",
+    "runner": "zhipu-glm",
+    "primarySwitch": [
+      {
+        "role": "frontend_designer",
+        "domain": "frontend",
+        "from": "zhipu-glm",
+        "to": "zhipu-glm",
+        "status": "already_on_glm52",
+        "handoff": "projects/控制台/artifacts/frontend-handover.md"
+      },
+      {
+        "role": "worker_code",
+        "domain": "backend",
+        "from": "codex",
+        "to": "codex",
+        "status": "rolled_back_to_codex",
+        "handoff": "shared/knowledge/engineering/worker-code-handoff.md"
+      },
+      {
+        "role": "it_engineer",
+        "domain": "backend-release",
+        "from": "codex",
+        "to": "zhipu-glm",
+        "status": "switched_primary",
+        "handoff": "shared/knowledge/engineering/it-engineer-handoff.md"
+      }
+    ],
+    "qualityGate": {
+      "samplePerRole": 20,
+      "baselineWindowDays": 7,
+      "postSwitchSampleMin": 20,
+      "onePassRateMin": 0.95,
+      "retryRateMax": 0.05,
+      "reviewScoreMinRatioToBaseline": 0.95,
+      "latencyP99MinRatioToBaseline": 0.8,
+      "fallbackRateMax": 0.05,
+      "capacityHeadroomMin": 1.5,
+      "knowledgeBacktestItems": 3,
+      "observationWindowHours": 48
+    },
+    "rollbackPolicy": {
+      "fallbackRunner": "codex",
+      "fallbackRetentionDays": 14,
+      "trigger": "quality_ops reports threshold breach within observation window, GLM fallback/limit errors exceed gate, or knowledge backtest fails",
+      "action": "restore previous roleRouting runner/prefer chain from git diff and rerun agents-check + scoped smoke; keep codex as secondary prefer during observation",
+      "owner": "supervisor + worker_code; IT 工程师 only for release/rollback commit if requested"
+    },
+    "routedRoles": [
+      {
+        "role": "worker_narrow",
+        "scenes": [
+          "通用执行",
+          "小范围代码说明",
+          "文档整理",
+          "低风险脚本草案"
+        ],
+        "reason": "轻量、边界明确、可由主管复核,适合先分担 Codex 额度。"
+      },
+      {
+        "role": "quality_ops",
+        "scenes": [
+          "日志归纳",
+          "重复模式提取",
+          "硬化建议草案",
+          "验收清单整理"
+        ],
+        "reason": "以结构化分析为主,不默认执行高危写盘操作,适合 GLM-5.2 通用 runner。"
+      },
+      {
+        "role": "frontend_designer",
+        "scenes": [
+          "workspace.html 定位",
+          "前端视觉/交互方案",
+          "低风险 UI patch 草案"
+        ],
+        "reason": "控制台专属前端窄任务,已有 7 天 8 次调用且全成功,适合继续走 GLM-5.2。"
+      },
+      {
+        "role": "insight-scout",
+        "scenes": [
+          "开源案例候选整理",
+          "公告板来源标注",
+          "许可证/登录不确定项清单"
+        ],
+        "reason": "研究来源标识和候选整理为低风险结构化任务;采纳和落地仍走 CEO/主管。"
+      },
+      {
+        "role": "it_engineer",
+        "scenes": [
+          "四段版本号",
+          "Gitee release/push",
+          "安全回滚 dry-run/主人确认后回滚"
+        ],
+        "reason": "IT 工程师主力改为 GLM-5.2;Codex 保留为 secondary/fallback,发布脚本和路径白名单作为确定性护栏。"
+      }
+    ],
+    "codexOffloadPolicy": [
+      {
+        "sourceRole": "worker_code",
+        "routeToRole": "worker_narrow",
+        "conditions": [
+          "只读解释",
+          "小范围代码说明",
+          "日志/产物摘要",
+          "低风险脚本草案且必须由 worker_code/主管复核后落盘"
+        ],
+        "reason": "worker_code 已回滚 Codex 承接真实落盘实现;仍保留窄角色分担低风险文本,避免后端程序员被摘要/草案类任务占用。"
+      },
+      {
+        "sourceRole": "worker_code",
+        "routeToRole": "frontend_designer",
+        "conditions": [
+          "控制台 workspace.html/UI 问题",
+          "无需后端/队列/密钥/服务脚本改动"
+        ],
+        "reason": "前端窄边界任务已由 GLM-5.2 专职角色承接,减少 Codex 做纯 UI 定位。"
+      },
+      {
+        "sourceRole": "worker_code",
+        "routeToRole": "quality_ops",
+        "conditions": [
+          "review-loop 证据整理",
+          "测试清单",
+          "日志归纳",
+          "重复模式硬化建议"
+        ],
+        "reason": "质量运营是结构化分析,不默认执行高危写盘。"
+      }
+    ],
+    "keptOnPrimary": [
+      {
+        "role": "orchestrator",
+        "reason": "总管拆解与跨项目治理改由 Codex 接管。"
+      },
+      {
+        "role": "supervisor",
+        "reason": "项目验收和最终裁决改由 Codex 接管。"
+      },
+      {
+        "role": "reasoning_architect",
+        "reason": "复杂架构和高风险复盘仍优先 Codex。"
+      },
+      {
+        "role": "repair",
+        "reason": "本机特权维修/救火继续走 codex-privileged,从可换清单移除。"
+      },
+      {
+        "role": "board_gpt55",
+        "reason": "董事会工程风险裁决类 role,红线保留 Codex,避免误下放。"
+      },
+      {
+        "role": "board_opus48",
+        "reason": "历史 board_opus48 槽位保留作兼容,实际已由 Codex 接管。"
+      }
+    ],
+    "fallbackRetained": [
+      {
+        "role": "worker_code",
+        "runner": "codex",
+        "reason": "已因 GLM-5.2 多次无文件系统写盘能力复发而恢复为主力;后续再试 GLM 必须先证明本地读写/测试闭环。"
+      },
+      {
+        "role": "it_engineer",
+        "runner": "codex",
+        "reason": "作为发布/回滚职责 secondary/fallback 保留 14 天;主人确认的版本操作仍走固定脚本。"
+      }
+    ]
+  },
+  "runners": {
+    "claude": {
+      "label": "Claude Code(秘书·前门)",
+      "cmd": [
+        "/Users/yutu6/.local/bin/claude",
+        "-p",
+        "--dangerously-skip-permissions"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true
+      },
+      "note": "2026-07-03 老板拍板:秘书(前门)由 Claude Code 接管(原 codex)。本机凭据不回显。"
+    },
+    "claude-code": {
+      "label": "Claude Code(维修主管·特权)",
+      "cmd": [
+        "/Users/yutu6/.local/bin/claude",
+        "-p",
+        "--dangerously-skip-permissions"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true,
+        "privileged": true,
+        "engineSlotBypass": true,
+        "allowedWritePaths": [
+          "projects/控制台/",
+          "shared/",
+          "board/",
+          "tests/",
+          "templates/",
+          "VERSION.json",
+          "交接给claude-code/",
+          ".claude/"
+        ]
+      },
+      "note": "2026-07-03 老板拍板:维修主管由 Claude Code 接回(原 codex-privileged 期间系 2026-06-30 Claude CLI 401 临时移交,认证已恢复)。高危/不可逆仍先给主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
+    },
+    "claude-opus-4-8": {
+      "label": "Claude Opus-4.8(董事会)",
+      "cmd": [
+        "/Users/yutu6/.local/bin/claude",
+        "-p",
+        "--model",
+        "claude-opus-4-8",
+        "--fallback-model",
+        "opus",
+        "--dangerously-skip-permissions"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true
+      },
+      "note": "2026-07-03 老板拍板:补充董事会成员,暂用 Opus-4.8。仅董事会评议(text_only),不承接实现任务。"
+    },
+    "codex": {
+      "label": "Codex",
+      "cmd": [
+        "codex",
+        "exec",
+        "--sandbox",
+        "danger-full-access",
+        "--skip-git-repo-check"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true
+      },
+      "note": "非交互。最终答案走 stdout,过程日志走 stderr(前端按 log 显示)。worker/launchd 环境下 workspace-write 可能触发 Codex 0.140 的 app-server/PATH alias Operation not permitted;统一改用 danger-full-access,边界由队列/提示词/工单红线控制。要只读不改时可临时换成 read-only。"
+    },
+    "codex-privileged": {
+      "label": "Codex(维修员·特权)",
+      "cmd": [
+        "codex",
+        "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--skip-git-repo-check"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true,
+        "privileged": true,
+        "allowedWritePaths": [
+          "projects/控制台/",
+          "shared/",
+          "board/",
+          "tests/",
+          "templates/",
+          "VERSION.json",
+          "交接给claude-code/",
+          ".claude/"
+        ]
+      },
+      "note": "维修员专用:无沙箱、无确认,可重启服务/操作本机/使用 computer use。v2 作为 repair 常驻队列 worker 自动消费工单;高危/不可逆操作仍必须先让主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
+    },
+    "hermes": {
+      "label": "Hermes(MiniMax-M3)",
+      "cmd": [
+        "hermes",
+        "chat",
+        "-Q",
+        "-q"
+      ],
+      "promptVia": "arg",
+      "note": "走 Hermes 推理出口(默认 MiniMax-M3 / minimax-cn)。-Q 非交互、-q 后接消息。若 hermes 版本参数不同,改这里的 cmd。"
+    },
+    "peekaboo": {
+      "label": "Codex(桌面控制·调用 Peekaboo CLI)",
+      "cmd": [
+        "codex",
+        "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--skip-git-repo-check"
+      ],
+      "promptVia": "arg",
+      "env": {
+        "PEEKABOO_CONFIG_DIR": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/peekaboo-config"
+      },
+      "note": "兼容 runner id:实际由 Codex 特权执行器接管桌面任务,在需要截图/点击时调用 Peekaboo CLI。已移除 Claude/Opus model 参数。",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true,
+        "privileged": true,
+        "desktopControl": "peekaboo-cli"
+      }
+    },
+    "new-api": {
+      "label": "DeepSeek(new-api)",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "http://127.0.0.1:3000/v1",
+      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/internal-token.env",
+      "model": "deepseek-chat",
+      "maxTokens": 4096,
+      "temperature": 0.25,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "systemPrompt": "你是玉兔6董事会 DeepSeek 评议董事。只做重要架构任务的严格挑刺和风险识别,不要回显任何密钥或本地 token。",
+      "note": "董事会 DeepSeek 出口,走本机 new-api /v1。token 从本机 internal-token.env 读取,不写源码。"
+    },
+    "zhipu-glm": {
+      "label": "GLM-5.2(通用)",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "http://127.0.0.1:3000/v1",
+      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/internal-token.env",
+      "model": "glm-5.2",
+      "maxTokens": 4096,
+      "temperature": 0.35,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false,
+        "toolHarnessRunner": "zhipu-glm-tools"
+      },
+      "systemPrompt": "你是玉兔6工作区的 GLM-5.2 通用助手。优先给出清晰、可执行、可验证的分析、编程方案、代码审查和任务拆解。不要回显任何密钥或本地 token。",
+      "note": "走本机 new-api /v1,上游为 GLM Coding Plan 专属端点。纯文本 runner:不能直接落盘/跑命令;implement 任务需要交付文件时由 cli-runner 自动升级到 zhipu-glm-tools。token 从本机 internal-token.env 读取,不写入源码。"
+    },
+    "kimi-k2": {
+      "label": "Kimi K2.7 Code（暂停董事席）",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/kimi.env",
+      "tokenKey": "MOONSHOT_API_KEY",
+      "model": "kimi-k2.7-code",
+      "maxTokens": 4096,
+      "temperature": 1,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "systemPrompt": "你是玉兔6备用 Kimi K2.7 Code 评议模型。当前不参与活跃董事会;如被显式调用,只做代码/Agent 风险识别和遗漏检查;不要回显任何密钥或本地 token。",
+      "note": "Kimi/Moonshot OpenAI 兼容出口已暂停董事席,保留为备用 runner。token 从本机 artifacts/new-api/kimi.env 读取,不写源码。K2.7 Code 官方要求 temperature=1.0。"
+    },
+    "zhipu-glm-tools": {
+      "label": "GLM-5.2 + Codex 工具执行",
+      "kind": "openai_http_tool_harness",
+      "cmd": [
+        "__openai_http_tool_harness__"
+      ],
+      "modelRunner": "zhipu-glm",
+      "executorRunner": "codex",
+      "execution": {
+        "canWriteFiles": true,
+        "canRunCommands": true,
+        "plannerCanWriteFiles": false,
+        "executor": "codex",
+        "rollback": "删除 zhipu-glm.execution.toolHarnessRunner 或把角色 runner 改回 codex"
+      },
+      "note": "可回滚 harness:GLM-5.2 先出规划/意图,Codex CLI 在本地真实读写文件和跑测试,最终回填 implementation.changed_files 与 logic_chain 证据。关闭方式:把 zhipu-glm.execution.toolHarnessRunner 删除或改回纯 codex runner。"
+    },
+    "mock": {
+      "label": "Mock(自测,无需 CLI)",
+      "cmd": [
+        "__mock__"
+      ],
+      "promptVia": "arg",
+      "note": "内置假回显,用来在没装 CLI 时验证网页↔服务闭环。"
+    }
+  },
+  "servers": [
+    {
+      "id": "srv-changie",
+      "label": "嫦娥",
+      "ip": "49.235.187.125",
+      "port": 443,
+      "accent": "#5ed6c4",
+      "note": "YuanXiao/ChangE relay"
+    }
+  ]
+}

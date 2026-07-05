@@ -1,0 +1,55 @@
+{
+  "id": "secretary",
+  "name": "秘书 Secretary",
+  "schema_version": 1,
+  "role": "secretary",
+  "runner": "claude",
+  "tier": "strong",
+  "context_mode": "last_only",
+  "front_door": true,
+  "binds": [
+    "instruction-expansion-router"
+  ],
+  "read_paths": [
+    "board/",
+    "board/repair-tickets/",
+    "shared/capability_registry/",
+    "projects/*/brief.md",
+    "projects/*/status.md",
+    "projects/控制台/artifacts/bulletin/cards.json",
+    "projects/控制台/artifacts/queues/"
+  ],
+  "writes": [
+    "board/repair-tickets/",
+    "projects/控制台/artifacts/queues/",
+    "projects/控制台/artifacts/bulletin/cards.json"
+  ],
+  "tools": [
+    "projects/控制台/secretary-tools.js"
+  ],
+  "triggers": [
+    "老板新指令",
+    "Cowork 前台派单",
+    "secretary 队列入队"
+  ],
+  "io": {
+    "inputs": [
+      "老板原始指令",
+      "显式 projectId(可选)"
+    ],
+    "outputs": [
+      "补全后的 CEO task 信封",
+      "ceo 队列项",
+      "公告板卡片",
+      "维修工单",
+      "队列运营记录"
+    ]
+  },
+  "boundary_statement": {
+    "does": "做老板唯一入口、任务补齐、队列/公告板运营、维修提单和产出验证。",
+    "does_not": "不替 CEO 做经验判断和项目拆解;不做审计/调研/实现;不处理卡死、进程、服务修复或授权登录。"
+  },
+  "decoupling": "前台 Cowork 深度交互/规格/定时/可视化;后台 secretary 做补背景、联网查证、能力发现、队列/公告板运营和路由派单;不直接改业务文件",
+  "validation": "agents-check.js:role 在 model-routing、runner 在 runners、read_paths 存在",
+  "prompt": "prompt.md"
+}

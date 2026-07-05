@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>玉兔6 · 董事长办公室 Demo</title>
+  <style>
+    :root {
+      --bg: #0d1016;
+      --panel: #141925;
+      --panel-2: #1b2130;
+      --line: #2e384c;
+      --text: #eef4ff;
+      --muted: #9daabe;
+      --blue: #66a6ff;
+      --cyan: #42d4dd;
+      --green: #49d89b;
+      --violet: #9078ff;
+      --gold: #f1c56d;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 28% 18%, rgba(102, 166, 255, .15), transparent 34%),
+        radial-gradient(circle at 78% 12%, rgba(144, 120, 255, .11), transparent 28%),
+        var(--bg);
+      color: var(--text);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body { display: grid; place-items: center; padding: 24px; }
+
+    .shell {
+      width: min(1240px, 100%);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(20, 25, 37, .98), rgba(12, 15, 22, .98));
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .44);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(20, 24, 34, .96);
+    }
+
+    h1 { margin: 0; font-size: 18px; letter-spacing: 0; }
+    .status {
+      display: inline-grid;
+      grid-template-columns: 9px auto;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status::before {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 14px rgba(73, 216, 155, .75);
+      content: "";
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(310px, .72fr);
+      gap: 18px;
+      min-height: 640px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(15, 20, 30, .46), rgba(10, 13, 19, .78)),
+        linear-gradient(135deg, rgba(102, 166, 255, .09), rgba(144, 120, 255, .05));
+    }
+
+    .office {
+      position: relative;
+      min-height: 600px;
+      overflow: hidden;
+      border: 1px solid rgba(102, 166, 255, .24);
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 42% 30%, rgba(102, 166, 255, .14), transparent 36%),
+        linear-gradient(180deg, rgba(15, 20, 31, .94), rgba(9, 12, 18, .98));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+    }
+
+    .office::before {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(10, 13, 20, .72), transparent 26%, transparent 76%, rgba(10, 13, 20, .72)),
+        radial-gradient(circle at 52% 34%, rgba(66, 212, 221, .18), transparent 30%),
+        radial-gradient(circle at 44% 63%, rgba(241, 197, 109, .12), transparent 28%);
+      content: "";
+    }
+
+    .scene-piece {
+      position: absolute;
+      display: block;
+      border-radius: 8px;
+      object-fit: contain;
+      opacity: .92;
+      filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .36));
+      image-rendering: auto;
+    }
+
+    .scene-piece.lounge {
+      left: 8%;
+      top: 54px;
+      width: 38%;
+    }
+
+    .scene-piece.workzone {
+      right: 8%;
+      top: 66px;
+      width: 42%;
+    }
+
+    .iso-floor {
+      position: absolute;
+      left: 5%;
+      right: 5%;
+      bottom: 44px;
+      height: 350px;
+      transform: skewY(-5deg);
+      border: 1px solid rgba(102, 166, 255, .22);
+      border-radius: 8px;
+      background:
+        linear-gradient(145deg, rgba(26, 34, 48, .96), rgba(15, 20, 31, .96)),
+        repeating-linear-gradient(30deg, rgba(102, 166, 255, .06) 0 2px, transparent 2px 48px),
+        repeating-linear-gradient(150deg, rgba(144, 120, 255, .05) 0 2px, transparent 2px 48px);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .36);
+    }
+
+    .prop, .chairman {
+      position: absolute;
+      display: block;
+      user-select: none;
+      pointer-events: none;
+      filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .34));
+    }
+
+    .prop.monitor { left: 14%; top: 210px; width: 128px; }
+    .prop.bookshelf { right: 12%; top: 145px; width: 132px; }
+    .prop.sofa { right: 8%; bottom: 84px; width: 150px; }
+    .prop.desk { left: 48%; top: 305px; width: 164px; transform: translateX(-50%); }
+    .prop.chair { left: 46%; top: 268px; width: 122px; transform: translateX(-50%); opacity: .96; }
+    .prop.lamp { left: 61%; top: 292px; width: 78px; }
+
+    .chairman {
+      left: 48%;
+      top: 258px;
+      width: 142px;
+      transform: translateX(-50%);
+      border-radius: 8px;
+      animation: executiveFloat 3.2s ease-in-out infinite;
+    }
+
+    .nameplate {
+      position: absolute;
+      left: 48%;
+      top: 430px;
+      width: min(330px, 84%);
+      translate: -50% 0;
+      padding: 11px 13px;
+      border: 1px solid rgba(102, 166, 255, .42);
+      border-radius: 8px;
+      background: rgba(13, 17, 25, .88);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .36);
+    }
+
+    .nameplate strong { display: block; font-size: 15px; }
+    .nameplate span { color: var(--muted); font-size: 12px; }
+
+    .bubble {
+      position: absolute;
+      max-width: 235px;
+      padding: 10px 12px;
+      border: 1px solid rgba(102, 166, 255, .32);
+      border-radius: 8px;
+      background: rgba(17, 22, 32, .88);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, .3);
+      color: #dbe7fb;
+      font-size: 12px;
+    }
+
+    .bubble.status-bubble { left: 23%; top: 255px; }
+    .bubble.command-bubble { right: 8%; top: 292px; border-color: rgba(241, 197, 109, .44); }
+    .bubble.task-bubble {
+      left: 5%;
+      bottom: 122px;
+      max-width: 184px;
+      border-color: rgba(73, 216, 155, .38);
+    }
+    .bubble b { color: var(--text); }
+
+    .side-panel {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .panel-card {
+      border: 1px solid #2c3548;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(28, 34, 48, .96), rgba(17, 21, 31, .96));
+      padding: 14px;
+    }
+
+    .panel-card h2 {
+      margin: 0 0 9px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .panel-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .route {
+      display: grid;
+      gap: 8px;
+    }
+
+    .route span {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid rgba(102, 166, 255, .19);
+      border-radius: 8px;
+      background: rgba(12, 16, 24, .48);
+      color: #dce7f7;
+      font-size: 12px;
+    }
+
+    .route small { color: var(--muted); }
+
+    .mode-preview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .mode-preview img {
+      width: 100%;
+      aspect-ratio: 1;
+      border: 1px solid rgba(102, 166, 255, .24);
+      border-radius: 8px;
+      background: #0f141e;
+      object-fit: contain;
+      padding: 8px;
+    }
+
+    .asset-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+      background: #101318;
+    }
+
+    .asset-card {
+      min-height: 126px;
+      border: 1px solid #283143;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(28, 33, 45, .96), rgba(19, 23, 31, .96));
+      padding: 10px;
+    }
+
+    .asset-card img {
+      display: block;
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 8px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: rgba(8, 11, 17, .62);
+    }
+
+    .asset-card.wide img {
+      width: 100%;
+      height: 74px;
+      object-fit: cover;
+    }
+
+    .asset-card span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    @keyframes executiveFloat {
+      0%, 100% { translate: 0 0; filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .34)); }
+      50% { translate: 0 -5px; filter: drop-shadow(0 19px 24px rgba(0, 0, 0, .42)); }
+    }
+
+    @media (max-width: 920px) {
+      body { padding: 10px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .stage { grid-template-columns: 1fr; min-height: 0; }
+      .office { min-height: 560px; }
+      .side-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .asset-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 640px) {
+      .office { min-height: 520px; }
+      .side-panel { grid-template-columns: 1fr; }
+      .asset-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .scene-piece.lounge { left: 4%; top: 64px; width: 45%; }
+      .scene-piece.workzone { right: 3%; top: 84px; width: 48%; }
+      .prop.monitor { left: 7%; top: 220px; width: 104px; }
+      .prop.bookshelf { right: 6%; top: 130px; width: 108px; }
+      .prop.sofa { right: 4%; bottom: 70px; width: 126px; }
+      .prop.desk { width: 140px; }
+      .chairman { width: 122px; }
+      .bubble { max-width: 190px; }
+      .bubble.status-bubble { left: 7%; top: 326px; }
+      .bubble.command-bubble { right: 5%; top: 272px; }
+      .bubble.task-bubble { left: 7%; bottom: 94px; max-width: 176px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>玉兔6 · 董事长办公室 Demo</h1>
+      <div class="status" id="modeStatus">idle loop</div>
+    </header>
+
+    <section class="stage">
+      <div class="office" aria-label="董事长办公室等距演示">
+        <img class="scene-piece lounge" src="/public/office-demo-assets/chairman/chairman-office-lounge.png" alt="">
+        <img class="scene-piece workzone" src="/public/office-demo-assets/chairman/chairman-office-workzone.png" alt="">
+        <div class="iso-floor"></div>
+        <img class="prop monitor" src="/public/office-demo-assets/chairman/prop-00.png" alt="">
+        <img class="prop bookshelf" src="/public/office-demo-assets/chairman/prop-04.png" alt="">
+        <img class="prop sofa" src="/public/office-demo-assets/chairman/prop-05.png" alt="">
+        <img class="prop chair" src="/public/office-demo-assets/chairman/prop-01.png" alt="">
+        <img class="prop desk" src="/public/office-demo-assets/chairman/prop-02.png" alt="">
+        <img class="prop lamp" src="/public/office-demo-assets/chairman/prop-03.png" alt="">
+        <img class="chairman" id="chairmanActor" src="/public/office-demo-assets/chairman/chairman-idle.webp" alt="董事长">
+
+        <div class="bubble status-bubble"><b>状态</b><br><span id="statusText">巡视中，等待下一条指令。</span></div>
+        <div class="bubble command-bubble"><b>指令</b><br>秘书汇总后进入 CEO 调度。</div>
+        <div class="bubble task-bubble"><b>任务</b><br>项目主管与外包员工按队列执行。</div>
+
+        <div class="nameplate">
+          <strong>董事长 · 霸道青年总裁</strong>
+          <span>front reference + multi-view + idle / working animation</span>
+        </div>
+      </div>
+
+      <aside class="side-panel">
+        <div class="panel-card">
+          <h2>一致性基准</h2>
+          <p>先以正面定型图锁住发型、黑色西装、年轻自信的气质，再用多视图保持方向一致。</p>
+        </div>
+        <div class="panel-card">
+          <h2>动作循环</h2>
+          <div class="mode-preview">
+            <img src="/public/office-demo-assets/chairman/chairman-idle.webp" alt="">
+            <img src="/public/office-demo-assets/chairman/chairman-working.webp" alt="">
+          </div>
+        </div>
+        <div class="panel-card route">
+          <h2>办公室链路</h2>
+          <span><b>董事长</b><small>指令入口</small></span>
+          <span><b>秘书</b><small>补全与转派</small></span>
+          <span><b>CEO</b><small>总调度</small></span>
+          <span><b>项目主管</b><small>分组执行</small></span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="asset-strip" aria-label="Generated chairman office assets">
+      <div class="asset-card"><img src="/public/office-demo-assets/chairman/chairman-reference-1024.png" alt=""><span>定型参考图</span></div>
+      <div class="asset-card"><img src="/public/office-demo-assets/chairman/chairman-multiview.png" alt=""><span>多视图</span></div>
+      <div class="asset-card"><img src="/public/office-demo-assets/chairman/chairman-idle.webp" alt=""><span>idle 动画</span></div>
+      <div class="asset-card"><img src="/public/office-demo-assets/chairman/chairman-working.webp" alt=""><span>working 动画</span></div>
+      <div class="asset-card wide"><img src="/public/office-demo-assets/chairman/chairman-office-scene-pack.png" alt=""><span>等距办公室</span></div>
+      <div class="asset-card"><img src="/public/office-demo-assets/chairman/chairman-props-preview.png" alt=""><span>家具道具</span></div>
+    </section>
+  </main>
+
+  <script>
+    const actor = document.getElementById("chairmanActor");
+    const statusText = document.getElementById("statusText");
+    const modeStatus = document.getElementById("modeStatus");
+    const modes = [
+      {
+        src: "/public/office-demo-assets/chairman/chairman-idle.webp",
+        label: "idle loop",
+        text: "靠着高背老板椅，抱臂巡视。"
+      },
+      {
+        src: "/public/office-demo-assets/chairman/chairman-working.webp",
+        label: "working loop",
+        text: "查看多屏电脑，批阅任务。"
+      }
+    ];
+    let mode = 0;
+
+    setInterval(() => {
+      mode = (mode + 1) % modes.length;
+      actor.src = modes[mode].src;
+      statusText.textContent = modes[mode].text;
+      modeStatus.textContent = modes[mode].label;
+    }, 3600);
+  </script>
+</body>
+</html>

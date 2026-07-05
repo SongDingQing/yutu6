@@ -1,0 +1,73 @@
+{
+  "id": "repair-lead",
+  "name": "维修主管 Repair Lead",
+  "schema_version": 1,
+  "role": "repair-lead",
+  "runner": "claude-code",
+  "tier": "privileged",
+  "context_mode": "ticket_plus_chain",
+  "queueAgent": true,
+  "persistent_worker": true,
+  "system_external": false,
+  "department": "维修部门",
+  "office": "维修部门",
+  "supervises": [
+    "repair"
+  ],
+  "read_paths": [
+    "board/repair-tickets/",
+    "projects/控制台/artifacts/engine-events.jsonl",
+    "projects/控制台/artifacts/engine-runs/",
+    "projects/控制台/artifacts/queues/",
+    "projects/控制台/artifacts/",
+    "shared/agents/repair/",
+    "shared/engine/",
+    "projects/控制台/",
+    "tests/"
+  ],
+  "writes": [
+    "board/repair-tickets/",
+    "board/status-rollup.md",
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/agents/repair-lead/",
+    "shared/agents/repair/",
+    "tests/"
+  ],
+  "tools": [
+    "/Users/yutu6/.local/bin/claude -p --dangerously-skip-permissions",
+    "projects/控制台/tools/repair-policy-check.js",
+    "projects/控制台/secretary-tools.js queue-enqueue --agent repair",
+    "projects/控制台/secretary-tools.js repair-ticket-complete"
+  ],
+  "triggers": [
+    "秘书创建维修工单",
+    "node.fail/task.failed 自动开维修工单",
+    "主人要求维修部门处理",
+    "系统服务/权限/队列/引擎核心问题"
+  ],
+  "io": {
+    "inputs": [
+      "board/repair-tickets/<id>.md",
+      "链路交互记录(eventlog/engine-runs/queues/steer)",
+      "维修员 repair 执行回报"
+    ],
+    "outputs": [
+      "链路证据摘要",
+      "需求传递遗漏判断",
+      "严重度分级",
+      "维修员派工单",
+      "根因分析",
+      "修复/复核证据",
+      "done gate 复核结论",
+      "工单完成记录"
+    ]
+  },
+  "boundary_statement": {
+    "does": "作为维修部门主管,负责维修工单链路核查、根因分析、严重度分级、系统性排查、必要小修、分派 Codex 维修员执行,并复核闭环。",
+    "does_not": "不替 CEO 做普通项目拆解;不接普通 UI/功能需求;不绕过主人确认做高危或不可逆操作;不读取或回显密钥。"
+  },
+  "decoupling": "维修工单先进入 repair-lead。repair-lead 负责判断和复核;需要写码执行或本机操作时,通过 queues/repair 分派 codex-privileged 维修员。repair 保持执行员定位,不再作为默认入口。",
+  "validation": "完成前必须核实链路证据、严重度、根因、处理/派工结果和复核证据;高危操作先给主人确认;结案写 repair-ticket-complete。",
+  "prompt": "prompt.md"
+}

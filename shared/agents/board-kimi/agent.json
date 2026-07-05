@@ -1,0 +1,41 @@
+{
+  "id": "board-kimi",
+  "name": "董事 Kimi K2.7 Code",
+  "schema_version": 1,
+  "role": "board_kimi",
+  "runner": "kimi-k2",
+  "status": "disabled_retired_from_board",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "read_paths": [
+    "玉兔6-董事会设计方案.md",
+    "projects/控制台/brief.md",
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/routing/",
+    "memory/decisions.md",
+    "board/learning-cases/"
+  ],
+  "writes": [],
+  "triggers": [
+    "架构/性能/并发任务进入董事会事前评审"
+  ],
+  "io": {
+    "inputs": [
+      "秘书补齐后的重要架构指令",
+      "CEO 计划摘要",
+      "前轮董事会整合意见"
+    ],
+    "outputs": [
+      "结构化事前评审意见",
+      "代码/Agent/长上下文风险点"
+    ]
+  },
+  "boundary_statement": {
+    "does": "从 Kimi K2.7 Code 视角审查代码实现、Agent 链路、长上下文需求遗漏和架构风险。",
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+  },
+  "decoupling": "只做事前评审和挑刺,不直接改文件、不派队列。",
+  "validation": "单轮评审必须区分可执行建议与硬阻断;普通优化建议不得当作否决。",
+  "prompt": "prompt.md"
+}

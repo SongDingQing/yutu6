@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "self-reflection-optimizer",
+  "name": "Self Reflection Optimizer",
+  "status": "active",
+  "updated_at": "2026-07-01",
+  "summary": "共享自省优化能力:对指定模块强力挑刺,逐项给改进建议,低风险高收益项自动执行,争议/不确定/影响现有功能项交给主人拍板;优秀案例进入学习案例库并可自动触发后续自省。",
+  "keywords": [
+    "自省优化",
+    "反思优化",
+    "挑刺优化",
+    "模块复盘",
+    "自动优化",
+    "优秀案例",
+    "learning cases",
+    "owner decision",
+    "auto execute",
+    "critique ledger"
+  ],
+  "entrypoint": "INDEX.md",
+  "read_order": [
+    "quick-context.md",
+    "io-contracts.md",
+    "operations.md",
+    "README.md"
+  ],
+  "primary_files": [
+    "/Users/yutu6/.codex/skills/self-reflection-optimizer/SKILL.md",
+    "/Users/yutu6/玉兔6工作区/projects/控制台/tools/self-reflection-trigger.js",
+    "/Users/yutu6/玉兔6工作区/board/learning-cases/self-reflection-optimizer-cases.md"
+  ],
+  "authorized_agents": [
+    "secretary",
+    "ceo",
+    "supervisor-控制台",
+    "repair-lead",
+    "repair"
+  ],
+  "authorization_policy": "低风险高收益项可自动执行;争议、不确定利弊、影响现有功能/接口/队列/权限/成本的改动必须交给主人拍板。Starlaid/星桥排除。"
+}

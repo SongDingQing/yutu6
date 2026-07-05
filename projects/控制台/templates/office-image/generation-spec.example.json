@@ -1,0 +1,26 @@
+{
+  "taskId": "example-secretary-working-v3",
+  "project": "yutu6-control-console",
+  "templateId": "office.person.seated.agent.v1",
+  "assetClass": "person",
+  "role": "secretary",
+  "meowaCommand": "pixel-gen-run",
+  "referenceManifest": "projects/控制台/templates/office-image/reference-manifest.json",
+  "referenceImage": "projects/控制台/artifacts/office-assets/style-reference/approved-office-style-reference.png",
+  "outputDir": "projects/控制台/artifacts/office-assets/characters/secretary-v3",
+  "requirement": "Generate a seated secretary working sprite, transparent background, same camera/palette/proportions as the approved V3 reference, smaller refined head scale, both hands anchored on the keyboard, finger-only typing posture, no white halo around hair or hands.",
+  "styleReferenceVersion": "v3",
+  "scalePolicy": {
+    "doNotUpscaleBeyond": 1.15,
+    "regenerateIfDisplayNeedsMoreDetail": true
+  },
+  "animationContract": {
+    "v3": true,
+    "maxInputPx": 256,
+    "motionPolicy": "finger-only typing motion; wrists and hands stay anchored",
+    "edgeCleanup": {
+      "noWhiteHalo": true
+    }
+  },
+  "notes": "This is an example only; replace referenceImage with the owner-approved active V3 reference before generation. Current V3 is spec-only pending, so do not run Meowa yet."
+}

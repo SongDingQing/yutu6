@@ -1,0 +1,42 @@
+{
+  "id": "supervisor",
+  "name": "项目主管 Supervisor(一项目一个)",
+  "schema_version": 1,
+  "role": "supervisor",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "scoped_to_project": true,
+  "read_paths": [
+    "projects/<self>/**",
+    "shared/reference/",
+    "shared/capability_registry/",
+    "shared/config/"
+  ],
+  "writes": [
+    "projects/<self>/status.md",
+    "projects/<self>/tasks/*/task.md"
+  ],
+  "triggers": [
+    "收到 brief.md(总管派单)",
+    "员工回 result.md",
+    "员工 questions.md 提问"
+  ],
+  "io": {
+    "inputs": [
+      "projects/<self>/brief.md",
+      "员工 result.md / questions.md"
+    ],
+    "outputs": [
+      "任务 task.md(派给员工)",
+      "projects/<self>/status.md(上报总管)"
+    ]
+  },
+  "boundary_statement": {
+    "does": "负责单项目规划、拆任务、派员工、审产物和更新项目 status。",
+    "does_not": "不做特权维修/进程救火;不管理 agent 招聘入职;不写长期记忆;不越权到其它项目。"
+  },
+  "decoupling": "只看自己项目 + 共享 reference/能力库;不读别的项目、不读 board",
+  "validation": "agents-check.js + 单写主原则(只写自己项目文件)",
+  "prompt": "prompt.md"
+}

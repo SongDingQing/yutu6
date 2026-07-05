@@ -1,0 +1,37 @@
+{
+  "id": "instruction-expansion-router",
+  "schema_version": 1,
+  "updated_at": "2026-06-18",
+  "status": "rebuilt_in_workspace",
+  "origin": "新机重建(不从旧机拷);沿用旧机同名 skill 的分发原则,精简为前门专用。",
+  "summary": "前门指令补齐路由器:把人随口/简略/截图/跨项目的指令,补全成完整 task 信封后再派单。",
+  "binding": {
+    "attached_to": "front_door_orchestrator_only",
+    "front_door_runner": "claude",
+    "not_attached_to": "内部 agent(主管/员工)——它们走精确 task.md/result.md 信封,不挂本扩展",
+    "reason": "指令补齐是人↔系统入口的事;内部信封已是补全态,重复补齐会串味、浪费 token"
+  },
+  "keywords": [
+    "指令补齐",
+    "instruction expansion",
+    "前门",
+    "口语",
+    "简略指令",
+    "截图指令",
+    "跨项目",
+    "router",
+    "总管",
+    "Codex",
+    "task 信封"
+  ],
+  "read_order": [
+    "INDEX.md",
+    "expansion-spec.md"
+  ],
+  "activates_when": "阶段3 实例化前门总管会话时,作为其 L1 行为加载(稳定前缀)。引擎就绪前为规范+提示词,不是运行代码。",
+  "blueprint_refs": [
+    "§3 need-to-know",
+    "§4 信封模板",
+    "§18.5 稳定前缀/常驻记忆"
+  ]
+}

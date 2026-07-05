@@ -1,0 +1,4 @@
+interface:
+  display_name: "玉凤"
+  short_description: "Story-setting review for Starlaid and Simulaid content."
+  default_prompt: "Use $yufeng to review whether a Starlaid or Simulaid image prompt, asset, or story change fits the game canon."

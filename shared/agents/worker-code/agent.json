@@ -1,0 +1,51 @@
+{
+  "id": "worker-code",
+  "name": "后端程序员 Worker Code",
+  "schema_version": 1,
+  "role": "worker_code",
+  "runner": "codex",
+  "tier": "exec",
+  "context_mode": "explicit",
+  "queueAgent": false,
+  "persistent_worker": false,
+  "system_external": false,
+  "read_paths": [
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/routing/",
+    "tests/",
+    "projects/控制台/brief.md",
+    "projects/控制台/status.md",
+    "shared/knowledge/engineering/INDEX.md",
+    "shared/knowledge/engineering/worker-code-handoff.md"
+  ],
+  "writes": [
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/routing/",
+    "tests/"
+  ],
+  "triggers": [
+    "review-loop implement 节点",
+    "项目主管派发的控制台代码/配置/文档落地任务"
+  ],
+  "io": {
+    "inputs": [
+      "项目主管目标和验收",
+      "brief/status",
+      "必要的源码、配置、测试"
+    ],
+    "outputs": [
+      "最小实现改动",
+      "测试/验证结果",
+      "implementation JSON changed_files"
+    ]
+  },
+  "boundary_statement": {
+    "does": "在主管 review-loop 内按任务验收落地控制台代码、配置、文档和测试改动。",
+    "does_not": "不做 CEO 项目拆解、不替主管复审、不做 IT 发布/回滚、不做维修员特权救火、不创建 agent 或处理长期记忆。"
+  },
+  "decoupling": "worker_code 是实现者,不是路由者或复审者。专业角色有明确边界时只接落盘实现;版本发布交 it_engineer,特权运维交 repair,agent 生命周期交 HR。",
+  "validation": "Codex 接手后必须先读工程交接索引和 worker-code handoff;必须运行与改动风险匹配的本地测试或说明无法运行原因;最终 JSON 的 changed_files 只列本轮实际改动。",
+  "prompt": "prompt.md"
+}

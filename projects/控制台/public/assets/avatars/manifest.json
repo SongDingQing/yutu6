@@ -1,0 +1,67 @@
+[
+  {
+    "id": "chairman",
+    "label": "董事长",
+    "file": "/public/assets/avatars/chairman.png"
+  },
+  {
+    "id": "secretary",
+    "label": "秘书",
+    "file": "/public/assets/avatars/secretary.png"
+  },
+  {
+    "id": "ceo",
+    "label": "CEO",
+    "file": "/public/assets/avatars/ceo.png"
+  },
+  {
+    "id": "supervisor",
+    "label": "项目主管",
+    "file": "/public/assets/avatars/supervisor.png"
+  },
+  {
+    "id": "worker_code",
+    "label": "写码员工",
+    "file": "/public/assets/avatars/worker_code.png"
+  },
+  {
+    "id": "worker_narrow",
+    "label": "外包员工",
+    "file": "/public/assets/avatars/worker_narrow.png"
+  },
+  {
+    "id": "reasoning_architect",
+    "label": "架构/推理",
+    "file": "/public/assets/avatars/reasoning_architect.png"
+  },
+  {
+    "id": "quality_ops",
+    "label": "质量运营",
+    "file": "/public/assets/avatars/quality_ops.png"
+  },
+  {
+    "id": "governance",
+    "label": "监管/复盘",
+    "file": "/public/assets/avatars/governance.png"
+  },
+  {
+    "id": "gui_desktop_control",
+    "label": "Peekaboo",
+    "file": "/public/assets/avatars/gui_desktop_control.png"
+  },
+  {
+    "id": "ui_optimizer",
+    "label": "优化师",
+    "file": "/public/assets/avatars/ui_optimizer.png"
+  },
+  {
+    "id": "dev_worker",
+    "label": "自优化开发",
+    "file": "/public/assets/avatars/dev_worker.png"
+  },
+  {
+    "id": "hermes",
+    "label": "Hermes",
+    "file": "/public/assets/avatars/hermes.png"
+  }
+]

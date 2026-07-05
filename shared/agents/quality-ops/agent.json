@@ -1,0 +1,24 @@
+{
+  "id": "quality-ops",
+  "name": "质量运营工程师(系统级 1)",
+  "schema_version": 1,
+  "role": "quality_ops",
+  "runner": "zhipu-glm",
+  "tier": "standard",
+  "context_mode": "explicit",
+  "system_wide_singleton": true,
+  "read_paths": ["shared/engine/", "projects/*/artifacts/engine/events*.jsonl", "projects/控制台/artifacts/canary/", "projects/控制台/tools/mechanisms-smoke-test.js", "board/repair-tickets/", "projects/*/tasks/*/", "shared/capability_registry/"],
+  "writes": ["shared/capability_registry/(硬化提案)", "knowledge/归档/硬化建议-*.md", "board/repair-tickets/(金丝雀红灯归因补充)"],
+  "triggers": ["每日金丝雀巡检结果产出后(e2e-canary)", "mechanisms-smoke 断言变红 / 机制演进", "项目架构更改 / 里程碑后", "同一确定性动作序列重复 >= N 次", "周期性 / 手动"],
+  "io": {
+    "inputs": ["金丝雀状态(artifacts/canary/state.json + canary.* 事件)", "事件日志(eventlog)", "任务 ledger(taskstore)", "task.md/result.md 与工具调用序列"],
+    "outputs": ["金丝雀红灯归因(环节级)与工单跟进结论", "mechanisms-smoke 断言修正提案", "硬化建议清单:候选形态(骨头/软骨/肌肉记忆)+ 命中次数 + 预计 token 节省 + 风险"]
+  },
+  "boundary_statement": {
+    "does": "金丝雀巡检结果核查与红灯归因;mechanisms-smoke 断言维护(owner);硬化建议复核与可回退硬化提案。",
+    "does_not": "不直接做业务实现、不做特权维修(归因后交维修部门)、不替主管规划项目、不创建新 agent。"
+  },
+  "decoupling": "只读事件日志/ledger/金丝雀状态/能力库,不陷入项目业务细节;增量分析不全量",
+  "validation": "硬化产物须带测试+可回退 LLM;human gate 批准后才落地(§16);红灯归因必须有事件/队列条目证据",
+  "prompt": "prompt.md"
+}

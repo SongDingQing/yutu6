@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>办公室 Sprite v2 验收</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0d1117;--panel:#151b22;--line:#2d3745;--text:#e6edf7;--muted:#92a0b2;--accent:#5fb3ff}
+    *{box-sizing:border-box}
+    body{margin:0;padding:22px;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+    h1{font-size:18px;margin:0 0 8px}
+    p{color:var(--muted);margin:0 0 18px}
+    .grid{display:grid;grid-template-columns:repeat(6,minmax(128px,1fr));gap:14px}
+    .card{min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px}
+    .name{display:flex;justify-content:space-between;gap:8px;margin-bottom:10px;color:#dfe8f5;font-weight:700}
+    .tag{color:var(--accent);font-size:12px;font-weight:600}
+    .pose{display:grid;gap:8px}
+    .slot{height:164px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.05);border-radius:6px;background:#111820}
+    .slot img{width:148px;height:148px;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 8px 8px rgba(0,0,0,.32))}
+    .caption{font-size:12px;color:var(--muted);text-align:center}
+    .note{margin-top:16px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#101720;color:#b9c5d6}
+    @media (max-width:1100px){.grid{grid-template-columns:repeat(3,minmax(128px,1fr))}}
+    @media (max-width:640px){body{padding:14px}.grid{grid-template-columns:repeat(2,minmax(128px,1fr))}.slot img{width:128px;height:128px}.slot{height:142px}}
+  </style>
+</head>
+<body>
+  <h1>办公室坐姿 Sprite v2</h1>
+  <p>6 个角色已重做为 256px 源图；idle 为 PNG，working 为 WebP 循环动画，保留 PNG 首帧作兼容。</p>
+  <section class="grid" id="grid"></section>
+  <div class="note">验收重点：像素点更密、边缘更硬、角色坐姿和桌椅比例统一；working 均为双手打字方向，正式办公室视图已切到 WebP 动画。</div>
+  <script>
+    const roles=[
+      ['secretary','秘书'],
+      ['ceo','CEO'],
+      ['supervisor','主管'],
+      ['worker','程序员'],
+      ['outsourcer','外包'],
+      ['edge','外围/专员']
+    ];
+    const clean=new Set(['worker','outsourcer','edge']);
+    const base='/public/office-demo-assets/';
+    const grid=document.getElementById('grid');
+    for(const [id,label] of roles){
+      const suffix=clean.has(id)?'-clean':'';
+      const card=document.createElement('article');
+      card.className='card';
+      card.innerHTML=`
+        <div class="name"><span>${label}</span><span class="tag">${id}</span></div>
+        <div class="pose">
+          <div class="slot"><img src="${base}sprite-seated-${id}-idle${suffix}.png?v=v2" alt="${label} idle"></div>
+          <div class="caption">idle PNG</div>
+          <div class="slot"><img src="${base}sprite-seated-${id}-working${suffix}.webp?v=v2" alt="${label} working"></div>
+          <div class="caption">working WebP</div>
+        </div>`;
+      grid.appendChild(card);
+    }
+  </script>
+</body>
+</html>

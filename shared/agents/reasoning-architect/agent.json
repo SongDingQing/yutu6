@@ -1,0 +1,48 @@
+{
+  "id": "reasoning-architect",
+  "name": "架构/推理 Reasoning Architect",
+  "schema_version": 1,
+  "role": "reasoning_architect",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "read_paths": [
+    "projects/控制台/brief.md",
+    "projects/控制台/status.md",
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/routing/",
+    "shared/reference/",
+    "tests/"
+  ],
+  "writes": [
+    "projects/控制台/artifacts/architecture/"
+  ],
+  "triggers": [
+    "复杂架构设计",
+    "跨模块风险分析",
+    "高风险改造前的技术方案复核",
+    "反复失败后的方案仲裁"
+  ],
+  "io": {
+    "inputs": [
+      "目标、约束、相关源码和事件证据"
+    ],
+    "outputs": [
+      "架构判断",
+      "风险清单",
+      "可落地设计方案",
+      "交给 worker_code 的实现边界"
+    ]
+  },
+  "boundary_statement": {
+    "does": "做复杂架构、推理、风险和方案裁定,给出可验证的实现边界。",
+    "does_not": "不接普通实现、不替主管验收、不做 IT 发布/回滚、不处理特权维修或长期记忆。"
+  },
+  "decoupling": "作为主管和 worker_code 之间的架构顾问;结论进入 artifacts/architecture,落盘实现仍由 worker_code 或对应专职角色执行。",
+  "validation": "方案必须指向具体文件/接口/测试,并明确风险和回滚方式。",
+  "prompt": "prompt.md"
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "meowa-game-assets",
+  "name": "Meowa Game Assets",
+  "status": "active",
+  "updated_at": "2026-06-19",
+  "summary": "Shared Meowa game asset generation capability for pixel sprites, HD transparent assets, UI mockups, texture tiles, map tiles, animation, SFX, and music. The CLI and key source are shared by authorized agents instead of being Codex-private.",
+  "keywords": [
+    "Meowa",
+    "MeowArt",
+    "meowart_api",
+    "game assets",
+    "游戏素材",
+    "像素",
+    "pixel art",
+    "sprite",
+    "透明 PNG",
+    "tileset",
+    "texture",
+    "map tile",
+    "animation",
+    "sound effects",
+    "SFX",
+    "BGM",
+    "Simulaid"
+  ],
+  "entrypoint": "INDEX.md",
+  "read_order": [
+    "quick-context.md",
+    "io-contracts.md",
+    "operations.md",
+    "README.md"
+  ],
+  "primary_files": [
+    "/Users/yutu6/玉兔6工作区/shared/tools/meowa/meowart_api.py",
+    "/Users/yutu6/玉兔6工作区/shared/tools/meowa/meowart_api.md",
+    "/Users/yutu6/玉兔6工作区/shared/tools/meowa/SKILL.md"
+  ],
+  "key_source": {
+    "env_name": "MEOWART_API_KEY",
+    "default_file": "/Users/yutu6/.config/yutu6-secrets/secrets.env",
+    "override_env": "YUTU6_SECRETS_ENV"
+  },
+  "authorized_agents": [
+    "secretary",
+    "codex",
+    "supervisor-Simulaid"
+  ],
+  "authorization_policy": "可扩展：后续接新 agent 时，只在本模块授权清单加一行，并让该 agent 按 io-contract 读取统一 key 与共享 CLI。"
+}

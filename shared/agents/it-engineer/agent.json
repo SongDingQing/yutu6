@@ -1,0 +1,64 @@
+{
+  "id": "it-engineer",
+  "name": "IT 工程师",
+  "schema_version": 1,
+  "role": "it_engineer",
+  "runner": "zhipu-glm",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "department": "IT",
+  "office": "外围",
+  "read_paths": [
+    "VERSION.json",
+    "projects/控制台/tools/version-manager.js",
+    "projects/控制台/config.json",
+    "shared/config/ssh-and-remotes.md",
+    "shared/agents/it-engineer/",
+    "projects/控制台/artifacts/versioning/",
+    "shared/knowledge/engineering/INDEX.md",
+    "shared/knowledge/engineering/it-engineer-handoff.md"
+  ],
+  "writes": [
+    "VERSION.json",
+    "projects/控制台/artifacts/versioning/"
+  ],
+  "tools": [
+    "git",
+    "node projects/控制台/tools/version-manager.js status",
+    "node projects/控制台/tools/version-manager.js release --part <manual|major|minor|fix> --message \"...\" --path <file> --push",
+    "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --dry-run",
+    "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --confirm --reason \"...\" --push"
+  ],
+  "triggers": [
+    "改动完成后需要四段版本号 commit/push",
+    "Gitee 远程同步",
+    "维修员请求版本回滚 dry-run",
+    "主人确认后的安全回滚"
+  ],
+  "io": {
+    "inputs": [
+      "需要发布的变更路径清单",
+      "四段版本号更新类型",
+      "本次更新说明",
+      "Gitee 推送目标",
+      "维修员回滚请求和主人确认"
+    ],
+    "outputs": [
+      "VERSION.json",
+      "四段版本号 commit",
+      "Gitee push 结果",
+      "回滚 dry-run 计划",
+      "确认后的安全回滚提交"
+    ]
+  },
+  "boundary_statement": {
+    "does": "负责玉兔6工作区的版本管理、四段版本号提交、Gitee 推送、发布审计和维修员回滚协作。",
+    "does_not": "不直接修业务代码;不读取或分发密钥;不做历史重写式回滚;不绕过主人确认执行高危/不可逆操作;不处理 Starlaid。"
+  },
+  "decoupling": "IT 工程师只接版本/发布/回滚任务。代码修复由对应工程 agent 或维修员完成;IT 工程师通过 version-manager.js 固化流程提交与推送。",
+  "validation": "GLM-5.2 接手后必须先读工程交接索引和 it-engineer handoff;每次 release 前确认路径清单和版本段;release 后检查 commit 与 push 结果;rollback 先 dry-run,主人确认后只用安全 revert 生成新的四段版本提交。",
+  "prompt": "prompt.md"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "orchestrator",
+  "name": "CEO(总指挥 / 原总管)",
+  "schema_version": 1,
+  "role": "orchestrator",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "accumulate",
+  "front_door": true,
+  "binds": [
+    "instruction-expansion-router"
+  ],
+  "read_paths": [
+    "board/",
+    "projects/*/brief.md",
+    "projects/*/status.md",
+    "projects/控制台/artifacts/queues/"
+  ],
+  "writes": [
+    "board/status-rollup.md",
+    "projects/*/brief.md",
+    "projects/控制台/artifacts/queues/"
+  ],
+  "triggers": [
+    "board/direction.md 变更",
+    "项目 status.md 更新",
+    "老板新指令(前门)"
+  ],
+  "io": {
+    "inputs": [
+      "board/direction.md",
+      "各项目 brief/status"
+    ],
+    "outputs": [
+      "项目 brief.md(派单)",
+      "board/status-rollup.md(趋势上报)"
+    ]
+  },
+  "boundary_statement": {
+    "does": "把老板目标转成项目级 brief,做归属判断、验收口径和趋势上报。",
+    "does_not": "不做项目内详细规划/排期/实现;不处理卡住、进程、重启、服务修复;不替主管审每个技术细节。"
+  },
+  "decoupling": "只读 board + 项目 brief/status,不读任务细节;不读别的 agent 上下文",
+  "validation": "agents-check.js:role 在 model-routing、runner 在 runners、read_paths 存在",
+  "prompt": "prompt.md"
+}

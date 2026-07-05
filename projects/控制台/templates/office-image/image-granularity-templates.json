@@ -1,0 +1,335 @@
+{
+  "schema_version": "2026-06-23.office-image-template.v3",
+  "source_of_truth": "memory/办公室生图设计规范.md",
+  "scope": "Yutu6 control-console office assets only",
+  "starlaid_excluded": true,
+  "approval_policy": {
+    "reference_required_for_generation": true,
+    "batch_regeneration_allowed_only_after_owner_approval": true,
+    "cost_control": "Generate one asset at a time, validate, then continue.",
+    "generation_freeze": "Do not call imagegen or Meowa for V3 until the owner approves the V3 reference brief.",
+    "v3_status": "spec-only-pending-owner-review"
+  },
+  "shared_style": {
+    "camera": "2:1 isometric, front-right/down-right readable office view",
+    "rendering": "refined high-density pixel-informed art; crisp silhouette; not coarse block pixels; no fuzzy edges",
+    "palette": {
+      "background": "#0f1117",
+      "panel": "#151922",
+      "carpet": "#1b1f2a",
+      "line": "#2b3140",
+      "cyan_accent": "#6ea8fe",
+      "green_accent": "#46d39a",
+      "violet_accent": "#8b7cf6",
+      "warm_light": "#f4c766"
+    },
+    "lighting": "soft top-left key light, small warm desk highlights, consistent shadow direction",
+    "proportions": {
+      "head_scale": "refined chibi-human with smaller heads than v2; head height target is about 28-32 percent of full seated figure height",
+      "normal_workstation_span": "2x2 source tile, not a 1x1 desk scaled up",
+      "chairman_office_span": "5x5 integer tile office with a clear 2x3 main desk/standing zone"
+    },
+    "grid": {
+      "base_tile_px": {
+        "width": 192,
+        "height": 126
+      },
+      "top_face_ratio": "2:1 diamond",
+      "minimum_visible_thickness_px": 24,
+      "preferred_visible_thickness_px": 32,
+      "integer_grid_required": true,
+      "complete_footprint_required": true,
+      "no_missing_corners": true,
+      "join_edges": "Every tile/component must include full left/right/front/back diamond boundary coverage so adjacent pieces can touch without holes, clipped corners, or mismatched shadows.",
+      "max_display_scale_without_regeneration": 1.15
+    },
+    "animation": {
+      "meowa_pixel_input_max_px": 256,
+      "edge_cleanup_required": "Transparent sprites must be matte-cleaned after generation; no white halo around hair, shoulders, hands, chair, or desk.",
+      "typing_motion": "Typing animation keeps wrists and hands anchored over the keyboard; only fingers make small alternating taps, with optional tiny monitor glow."
+    },
+    "negative_prompts": [
+      "bright green background",
+      "emoji-only style",
+      "flat parallelogram without thickness",
+      "rabbit CEO unless explicitly requested",
+      "mixed camera angles",
+      "reversed or mirrored monitor content facing away from the seated worker",
+      "standalone mismatched chairs next to unrelated desks",
+      "1x1 desk disguised as a 2x2 workstation",
+      "missing tile corner",
+      "cropped footprint",
+      "incomplete desk footprint",
+      "one-piece flattened chairman office illustration without a visible 5x5 grid logic",
+      "large scaling blur or density mismatch",
+      "white halo or chroma-key fringe around hair",
+      "arms swinging up and down for typing instead of finger-only motion",
+      "watermark",
+      "text labels inside the art",
+      "blurry or anti-aliased muddy pixel edges"
+    ]
+  },
+  "templates": [
+    {
+      "id": "office.reference.sheet.v3",
+      "asset_class": "reference_sheet",
+      "purpose": "One unified V3 visual baseline for people, integer-grid tiles, 2x2 workstations, 5x5 chairman office, animation constraints, props, and palette.",
+      "dimensions": {
+        "canvas_px": {
+          "width": 1536,
+          "height": 1536
+        }
+      },
+      "projection": "all samples use the same 2:1 isometric office camera; no mixed perspective or front-only asset pasted into the sheet",
+      "alignment": "reference sheet must visibly mark 1x1, 2x2, 2x3, and 5x5 grid relationships so later assets can inherit exact scale and footprint rules",
+      "style_notes": "unified refined pixel-informed office reference; smaller V3 head scale; complete tile corners; no green screen placeholders; no white matte edge",
+      "required_content": [
+        "chairman character sample with smaller refined head scale",
+        "secretary typing sample with hands anchored and finger-only motion notes",
+        "supervisor or CEO sample",
+        "worker or specialist sample with monitor facing the worker/viewer correctly",
+        "1x1 thick solid carpet tile sample with complete diamond corners",
+        "2x2 workstation sample with complete footprint and matched desk-chair-computer set",
+        "5x5 chairman office grid preview with visible integer layout and 2x3 main zone",
+        "wall or partition sample with grid-aligned anchors",
+        "desk/chair/monitor props shown only as references, not loose production pieces"
+      ],
+      "generation_exception": "May be created without an existing referenceImage, but must be marked pending until owner approval."
+    },
+    {
+      "id": "office.person.seated.agent.v1",
+      "asset_class": "person",
+      "applies_to": [
+        "secretary",
+        "ceo",
+        "supervisor",
+        "worker",
+        "outsourcer",
+        "edge",
+        "repair",
+        "insight_scout",
+        "hermes",
+        "zhipu_designer",
+        "ui_optimizer"
+      ],
+      "dimensions": {
+        "canvas_px": {
+          "min": 128,
+          "preferred": 192,
+          "max": 256
+        },
+        "display_px": {
+          "workspace": 56,
+          "office_demo": 88,
+          "large_preview_max": 128
+        }
+      },
+      "projection": "seated at office chair, body and desk facing same 2:1 isometric front-right angle",
+      "alignment": "chair base sits inside the matching workstation footprint; desk edge parallel to tile edge; character must be generated against the intended desk/chair scale, not pasted onto a separate prop",
+      "style_notes": "human chibi office character, refined and clear, same head/body ratio across roles, smaller head than v2",
+      "scale_policy": "Do not upscale official sprites beyond 1.15x source pixels; regenerate at a higher native size if a larger display is needed.",
+      "edge_cleanup": "No white or light matte halo after transparent-background extraction; hair and hands need clean alpha edges.",
+      "animation_motion_policy": "For typing, both hands stay on keyboard and only fingers make small alternating taps; wrists, elbows, desk, chair, and camera remain stable.",
+      "role_differentiators": {
+        "secretary": "professional suit, both hands resting on keyboard while working, finger-only typing motion",
+        "ceo": "formal calm executive, not animal mascot",
+        "supervisor": "semi-formal project lead with laptop or tablet",
+        "worker": "casual programmer with multi-monitor coding workstation; monitor faces the worker/viewer and is never reversed",
+        "outsourcer": "light practical clothes, temporary contractor badge or compact laptop",
+        "edge": "specialist with tool cue such as screenshot, repair, or design tablet"
+      },
+      "required_outputs": [
+        "idle transparent png or webp",
+        "working loop webp with visible two-hand typing or tool motion"
+      ]
+    },
+    {
+      "id": "office.person.chairman.office.5x5.v3",
+      "asset_class": "person_tile",
+      "applies_to": [
+        "chairman"
+      ],
+      "dimensions": {
+        "reference_px": {
+          "width": 1024,
+          "height": 1024
+        },
+        "office_canvas_px": {
+          "width": 960,
+          "height": 630
+        },
+        "office_grid_span": {
+          "width_tiles": 5,
+          "height_tiles": 5
+        },
+        "main_station_span": {
+          "width_tiles": 2,
+          "height_tiles": 3
+        },
+        "display_px": {
+          "workspace": 260
+        }
+      },
+      "projection": "same 2:1 isometric office view; chairman, boss chair, and desk all aligned",
+      "alignment": "large chairman office is composed from an exact 5x5 tile grid; executive desk and boss-chair main station occupies a clear 2x3 footprint; walls, sofa, bookshelf, trophy, and window modules align to the same grid; all outer tile corners must be complete",
+      "tile_grid_contract": {
+        "grid_version": "v3",
+        "office_span": "5x5",
+        "main_station_span": "2x3",
+        "complete_footprint_required": true,
+        "no_missing_corners": true,
+        "may_be_single_composite_only_if": "The composite preserves a visibly integer 5x5 footprint, full edge coverage, and a placement map for every major module."
+      },
+      "style_notes": "young handsome K-drama domineering executive, clean confident face, black suit, refined not photorealistic; office must read as modular tile art, not one flattened scene pasted over the grid",
+      "required_outputs": [
+        "front reference png",
+        "multi-view sheet for consistency",
+        "idle loop seated near high-back chair",
+        "working loop reviewing screens or documents",
+        "5x5 modular office preview png",
+        "integer 5x5 placement map with the 2x3 main station marked",
+        "placement metadata for 2x3 main station and secondary props"
+      ]
+    },
+    {
+      "id": "office.tile.carpet.1x1.v1",
+      "asset_class": "tile",
+      "applies_to": [
+        "solid_carpet",
+        "department_floor"
+      ],
+      "dimensions": {
+        "canvas_px": {
+          "width": 192,
+          "height": 126
+        },
+        "top_face_px": {
+          "width": 192,
+          "height": 96
+        }
+      },
+      "projection": "2:1 diamond top face with visible side faces",
+      "alignment": "tile origin is bottom center; adjacent tiles must touch without gaps at diamond edges",
+      "grid_contract": {
+        "grid_version": "v3",
+        "complete_footprint_required": true,
+        "no_missing_corners": true,
+        "edge_join_policy": "All four diamond boundaries must be complete and shareable with adjacent tiles."
+      },
+      "style_notes": "pure solid charcoal carpet top, subtle texture only if it does not break solid-color read, cyan or warm edge line allowed",
+      "required_outputs": [
+        "transparent png",
+        "metrics json with top face polygon and visible thickness"
+      ]
+    },
+    {
+      "id": "office.tile.workstation.2x2.v1",
+      "asset_class": "tile",
+      "applies_to": [
+        "workstation",
+        "chairman_desk",
+        "team_station"
+      ],
+      "dimensions": {
+        "canvas_px": {
+          "width": 384,
+          "height": 252
+        },
+        "grid_span": "2x2"
+      },
+      "projection": "all furniture edges parallel to 2:1 tile grid",
+      "alignment": "desk, chair, computer, and actor fit within a complete normal 2x2 tile footprint; z-order leaves actor readable; chair and desk are generated as a matching set, not unrelated loose props; no cropped or missing corners",
+      "grid_contract": {
+        "grid_version": "v3",
+        "grid_span": "2x2",
+        "complete_footprint_required": true,
+        "no_missing_corners": true,
+        "edge_join_policy": "The 2x2 source tile must have complete joinable boundaries on all sides; do not generate a 1x1 desk and scale it up."
+      },
+      "style_notes": "dark office furniture, monitor glow, no oversized desk hiding character; programmer monitors must face the worker and viewer correctly, never mirrored away",
+      "required_outputs": [
+        "transparent png or layered pack",
+        "placement metadata for z-order"
+      ]
+    },
+    {
+      "id": "office.tile.wall.partition.v1",
+      "asset_class": "tile",
+      "applies_to": [
+        "wall",
+        "partition",
+        "window",
+        "corner"
+      ],
+      "dimensions": {
+        "canvas_px": {
+          "preferred_width": 192,
+          "preferred_height": 192
+        }
+      },
+      "projection": "vertical wall planes sit on 1x1 or 2x1 tile back edge",
+      "alignment": "wall base line must match tile back edge angle",
+      "style_notes": "dark panel wall, glass partition, city-window hints; no fantasy stone or outdoor terrain",
+      "required_outputs": [
+        "transparent png",
+        "placement anchor metadata"
+      ]
+    },
+    {
+      "id": "office.animation.typing.v3",
+      "asset_class": "animation",
+      "applies_to": [
+        "secretary_typing",
+        "worker_typing",
+        "supervisor_typing",
+        "ceo_typing"
+      ],
+      "dimensions": {
+        "frame_px": {
+          "min": 128,
+          "preferred": 192,
+          "max": 256
+        },
+        "frames": {
+          "min": 6,
+          "preferred": 8
+        }
+      },
+      "projection": "same 2:1 office view for every frame; no camera drift",
+      "alignment": "hands remain anchored over keyboard; fingers tap in alternating small movements; desk, chair, monitor, wrists, elbows, head, and hair stay stable except optional subtle breathing",
+      "style_notes": "transparent working loop webp/gif; no white edge around hair or hands; no arm pumping; no desk wobble; monitor glow may flicker subtly",
+      "required_outputs": [
+        "loop webp",
+        "first-frame transparent png",
+        "contact sheet showing finger-only motion",
+        "edge-clean alpha check result"
+      ]
+    },
+    {
+      "id": "office.animation.secretary.handoff.v1",
+      "asset_class": "animation",
+      "applies_to": [
+        "secretary_arrival",
+        "chairman_to_secretary_to_ceo"
+      ],
+      "dimensions": {
+        "frame_px": {
+          "min": 128,
+          "preferred": 192,
+          "max": 256
+        },
+        "frames": {
+          "min": 6,
+          "preferred": 12
+        }
+      },
+      "projection": "same 2:1 office view for every frame",
+      "alignment": "walk path follows tile axes; hands and document remain visible",
+      "style_notes": "sequence: chairman gives instruction sheet, secretary takes it, returns to workstation typing, mail flies to CEO",
+      "required_outputs": [
+        "loop or sequence webp",
+        "first-frame png for preview"
+      ]
+    }
+  ]
+}

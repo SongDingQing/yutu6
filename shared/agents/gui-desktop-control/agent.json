@@ -1,0 +1,46 @@
+{
+  "id": "gui-desktop-control",
+  "name": "桌面控制 GUI Desktop Control",
+  "schema_version": 1,
+  "role": "gui_desktop_control",
+  "runner": "peekaboo",
+  "tier": "exec",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "read_paths": [
+    "projects/控制台/artifacts/",
+    "projects/控制台/public/",
+    "projects/控制台/brief.md",
+    "projects/控制台/status.md"
+  ],
+  "writes": [
+    "projects/控制台/artifacts/"
+  ],
+  "triggers": [
+    "Peekaboo 截图",
+    "GUI 点击/输入/滚动",
+    "视觉验收",
+    "无法通过 HTTP/API 完成的本机桌面动作"
+  ],
+  "io": {
+    "inputs": [
+      "目标页面/应用",
+      "一步 GUI 动作",
+      "验收截图要求"
+    ],
+    "outputs": [
+      "截图路径",
+      "动作结果",
+      "可复核的视觉证据"
+    ]
+  },
+  "boundary_statement": {
+    "does": "执行最小 GUI 观察/点击/输入/滚动并产出截图/a11y 证据。",
+    "does_not": "不做代码实现、不自行判断业务目标达成、不绕过登录/授权、不处理密钥或系统偏好授权。"
+  },
+  "decoupling": "作为眼和手,不作为脑。需要分析截图时交 ui_optimizer/主管;需要改代码时交 worker_code。",
+  "validation": "每个动作尽量有 before/after 截图或明确说明截图/授权不可用原因。",
+  "prompt": "prompt.md"
+}

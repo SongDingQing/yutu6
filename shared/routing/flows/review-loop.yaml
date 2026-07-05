@@ -1,0 +1,38 @@
+# 玉兔6 · 声明式流程示例:实现 → 评审循环 →(高危走 human gate)→ 完成
+# 依据 §18.1 节点图 + §18.7 三道护栏。编排器只算 Jinja2 表达式选下一节点,零 token。
+schema_version: 1
+id: review-loop
+description: 结构已知的固定流程,写死;只有结构未知才交回 LLM 的 planner 节点。2026-06 起在 implement+review 上叠加 loop engineering:定标准→生成→硬评估→挑刺→沉淀 skill→再生成→对比→择优/回退→收敛。
+
+guards:                          # §18.7 三道护栏
+  max_loops: 3                   # 防失控:评审-返工迭代上限;loop engineering 也硬限制最多 3 轮
+  loop_engineering_max_rounds: 3
+  loop_engineering_target_score: 0.85
+  loop_engineering_min_improvement: 0.03
+  wall_timeout_sec: 7200         # 基础墙钟:复杂实现+严格验收允许长跑
+  wall_timeout_progress_grace_sec: 900  # 超过基础墙钟后,有进展则续命;静默 15 分钟才暂停
+  validate_before_run: true      # dry-run:路由可达(无死节点/死循环)、引用完整、表达式可解析
+
+nodes:
+  - { id: implement, agent_role: worker_code }   # 见 model-routing.yaml roles
+  - { id: review,    agent_role: supervisor }
+  - { id: human,     type: human_gate }          # §18.2 human gate 是一等节点
+  - { id: done,      type: end }
+
+edges:                           # 边 = Jinja2 条件转移,读上一步结果与状态
+  - { from: implement, to: review }
+  - { from: review, to: implement, when: "{{ review.pass == false and loop < max_loops }}" }
+  - { from: review, to: human,     when: "{{ review.severity == 'high' or loop >= max_loops }}" }
+  - { from: review, to: done,      when: "{{ review.pass == true }}" }
+  - { from: human,  to: implement, when: "{{ human.decision == 'revise' }}" }
+  - { from: human,  to: done,      when: "{{ human.decision == 'approve' }}" }
+
+# 何时交回 LLM:无预定义边匹配 / 需临场拆解新任务 → 调一次 planner(LLM)做重规划,
+# 产出新子图后再交回确定性编排执行。平时编排器零 token。
+on_no_edge: planner
+
+# 验收证据(§10):带视觉的产物必须附渲染截图并对照用户证据才算 done(见监管误区库 SVG 元案例)
+acceptance:
+  require_evidence: true
+  visual_artifacts_need_screenshot: true
+  visual_validation_reuse_single_tab: true

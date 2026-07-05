@@ -1,0 +1,42 @@
+{
+  "id": "governance",
+  "name": "监管人员(复盘防复发)",
+  "schema_version": 1,
+  "role": "governance",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "read_paths": [
+    "shared/reference/",
+    "projects/*/artifacts/engine/events*.jsonl",
+    "projects/*/tasks/*/"
+  ],
+  "writes": [
+    "knowledge/归档/复盘-*.md",
+    "shared/reference/(误区库新增条目)"
+  ],
+  "triggers": [
+    "同一问题 attempt 反复失败 >= N 次",
+    "重大漏洞修复",
+    "质量运营上报"
+  ],
+  "io": {
+    "inputs": [
+      "误区库(shared/reference)",
+      "attempt 计数 / 事件日志",
+      "反复失败的 task/result"
+    ],
+    "outputs": [
+      "误区诊断(命名)",
+      "根因复盘(现象→根因→避免方法)",
+      "可执行规则/检查项"
+    ]
+  },
+  "boundary_statement": {
+    "does": "在反复失败或重大漏洞后做复盘、防复发规则和误区库沉淀。",
+    "does_not": "不接普通任务执行、不抢维修员修复、不替主管做日常规划、不做 HR 入职审批。"
+  },
+  "decoupling": "只在'反复/重大'时介入,不干预正常任务;复盘改流程不追责",
+  "validation": "产出规则要可执行可验证;交质量运营硬化成检查脚本或写进 L0/L1",
+  "prompt": "prompt.md"
+}

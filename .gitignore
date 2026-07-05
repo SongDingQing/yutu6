@@ -1,0 +1,50 @@
+.DS_Store
+
+# 知识库:向量库不进 git(纳入快照 + 冷备到玉兔2);wiki/ 原文才进 git
+knowledge/kb.sqlite
+knowledge/kb.sqlite-*
+
+# 密钥:任何 .env 实文件与还原备份都不进 git(.example 模板除外)
+*.env
+*.bak.*
+*.restore-tmp
+
+# 自动备份快照:打包了 config.json/memory/queues,不进 git(本地保留 + 冷备即可)
+backups/
+
+# 私密目录若误放进工作区
+MacMini-Secrets-PRIVATE*/
+
+# SSH 私钥绝不进 git(临时暂存目录 + 任何 id_ 私钥/公钥)
+**/.ssh-stage/
+id_ed25519_*
+id_rsa_*
+
+# ===== 密钥防泄禁区(与 security/secret-scan.js 的 forbidden-path 规则对齐) =====
+# meowa 艺术生成运行产物:meta.json 内含 api_key,只留工具本体,产物不进 git
+shared/tools/meowa/.meow_art/
+**/.meow_art/
+# 密钥保险库整理稿(含历史密钥值/来源)
+**/secrets-consolidate*.txt
+**/*secrets-consolidate*
+# new-api 各 provider 的实 env(admin/zhipu/kimi/minimax/deepseek/internal-token...)
+projects/控制台/artifacts/new-api/*.env
+# 各类密钥/证书/私钥材料
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+.env.local
+# 私密目录与 GPG/AWS 凭据
+**/.gnupg/
+**/.aws/credentials
+# 工作树/CI 临时扫描产物
+/.secret-scan-*.json
+
+# worktree 产物(含代码副本/会话产物/各自 config)
+.claude/worktrees/
+
+# 绕过审计日志(运行时,不入库)
+security/skip-audit.log

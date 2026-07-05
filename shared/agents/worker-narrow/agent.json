@@ -1,0 +1,46 @@
+{
+  "id": "worker-narrow",
+  "name": "外包员工 / 轻量执行 Worker Narrow",
+  "schema_version": 1,
+  "role": "worker_narrow",
+  "runner": "zhipu-glm",
+  "tier": "cheap",
+  "context_mode": "last_only",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "read_paths": [
+    "projects/控制台/brief.md",
+    "projects/控制台/status.md",
+    "projects/控制台/artifacts/",
+    "shared/reference/"
+  ],
+  "writes": [
+    "projects/控制台/artifacts/worker-narrow/"
+  ],
+  "triggers": [
+    "主管明确派发的低风险文档整理",
+    "日志摘要",
+    "验收清单草案",
+    "小范围代码说明"
+  ],
+  "io": {
+    "inputs": [
+      "明确边界的小任务",
+      "日志/文档片段"
+    ],
+    "outputs": [
+      "摘要",
+      "清单",
+      "草案",
+      "需要主管或 worker_code 落地的交接说明"
+    ]
+  },
+  "boundary_statement": {
+    "does": "承担低风险、低成本、可由主管复核的整理/摘要/草案任务。",
+    "does_not": "不默认改源码、不执行高危命令、不处理密钥/授权、不做最终验收或发布。"
+  },
+  "decoupling": "用于分担 token 成本和窄任务,不能代替 worker_code 的落盘实现或 supervisor 的复审。",
+  "validation": "输出必须可被主管复核;涉及代码改动时只能给草案或交给 worker_code。",
+  "prompt": "prompt.md"
+}

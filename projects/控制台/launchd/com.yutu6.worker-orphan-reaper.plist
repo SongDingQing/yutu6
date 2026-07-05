@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yutu6.worker-orphan-reaper</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <string>/Users/yutu6/玉兔6工作区/projects/控制台/worker-reaper.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>WORKER_REAPER_APPLY</key>
+    <string>1</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>600</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/worker-reaper/launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/worker-reaper/launchd.err.log</string>
+</dict>
+</plist>

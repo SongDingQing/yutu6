@@ -1,0 +1,6 @@
+interface:
+  display_name: "Simulaid Command Expander"
+  short_description: "先把模拟纪元口语任务补齐成可执行工作命令并路由技能"
+  default_prompt: "Use $simulaid-command-expander to expand this Simulaid task before implementing it."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>玉兔6 · 办公室·实验版</title>
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: rgba(13, 17, 22, .86);
+      --line: rgba(226, 234, 248, .17);
+      --text: #eef4ff;
+      --muted: #a8b3c4;
+      --gold: #d6b56d;
+      --blue: #8fb7ff;
+      --green: #78ddb1;
+      --rose: #c47670;
+      --shadow: 0 26px 70px rgba(0, 0, 0, .48);
+      --sans: -apple-system, "PingFang SC", BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --loop: 8.2s;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: linear-gradient(180deg, #171a20, #080a0d 78%), var(--bg);
+      color: var(--text);
+      font: 14px/1.45 var(--sans);
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    header {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 58px;
+      padding: 10px 18px;
+      border-bottom: 1px solid rgba(226, 234, 248, .12);
+      background: rgba(12, 15, 19, .9);
+      backdrop-filter: blur(18px) saturate(1.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: 0;
+    }
+
+    .nav {
+      color: #dce8ff;
+      text-decoration: none;
+      border: 1px solid rgba(143, 183, 255, .32);
+      border-radius: 8px;
+      padding: 6px 10px;
+      background: rgba(18, 24, 33, .78);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .spacer { flex: 1; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .status::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(120, 221, 177, .72);
+      content: "";
+    }
+
+    .stage {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(120deg, rgba(143, 183, 255, .09), transparent 29%, rgba(214, 181, 109, .065) 72%, transparent),
+        linear-gradient(180deg, #11151b, #090b0f 76%);
+    }
+
+    .office-wrap {
+      position: absolute;
+      inset: clamp(12px, 2vw, 24px);
+      display: grid;
+      place-items: center;
+      min-height: 0;
+      border: 1px solid rgba(226, 234, 248, .16);
+      border-radius: 10px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .035), transparent 22%, rgba(0, 0, 0, .22)),
+        #0d1117;
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .06);
+    }
+
+    .office-wrap::before {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background:
+        linear-gradient(90deg, rgba(0, 0, 0, .32), transparent 18%, transparent 82%, rgba(0, 0, 0, .28)),
+        linear-gradient(180deg, rgba(255, 255, 255, .045), transparent 48%, rgba(0, 0, 0, .22));
+      content: "";
+      pointer-events: none;
+    }
+
+    .scene-frame {
+      position: relative;
+      z-index: 1;
+      width: 960px;
+      height: 640px;
+      transform: scale(1.3);
+      transform-origin: center top;
+    }
+
+    .scene-frame::before {
+      position: absolute;
+      left: 82px;
+      right: 64px;
+      top: 74px;
+      height: 188px;
+      z-index: 1;
+      border: 1px solid rgba(178, 198, 223, .2);
+      border-radius: 10px 10px 28px 28px;
+      background:
+        linear-gradient(180deg, rgba(31, 42, 48, .95), rgba(17, 24, 30, .78)),
+        linear-gradient(90deg, rgba(214, 181, 109, .1), transparent 38%, rgba(143, 183, 255, .1));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+      content: "";
+      clip-path: polygon(17% 0, 100% 0, 85% 100%, 0 100%);
+      display: none;
+    }
+
+    .window-band {
+      position: absolute;
+      left: 210px;
+      top: 94px;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(5, 78px);
+      gap: 8px;
+      transform: skewX(-12deg);
+      opacity: .78;
+      display: none;
+    }
+
+    .window-band i {
+      display: block;
+      height: 70px;
+      border: 1px solid rgba(143, 183, 255, .24);
+      border-radius: 5px;
+      background:
+        linear-gradient(145deg, rgba(146, 193, 226, .18), rgba(28, 40, 48, .64)),
+        linear-gradient(180deg, rgba(255, 255, 255, .08), transparent);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+    }
+
+    .floor-tile {
+      position: absolute;
+      left: var(--x);
+      top: var(--y);
+      z-index: var(--z);
+      display: block;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .solid-carpet-underlay {
+      position: absolute;
+      left: 128px;
+      top: 172px;
+      z-index: 4;
+      width: 888px;
+      height: 430px;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, .35), rgba(0, 0, 0, .1) 58%, transparent 72%);
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+      filter: blur(3px);
+      pointer-events: none;
+    }
+
+    .floor-tile {
+      width: 144px;
+      height: 95px;
+      object-fit: fill;
+      opacity: 1;
+      filter: drop-shadow(0 5px 5px rgba(0, 0, 0, .18));
+    }
+
+    .chairman-tile {
+      position: absolute;
+      left: 435px;
+      top: 142px;
+      z-index: 130;
+      width: 338px;
+      height: 292px;
+      isolation: isolate;
+      pointer-events: none;
+    }
+
+    .chairman-tile::before {
+      position: absolute;
+      left: 38px;
+      top: 154px;
+      width: 250px;
+      height: 118px;
+      z-index: 0;
+      transform: skewX(-27deg) rotate(1deg);
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, .45), transparent 72%);
+      filter: blur(3px);
+      content: "";
+    }
+
+    .chairman-tile::after {
+      position: absolute;
+      left: 10px;
+      top: 116px;
+      z-index: 1;
+      width: 286px;
+      height: 142px;
+      background: rgba(135, 146, 155, .96);
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+      box-shadow:
+        0 18px 0 rgba(79, 88, 98, .96),
+        0 21px 0 rgba(44, 49, 56, .95);
+      content: "";
+    }
+
+    .handoff-actor {
+      position: absolute;
+      display: block;
+      image-rendering: pixelated;
+      user-select: none;
+      pointer-events: none;
+      transform-origin: 50% 88%;
+    }
+
+    .handoff-chairman-idle {
+      left: 96px;
+      top: -10px;
+      z-index: 3;
+      width: 220px;
+      opacity: 0;
+      filter: drop-shadow(0 13px 12px rgba(0, 0, 0, .42));
+      transform: translateY(0) scale(.9);
+      transition: opacity .42s ease, transform .42s ease;
+      animation: chairmanBreathe var(--loop) ease-in-out infinite;
+    }
+
+    .executive-desk {
+      left: 40px;
+      top: 150px;
+      z-index: 4;
+      width: 224px;
+      opacity: .98;
+      filter: drop-shadow(0 15px 14px rgba(0, 0, 0, .46));
+      transform: rotate(-1deg);
+    }
+
+    .handoff-secretary-arrival {
+      left: 202px;
+      top: 118px;
+      z-index: 6;
+      width: 140px;
+      opacity: 0;
+      filter: drop-shadow(0 10px 9px rgba(0, 0, 0, .4));
+      transform: translate(82px, -18px) scale(.64);
+      transition: opacity .46s ease, transform .72s ease;
+      animation: secretaryArrival var(--loop) ease-in-out infinite;
+    }
+
+    .handoff-bubble {
+      position: absolute;
+      z-index: 8;
+      max-width: 132px;
+      padding: 4px 8px;
+      border: 1px solid rgba(236, 244, 255, .64);
+      border-radius: 9px;
+      background: rgba(238, 244, 255, .95);
+      box-shadow: 0 8px 15px rgba(0, 0, 0, .26);
+      color: #15202b;
+      font-size: 10.5px;
+      font-weight: 850;
+      line-height: 1.2;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(5px) scale(.86);
+      transition: opacity .22s ease, transform .22s ease;
+    }
+
+    .handoff-bubble::after {
+      position: absolute;
+      left: 18px;
+      bottom: -5px;
+      width: 9px;
+      height: 9px;
+      transform: rotate(45deg);
+      background: inherit;
+      border-right: 1px solid rgba(236, 244, 255, .64);
+      border-bottom: 1px solid rgba(236, 244, 255, .64);
+      content: "";
+    }
+
+    .handoff-call {
+      left: 42px;
+      top: 12px;
+      animation: bubbleCall var(--loop) ease-in-out infinite;
+    }
+
+    .handoff-brief {
+      left: 70px;
+      top: 12px;
+      border-color: rgba(214, 181, 109, .72);
+      background: rgba(255, 239, 194, .97);
+      animation: bubbleBrief var(--loop) ease-in-out infinite;
+    }
+
+    .handoff-ack {
+      left: 208px;
+      top: 54px;
+      border-color: rgba(125, 211, 252, .78);
+      background: rgba(225, 248, 255, .97);
+      animation: bubbleAck var(--loop) ease-in-out infinite;
+    }
+
+    .handoff-type {
+      left: 216px;
+      top: 74px;
+      border-color: rgba(120, 221, 177, .74);
+      background: rgba(230, 255, 245, .97);
+      animation: bubbleType var(--loop) ease-in-out infinite;
+    }
+
+    .mail-flight {
+      position: absolute;
+      left: 236px;
+      top: 120px;
+      z-index: 9;
+      width: 21px;
+      height: 14px;
+      opacity: 0;
+      transform: translate(0, 0) rotate(-19deg) scale(.8);
+      clip-path: polygon(0 52%, 100% 0, 70% 58%, 100% 100%);
+      background: linear-gradient(135deg, #f4fbff, #9ec9e6);
+      box-shadow: 0 5px 9px rgba(0, 0, 0, .28);
+      animation: mailFlight var(--loop) ease-in-out infinite;
+    }
+
+    .chairman-tile.phase-call .handoff-chairman-idle {
+      opacity: .98;
+      transform: translateY(-3px) scale(.96);
+    }
+
+    .chairman-tile.phase-call .handoff-call,
+    .chairman-tile.phase-handoff .handoff-brief,
+    .chairman-tile.phase-ack .handoff-ack {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .chairman-tile.phase-walk .handoff-secretary-arrival {
+      opacity: .95;
+      transform: translate(2px, 20px) scale(.76);
+    }
+
+    .chairman-tile.phase-handoff .handoff-secretary-arrival {
+      opacity: .98;
+      transform: translate(-112px, 34px) scale(.8);
+    }
+
+    .chairman-tile.phase-type .handoff-type {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .chairman-tile.phase-type .handoff-secretary-arrival {
+      opacity: .95;
+      transform: translate(58px, -16px) scale(.68);
+    }
+
+    .chairman-tile.phase-ack .handoff-secretary-arrival {
+      opacity: .9;
+      transform: translate(58px, -16px) scale(.68);
+    }
+
+    .chairman-tile.phase-ack .mail-flight {
+      opacity: .98;
+      transform: translate(92px, -54px) rotate(-10deg) scale(.84);
+    }
+
+    .freeze-phase .handoff-chairman-idle,
+    .freeze-phase .handoff-secretary-arrival,
+    .freeze-phase .handoff-bubble,
+    .freeze-phase .mail-flight {
+      animation: none !important;
+    }
+
+    .freeze-phase .handoff-chairman-idle {
+      opacity: .98;
+      transform: translateY(0) scale(.94);
+    }
+
+    .chairman-anchor {
+      position: absolute;
+      left: 88px;
+      top: 236px;
+      z-index: 9;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 8px;
+      border: 1px solid rgba(214, 181, 109, .52);
+      border-radius: 999px;
+      color: #ffe8b3;
+      background: rgba(18, 14, 9, .78);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, .28);
+      font: 10.5px/1 var(--mono);
+      white-space: nowrap;
+    }
+
+    .chairman-anchor::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--gold);
+      box-shadow: 0 0 12px rgba(214, 181, 109, .82);
+      content: "";
+    }
+
+    .stage-plate {
+      position: absolute;
+      left: 50%;
+      bottom: 20px;
+      z-index: 170;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      max-width: calc(100% - 36px);
+      padding: 9px 12px;
+      border: 1px solid rgba(226, 234, 248, .18);
+      border-radius: 8px;
+      background: rgba(9, 12, 16, .78);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, .32);
+      backdrop-filter: blur(14px);
+      color: #dce6f5;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .stage-plate b {
+      color: #fff2c4;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .stage-plate span {
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @keyframes chairmanBreathe {
+      0%, 16%, 49%, 69%, 100% { opacity: .98; transform: translateY(0) scale(.94); }
+      26%, 42%, 76% { opacity: .98; transform: translateY(-5px) scale(.97); }
+    }
+
+    @keyframes secretaryArrival {
+      0%, 16% { opacity: 0; transform: translate(82px, -18px) scale(.64); }
+      22% { opacity: 1; transform: translate(30px, 2px) scale(.72); }
+      41% { opacity: 1; transform: translate(-112px, 34px) scale(.8); }
+      55%, 66% { opacity: .98; transform: translate(-112px, 34px) scale(.8); }
+      78% { opacity: .92; transform: translate(32px, 4px) scale(.72); }
+      100% { opacity: 0; transform: translate(90px, -20px) scale(.64); }
+    }
+
+    @keyframes bubbleCall {
+      0%, 5%, 17%, 100% { opacity: 0; transform: translateY(5px) scale(.86); }
+      7%, 15% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes bubbleBrief {
+      0%, 42%, 64%, 100% { opacity: 0; transform: translateY(5px) scale(.86); }
+      46%, 59% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes bubbleAck {
+      0%, 60%, 79%, 100% { opacity: 0; transform: translateY(5px) scale(.86); }
+      64%, 75% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes bubbleType {
+      0%, 52%, 72%, 100% { opacity: 0; transform: translateY(5px) scale(.86); }
+      56%, 68% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes mailFlight {
+      0%, 64%, 100% { opacity: 0; transform: translate(0, 0) rotate(-19deg) scale(.8); }
+      70% { opacity: .98; transform: translate(26px, -18px) rotate(-14deg) scale(.95); }
+      82% { opacity: 0; transform: translate(120px, -78px) rotate(-8deg) scale(.64); }
+    }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .stage { min-height: 620px; overflow: auto; }
+      .office-wrap { align-items: start; overflow: auto; }
+      .scene-frame { transform: scale(.82); margin: 24px 0 -94px; }
+    }
+
+    @media (max-width: 720px) {
+      header { flex-wrap: wrap; }
+      .stage { min-height: 520px; }
+      .office-wrap {
+        inset: 10px;
+        place-items: start;
+        justify-content: start;
+      }
+      .scene-frame {
+        transform: scale(.38);
+        transform-origin: left top;
+        margin: 18px 0 -380px 10px;
+      }
+      .stage-plate {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        transform: none;
+        justify-content: center;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
+      .handoff-chairman-idle,
+      .handoff-secretary-arrival { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="nav" href="/workspace?view=office">工作区</a>
+    <h1>办公室·实验版</h1>
+    <span class="spacer"></span>
+    <span class="status">设计自检 / 质量门禁</span>
+  </header>
+
+  <main class="stage">
+    <section class="office-wrap" aria-label="董事长办公室实验版">
+      <div class="scene-frame" data-office-experiment="meowa-tile-redo">
+        <div class="window-band" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+
+        <div class="solid-carpet-underlay" data-tile-role="platform-shadow" aria-hidden="true"></div>
+
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="0" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:414px;--y:150px;--z:10">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="1" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:480px;--y:183px;--z:11">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="2" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:546px;--y:216px;--z:12">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="3" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:612px;--y:249px;--z:13">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="4" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:678px;--y:282px;--z:14">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="5" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:744px;--y:315px;--z:15">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="6" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:810px;--y:348px;--z:16">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="7" data-grid-j="0" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:876px;--y:381px;--z:17">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="0" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:348px;--y:183px;--z:11">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="1" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:414px;--y:216px;--z:12">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="2" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:480px;--y:249px;--z:13">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="3" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:546px;--y:282px;--z:14">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="4" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:612px;--y:315px;--z:15">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="5" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:678px;--y:348px;--z:16">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="6" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:744px;--y:381px;--z:17">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="7" data-grid-j="1" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:810px;--y:414px;--z:18">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="0" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:282px;--y:216px;--z:12">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="1" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:348px;--y:249px;--z:13">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="2" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:414px;--y:282px;--z:14">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="3" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:480px;--y:315px;--z:15">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="4" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:546px;--y:348px;--z:16">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="5" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:612px;--y:381px;--z:17">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="6" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:678px;--y:414px;--z:18">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="7" data-grid-j="2" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:744px;--y:447px;--z:19">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="0" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:216px;--y:249px;--z:13">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="1" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:282px;--y:282px;--z:14">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="2" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:348px;--y:315px;--z:15">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="3" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:414px;--y:348px;--z:16">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="4" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:480px;--y:381px;--z:17">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="5" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:546px;--y:414px;--z:18">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="6" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:612px;--y:447px;--z:19">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="7" data-grid-j="3" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:678px;--y:480px;--z:20">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="0" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:150px;--y:282px;--z:14">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="1" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:216px;--y:315px;--z:15">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="2" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:282px;--y:348px;--z:16">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="3" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:348px;--y:381px;--z:17">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="4" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:414px;--y:414px;--z:18">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="5" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:480px;--y:447px;--z:19">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="6" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:546px;--y:480px;--z:20">
+        <img class="floor-tile" data-tile-role="floor" data-grid-i="7" data-grid-j="4" src="/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png" alt="" style="--x:612px;--y:513px;--z:21">
+        <div class="chairman-tile play" data-tile-role="chairman-animated" data-grid-anchor="i:3,j:1,span:2x2" data-render-order="tile-first-actors-after" data-z-order="floor:10-21,chairman-tile:130,desk:4,chairman:3,secretary:6,mail:9" aria-label="董事长动画地块">
+          <img class="handoff-actor handoff-chairman-idle" data-animation-source="kdrama-chairman-ceo-v1" src="/public/office-demo-assets/chairman/kdrama-chairman-ceo-v1.png" alt="">
+          <img class="handoff-actor executive-desk" data-animation-source="executive-desk-v1" src="/public/office-demo-assets/chairman/executive-desk-v1.png" alt="">
+          <img class="handoff-actor handoff-secretary-arrival" data-animation-source="secretary-arrival-v1" src="/public/office-demo-assets/chairman-handoff/secretary-arrival-v1.webp" alt="">
+          <span class="handoff-bubble handoff-call">放稿</span>
+          <span class="handoff-bubble handoff-brief">拿稿</span>
+          <span class="handoff-bubble handoff-type">打字中</span>
+          <span class="handoff-bubble handoff-ack">邮件给CEO</span>
+          <span class="mail-flight" aria-hidden="true"></span>
+          <span class="chairman-anchor">i3/j1 · 2x2</span>
+        </div>
+
+        <div class="stage-plate" aria-label="本轮验收状态">
+          <b>办公室实验版</b>
+          <span>厚地块 v3 · 纯色地毯顶面 · 新董事长/秘书动画</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const tile = document.querySelector('.chairman-tile');
+      if (!tile) return;
+      const phases = ['phase-call', 'phase-walk', 'phase-handoff', 'phase-type', 'phase-ack'];
+      const params = new URLSearchParams(window.location.search);
+      const forcedPhase = params.get('phase');
+      const freeze = params.has('freeze');
+      if (freeze) document.documentElement.classList.add('freeze-phase');
+      let index = 0;
+      const applyPhase = (explicitPhase) => {
+        phases.forEach(phase => tile.classList.remove(phase));
+        const phase = phases.includes(explicitPhase) ? explicitPhase : phases[index % phases.length];
+        tile.classList.add(phase);
+        tile.dataset.animationPhase = phase;
+        tile.dataset.jsPhases = '1';
+        index += 1;
+      };
+      applyPhase(forcedPhase);
+      if (!freeze) window.setInterval(applyPhase, 2100);
+    })();
+  </script>
+
+  <script type="application/json" id="office-quality-ledger">
+    {
+      "task_id": "cr-1782212223017-78f70089",
+      "previous_implementation_task_id": "cr-1782210015770-7774ef7e",
+      "root_task_id": "cr-1782212098137-2225ada3",
+      "tile_library": [
+        {
+          "name": "thick-solid-carpet-isometric-v3",
+          "public_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png",
+          "metrics_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.metrics.json",
+          "raw_meowa_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-carpet-meowa-raw-9a65.png",
+          "meowa_job_id": "workflow-hd_isometric_gen-9a65b38886fc4b299aa55513",
+          "main_color_hex": "#87929B",
+          "top_face_exact_main_color_ratio_min": 1,
+          "actual_top_face_exact_main_color_ratio": 1,
+          "visible_thickness_px": 32,
+          "isometric_ratio": 2,
+          "use": "40 repeated thick 1x1 tiles; top face is pure solid carpet, side faces show the block thickness"
+        }
+      ],
+      "meowa_new_assets": [
+        {
+          "name": "kdrama-chairman-ceo-v1",
+          "asset": "projects/控制台/public/office-demo-assets/chairman/kdrama-chairman-ceo-v1.png",
+          "meowa_job_id": "fbddf979-2741-4d28-bdd6-597de6fa3023",
+          "placement": "chairman animated 2x2 tile",
+          "acceptance": "handsome refined Korean drama CEO style; newly generated this round"
+        },
+        {
+          "name": "executive-desk-v1",
+          "asset": "projects/控制台/public/office-demo-assets/chairman/executive-desk-v1.png",
+          "meowa_job_id": "c57fb1a9-d710-446a-99a6-048aeb404689",
+          "placement": "same 2x2 chairman tile, foreground desk"
+        },
+        {
+          "name": "secretary-arrival-v1",
+          "asset": "projects/控制台/public/office-demo-assets/chairman-handoff/secretary-arrival-v1.webp",
+          "meowa_job_id": "6d54730e-934d-4793-bf32-036cf6a73baf",
+          "placement": "secretary arrival / typing / mail flight sequence"
+        }
+      ],
+      "visual_anchor": "chairman plus executive desk is fixed to grid anchor i:3,j:1,span:2x2 and aligned with the same 2:1 tile angle as the 40-tile floor",
+      "render_layers": [
+        {"layer": "floor-tiles", "z": "10-21", "rule": "draw thick carpet tiles first by i+j order"},
+        {"layer": "chairman-2x2-footprint", "z": 130, "rule": "composite tile footprint covers exactly 2x2 grid cells"},
+        {"layer": "actors-and-desk", "z": "desk 4 / chairman 3 / secretary 6 / mail 9 within isolated chairman tile", "rule": "actors render above carpet, never below the floor"}
+      ],
+      "secretary_animation_sequence": [
+        "chairman puts out the brief",
+        "secretary walks in and takes it",
+        "secretary returns to workstation and types",
+        "mail flight leaves toward CEO"
+      ],
+      "meowa_retry_limit": 3,
+      "meowa_attempts": {
+        "thick_carpet_tile": 1,
+        "chairman": 1,
+        "secretary_arrival_animation": 1,
+        "executive_desk": 1
+      },
+      "quality_gate": {
+        "designer_self_check": "projects/控制台/artifacts/office-experiment-redo-20260623/quality-gate.md",
+        "quality_ops_check": "projects/控制台/artifacts/office-experiment-redo-20260623/quality-gate.md",
+        "animation_evidence_required": true,
+        "animation_evidence": [
+          "projects/控制台/artifacts/office-redesign-20260623/desktop-animation-evidence.json",
+          "projects/控制台/artifacts/office-redesign-20260623/mobile-animation-evidence.json"
+        ],
+        "visual_evidence": [
+          "projects/控制台/artifacts/office-redesign-20260623/thick-solid-carpet-isometric-v3-stitch-preview.png",
+          "projects/控制台/artifacts/office-redesign-20260623/office-experiment-peekaboo.png",
+          "projects/控制台/artifacts/office-redesign-20260623/opus48-visual-review.md"
+        ]
+      }
+    }
+  </script>
+</body>
+</html>

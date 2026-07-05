@@ -1,0 +1,30 @@
+{
+ "_comment": "扫描白名单:路径+行内容哈希(行内容变了白名单自动失效),每条必须写 reason",
+ "entries": [
+  {
+   "path": "tests/version-progress-hook.test.js",
+   "line_sha12": "ff805942283b",
+   "reason": "测试夹具:验证 hook 密钥扫描的假 AKIA 向量,非真实密钥"
+  },
+  {
+   "path": "shared/config/ssh-and-remotes.md",
+   "line_sha12": "e526a6b99781",
+   "reason": "SSH 公钥指纹记录,公钥本身非机密"
+  },
+  {
+   "path": "tests/secret-hygiene.test.js",
+   "line_sha12": "b38066295968",
+   "reason": "密钥卫生测试的构造假密钥夹具(非真实密钥);行内容变则哈希失效"
+  },
+  {
+   "path": "tests/secret-hygiene.test.js",
+   "line_sha12": "85485cb65615",
+   "reason": "密钥卫生测试的构造假密钥夹具(非真实密钥);行内容变则哈希失效"
+  },
+  {
+   "path": "tests/secret-hygiene.test.js",
+   "line_sha12": "435d481e0791",
+   "reason": "密钥卫生测试的构造假密钥夹具(非真实密钥);行内容变则哈希失效"
+  }
+ ]
+}

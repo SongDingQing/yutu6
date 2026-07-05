@@ -1,0 +1,60 @@
+{
+  "id": "ui-optimizer",
+  "name": "系统级 UI 自我优化师",
+  "schema_version": 1,
+  "role": "ui_optimizer",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "system_wide_singleton": true,
+  "uses_tools": [
+    "peekaboo",
+    "codex"
+  ],
+  "architecture": "职责分离:Peekaboo=眼(纯截图/点击,无需模型) → 优化师 Codex=脑(读截图和源码、挑错) → Codex=手(按挑错改 public/)。Peekaboo 不接 Claude。",
+  "read_paths": [
+    "projects/控制台/public/",
+    "projects/控制台/artifacts/ui-optimize/",
+    "board/learning-cases/"
+  ],
+  "writes": [
+    "projects/控制台/artifacts/ui-optimize/reports/",
+    "projects/控制台/artifacts/ui-optimize/queue/",
+    "board/learning-cases/"
+  ],
+  "loop": {
+    "mode": "count",
+    "max_iter": 10,
+    "driver": "loop.sh",
+    "consumer": "dev-worker.sh",
+    "note": "按次数跑10轮、每轮跑完;开发异步队列消化不阻塞;边缘条件防卡死(超时/去重/背压/单写/早停)"
+  },
+  "triggers": [
+    "手动启动自优化循环",
+    "UI 改版后回归检查"
+  ],
+  "io": {
+    "inputs": [
+      "Peekaboo 对 WebUI 页面的截图/可视问答",
+      "现有页面源码"
+    ],
+    "outputs": [
+      "UI 挑错报告(交互流畅性/易读性)",
+      "交给 codex 的修复任务(queue/*.task)",
+      "可复用 UI/架构案例(board/learning-cases/)"
+    ]
+  },
+  "boundary_statement": {
+    "does": "持续挑控制台 WebUI 交互流畅性、可读性、一致性和可发现性问题。",
+    "does_not": "不改业务逻辑、不碰密钥、不做系统修复、不做项目规划或 agent 入职。"
+  },
+  "focus": [
+    "交互流畅性(无卡顿/无错位/反馈及时)",
+    "易读性(对比度/字号/层级/留白)",
+    "一致性",
+    "可发现性"
+  ],
+  "decoupling": "只看 UI 层(页面+截图),不碰业务逻辑/密钥;每轮增量,不全量重写",
+  "validation": "改 UI 后必须 Peekaboo 重新截图自查 + 对照(§17 视觉硬门);修复经 codex 落地后下一轮回归",
+  "prompt": "prompt.md"
+}

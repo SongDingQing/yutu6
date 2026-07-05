@@ -1,0 +1,4 @@
+interface:
+  display_name: "Simulaid Pixel Asset Pipeline"
+  short_description: "Prepare high-quality Simulaid pixel-informed art assets for Unity."
+  default_prompt: "Use $simulaid-pixel-art-assets with $imagegen to generate or update high-quality Simulaid art assets, avoid placeholder/cheap web-game styles, and wire approved assets into Unity UI."

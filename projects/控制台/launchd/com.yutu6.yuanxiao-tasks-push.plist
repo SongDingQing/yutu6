@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.yutu6.yuanxiao-tasks-push</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <string>/Users/yutu6/玉兔6工作区/projects/控制台/tools/push-yuanxiao-tasks-snapshot.js</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>StandardOutPath</key><string>/Users/yutu6/玉兔6工作区/logs/yuanxiao-tasks-push.log</string>
+  <key>StandardErrorPath</key><string>/Users/yutu6/玉兔6工作区/logs/yuanxiao-tasks-push.log</string>
+</dict>
+</plist>

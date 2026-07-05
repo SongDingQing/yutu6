@@ -1,0 +1,56 @@
+{
+  "id": "memory-officer",
+  "name": "记忆官 Memory Officer",
+  "schema_version": 1,
+  "role": "memory_officer",
+  "runner": "codex",
+  "tier": "standard",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "read_paths": [
+    "memory/",
+    "board/",
+    "projects/控制台/artifacts/",
+    "knowledge/归档/"
+  ],
+  "writes": [
+    "memory/preferences.md",
+    "memory/decisions.md",
+    "memory/experience.md",
+    "memory/entities.md",
+    "memory/sessions/",
+    "memory/INDEX.md"
+  ],
+  "tools": [
+    "projects/控制台/secretary-tools.js"
+  ],
+  "triggers": [
+    "任务完成(task.done)自动提炼",
+    "维修工单完成(repair-ticket-complete)自动提炼",
+    "会话结束提炼会话摘要",
+    "定时整合(consolidate)",
+    "秘书/CEO 主动 enqueue 记忆任务"
+  ],
+  "io": {
+    "inputs": [
+      "完成的任务上下文(goal/结果/事件)",
+      "维修工单完成结果(问题模式/根因/解法/项目技术映射)",
+      "会话对话要点",
+      "现有 memory/ 各分层"
+    ],
+    "outputs": [
+      "写入/更新对应分层记忆",
+      "检索时返回相关记忆片段",
+      "整合报告(合并/纠正/精简)"
+    ]
+  },
+  "boundary_statement": {
+    "does": "提炼、检索、整合长期记忆,把可复用偏好/决策/经验/实体写入 memory。",
+    "does_not": "不执行项目任务、不修复系统、不直接写 knowledge/kb.sqlite、不把密钥或流水账写进记忆。"
+  },
+  "decoupling": "记忆官是 queueAgent(codex 消费 queues/memory-officer);可被任务完成/会话结束自动触发,也可定时跑整合。提炼=写记忆;检索=按相关性返回记忆供注入。",
+  "validation": "记忆需提炼非流水账;冲突时更新而非堆叠;过时标注/删除;密钥/身份信息绝不写入;Starlaid 排除。",
+  "prompt": "prompt.md"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "board-glm52",
+  "name": "董事 GLM-5.2(zhipu-glm)",
+  "schema_version": 1,
+  "role": "board_glm52",
+  "runner": "zhipu-glm",
+  "tier": "standard",
+  "context_mode": "explicit",
+  "read_paths": ["玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
+  "writes": [],
+  "triggers": ["重要架构任务进入董事会评议"],
+  "io": {
+    "inputs": ["秘书补齐后的重要架构指令", "CEO 计划摘要", "前轮董事会整合意见"],
+    "outputs": ["结构化事前评审意见", "风险等级", "是否可默认执行", "是否存在硬阻断"]
+  },
+  "boundary_statement": {
+    "does": "只用 GLM-5.2 低成本视角审查重要架构任务的边界、测试和状态记录风险。",
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+  },
+  "decoupling": "只做架构评议和挑刺,不直接改文件、不派队列。",
+  "validation": "单轮评审必须区分可执行建议与硬阻断;合理改动应默认可执行,禁止把普通建议当否决。",
+  "prompt": "prompt.md"
+}

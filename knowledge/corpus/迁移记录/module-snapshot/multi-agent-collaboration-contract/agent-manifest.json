@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-29",
+  "purpose": "Shared non-secret capability and handoff manifest for Hermes/Yutu, Codex, and future local agents.",
+  "safety": {
+    "do_not_store": [
+      "api_keys",
+      "passwords",
+      "private_tokens",
+      "cookies",
+      "full_env_files"
+    ],
+    "requires_confirmation": [
+      "send_email",
+      "send_files",
+      "send_apk",
+      "start_codex_on_local_project_from_voice_or_feishu",
+      "destructive_or_high_impact_local_changes"
+    ]
+  },
+  "agents": [
+    {
+      "id": "hermes-yutu",
+      "name": "Hermes / 玉兔",
+      "role": "front_door_router_and_voice_feishu_agent",
+      "strengths": [
+        "voice_wake",
+        "spoken_replies",
+        "feishu_messages",
+        "feishu_confirmation_cards",
+        "brave_search",
+      "asr_hotwords_and_corrections",
+        "confirmed_codex_scheduling",
+        "user_facing_followups"
+      ],
+      "interfaces": [
+        {
+          "type": "feishu_gateway",
+          "description": "Receives and sends Feishu messages and interactive cards."
+        },
+        {
+          "type": "voice_wake",
+          "description": "Receives microphone commands after wake phrase and mirrors voice records to Feishu."
+        },
+                {
+                    "type": "plugin",
+                    "name": "codex-handoff",
+                    "description": "Sends confirmed immediate or scheduled local coding tasks to Codex."
+                },
+                {
+                    "type": "planned_probe",
+                    "name": "active_codex_session_contact",
+                    "description": "Unverified future capability: test whether Hermes/Yutu can precisely contact the currently open Codex Desktop session with task id, acknowledgement, timeout, and fallback."
+                }
+            ],
+      "entry_skills": [
+        "/Users/yutu/.hermes/skills/autonomous-ai-agents/multi-agent-collaboration-contract/SKILL.md",
+        "/Users/yutu/.hermes/skills/autonomous-ai-agents/codex-handoff/SKILL.md",
+        "/Users/yutu/.hermes/skills/autonomous-ai-agents/voice-asr-context/SKILL.md"
+      ]
+    },
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "role": "chief_reasoning_architect_and_local_engineering_agent",
+      "strengths": [
+        "strongest_reasoning_brain",
+        "cross_agent_architecture",
+        "risk_assessment",
+        "task_decomposition",
+        "retrospective_synthesis",
+        "local_file_edits",
+        "repo_inspection",
+        "tests_and_builds",
+        "unity_project_changes",
+        "apk_build_or_discovery",
+        "document_artifact_generation",
+        "scheduled_local_runs",
+        "code_review",
+        "gmail_connector_when_available",
+        "simulaid_pixel_art_asset_pipeline",
+        "session_limited_subagent_delegation",
+        "same_machine_hermes_modification",
+        "persistent_module_updates"
+      ],
+      "interfaces": [
+        {
+          "type": "codex_desktop",
+          "description": "Interactive Codex Desktop session with local filesystem and app connectors."
+        },
+        {
+          "type": "codex_cli",
+          "description": "Local CLI invoked by Hermes codex-handoff after Feishu confirmation."
+        },
+        {
+          "type": "gmail_connector",
+          "description": "Send email when the Codex app Gmail connector is available and user intent is confirmed."
+        }
+      ],
+      "entry_skills": [
+        "/Users/yutu/.codex/skills/module-registry/SKILL.md",
+        "/Users/yutu/.codex/skills/multi-agent-collaboration-contract/SKILL.md",
+        "/Users/yutu/.codex/skills/hermes-yutu-voice-bridge/SKILL.md",
+        "/Users/yutu/.codex/skills/personal-contacts/SKILL.md",
+        "/Users/yutu/.codex/skills/simulaid-pixel-art-assets/SKILL.md"
+      ]
+    },
+    {
+      "id": "codex-subagent-simulaid-image-worker",
+      "name": "Simulaid Image Asset Worker",
+      "role": "ephemeral_session_limited_image_generation_and_asset_postprocessing_helper",
+      "strengths": [
+        "simulaid_art_prompting",
+        "pixel_informed_asset_generation",
+        "background_generation",
+        "card_item_crop_enemy_art_generation",
+        "asset_dimension_validation",
+        "unity_resources_output_paths"
+      ],
+      "interfaces": [
+        {
+          "type": "codex_spawn_agent",
+          "description": "Temporary helper spawned by an interactive Codex session. It is not durable, not bound to the parent after completion, and must not be used as a long-term routing or callback target."
+        }
+      ],
+      "entry_skills": [
+        "/Users/yutu/.codex/skills/simulaid-pixel-art-assets/SKILL.md",
+        "/Users/yutu/.codex/skills/.system/imagegen/SKILL.md"
+      ],
+      "persistence_note": "Live sub-agent ids are session-scoped and are not durable across Codex accounts. The parent-child relationship ends when the helper completes. Persist required skills, prompts, output paths, artifacts, and reports instead of a runtime id."
+    }
+  ],
+  "routes": [
+    {
+      "id": "voice_or_feishu_to_codex_coding",
+      "from": "hermes-yutu",
+      "to": "codex",
+      "when": [
+        "local_code_change",
+        "unity_game_feature",
+        "test_or_build",
+        "apk_requested",
+        "document_or_file_return_requested",
+        "repo_review"
+      ],
+      "requires": [
+        "project_path",
+        "task"
+      ],
+            "optional": [
+                "verification",
+                "deliver_apk",
+                "deliver_document"
+            ],
+            "confirmation": "feishu_codex_handoff_card",
+            "execution": "immediate_tasks_enter_codex_handoff_serial_queue",
+            "queue": {
+                "status": "active",
+                "path": "/Users/yutu/.hermes/codex-handoff/queue",
+                "acknowledgement": "Feishu message includes queue id and number of tasks ahead",
+                "scope": "Immediate Codex CLI handoff tasks only; ordinary Hermes chat is not globally serialized."
+            }
+        },
+    {
+      "id": "voice_or_feishu_to_scheduled_codex",
+      "from": "hermes-yutu",
+      "to": "codex",
+      "when": [
+        "delayed_codex_task",
+        "recurring_codex_task",
+        "timed_codex_task",
+        "repeat_limited_codex_task"
+      ],
+      "requires": [
+        "project_path",
+        "task",
+        "schedule"
+      ],
+      "optional": [
+        "repeat",
+        "verification",
+        "deliver_apk",
+        "deliver_document"
+      ],
+      "confirmation": "feishu_codex_scheduled_handoff_card",
+      "persistence": [
+        "/Users/yutu/.hermes/cron/jobs.json",
+        "/Users/yutu/.hermes/scripts/codex-handoff",
+        "/Users/yutu/.hermes/codex-handoff/scheduled-runs"
+      ]
+    },
+    {
+      "id": "voice_to_confirmed_email_task",
+      "from": "hermes-yutu",
+      "to": "codex",
+      "when": [
+        "send_email",
+        "send_search_results_to_email",
+        "email_saved_contact"
+      ],
+      "known_contacts": {
+        "owner": "songchengzuo@hotmail.com",
+        "sister": "scc12251988@hotmail.com"
+      },
+      "confirmation": "feishu_voice_task_card"
+    },
+        {
+            "id": "codex_to_hermes_feishu_surface",
+      "from": "codex",
+      "to": "hermes-yutu",
+      "when": [
+        "needs_feishu_confirmation_card",
+        "needs_feishu_gateway_delivery",
+        "needs_voice_asr_context_update"
+      ],
+            "confirmation": "depends_on_action"
+        },
+        {
+            "id": "hermes_to_active_codex_session_probe",
+            "from": "hermes-yutu",
+            "to": "codex",
+            "status": "planned_unverified",
+            "when": [
+                "user_keeps_codex_session_open",
+                "needs_precise_current_session_contact",
+                "task_distribution_capability_probe"
+            ],
+            "requires": [
+                "session_label",
+                "task_id",
+                "delivery_timestamp",
+                "codex_acknowledgement",
+                "timeout_seconds",
+                "fallback_queue_or_handoff_path"
+            ],
+            "confirmation": "not_a_reliable_route_until_probe_passes",
+            "safety_note": "Do not assume Hermes/Yutu can address the exact open Codex Desktop session or distribute arbitrary tasks until this probe is implemented and validated."
+        },
+        {
+            "id": "codex_to_simulaid_image_worker",
+      "from": "codex",
+      "to": "codex-subagent-simulaid-image-worker",
+      "when": [
+        "simulaid_background_generation",
+        "simulaid_card_or_item_art_batch",
+        "simulaid_crop_or_farm_art_batch",
+        "user_requested_image_agent_delegation"
+      ],
+      "requires": [
+        "project_path",
+        "asset_brief",
+        "output_filenames",
+        "style_reference"
+      ],
+      "optional": [
+        "reference_image",
+        "transparent_background",
+        "postprocess_dimensions"
+      ],
+      "confirmation": "not_required_for_local_asset_generation_unless_external_paid_service_or_file_delivery_is_requested"
+      ,
+      "durability": "ephemeral_optional_helper_only_not_core_architecture"
+    }
+  ],
+  "module_registry": {
+    "root": "/Users/yutu/.codex/modules",
+    "index": "/Users/yutu/.codex/modules/INDEX.md",
+    "registry": "/Users/yutu/.codex/modules/registry.json",
+    "lookup_script": "/Users/yutu/.codex/modules/scripts/module_lookup.py"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "version": "office-image-v3",
+  "styleReference": "projects/控制台/artifacts/office-assets/v3-tileset/reference/v3-style-reference.png",
+  "projection": {
+    "type": "isometric",
+    "tileRatio": "2:1",
+    "tilePitchPx": { "x": 64, "y": 32 },
+    "tileVisualPx": { "width": 128, "height": 64 },
+    "tileThicknessPx": 14
+  },
+  "sourceCanvasPolicy": {
+    "targetMaxPx": 256,
+    "oversizeRule": "Assets larger than 256x256 must be split into components unless explicitly marked as assembled preview.",
+    "background": "transparent",
+    "paddingPx": 16,
+    "noCrop": true
+  },
+  "assetCanvasByFootprint": {
+    "1x1": { "sourceCanvasPx": { "width": 128, "height": 96 }, "anchorPx": { "x": 64, "y": 64 } },
+    "1x2": { "sourceCanvasPx": { "width": 192, "height": 128 }, "anchorPx": { "x": 96, "y": 96 } },
+    "2x2": { "sourceCanvasPx": { "width": 256, "height": 192 }, "anchorPx": { "x": 128, "y": 128 } },
+    "2x3": { "sourceCanvasPx": { "width": 256, "height": 256 }, "anchorPx": { "x": 128, "y": 176 } },
+    "3x1": { "sourceCanvasPx": { "width": 256, "height": 160 }, "anchorPx": { "x": 128, "y": 112 } },
+    "5x5-piece": { "sourceCanvasPx": { "width": 256, "height": 256 }, "anchorPx": { "x": 128, "y": 176 } }
+  },
+  "zIndexBands": {
+    "floor": 0,
+    "rug": 10,
+    "furniture": 30,
+    "characters": 45,
+    "walls": 60,
+    "overlays": 80
+  },
+  "alignment": {
+    "tileOrigin": "bottom-center anchor",
+    "snapRule": "Place each asset by anchor on logical grid coordinate; never scale source above 1.15x in final UI.",
+    "chairmanOffice": "Assemble a 5x5 area from floor base pieces plus walls and props; do not bake into one non-grid illustration."
+  }
+}

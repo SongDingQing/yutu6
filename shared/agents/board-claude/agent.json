@@ -1,0 +1,40 @@
+{
+  "id": "board-claude",
+  "name": "董事 Claude(暂用 Opus-4.8)",
+  "schema_version": 1,
+  "role": "board_claude",
+  "runner": "claude-opus-4-8",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "read_paths": [
+    "玉兔6-董事会设计方案.md",
+    "projects/控制台/brief.md",
+    "projects/控制台/",
+    "shared/engine/",
+    "shared/routing/",
+    "memory/decisions.md",
+    "board/learning-cases/"
+  ],
+  "writes": [],
+  "triggers": [
+    "架构/性能/并发任务进入董事会事前评审"
+  ],
+  "io": {
+    "inputs": [
+      "秘书补齐后的重要架构指令",
+      "CEO 计划摘要",
+      "前轮董事会整合意见"
+    ],
+    "outputs": [
+      "结构化事前评审意见"
+    ]
+  },
+  "boundary_statement": {
+    "does": "做 Claude(暂用 Opus-4.8)视角的架构/性能/并发事前评审,与其他董事并行提交结构化意见。",
+    "does_not": "不做最终放行裁决(归 board_opus48);不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+  },
+  "decoupling": "只做事前评审意见输出,不直接改文件、不派队列;最终裁决席位仍在 board_opus48。",
+  "validation": "意见必须含 risk_level/can_execute/issues/suggestions/summary;普通建议不否决。",
+  "prompt": "prompt.md",
+  "note": "2026-07-03 老板拍板补充的董事席位,暂用 Opus-4.8 模型;后续可换。"
+}

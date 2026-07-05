@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# 玉兔6 pre-commit 硬约束:提交前扫描暂存区密钥,命中即阻断。
+# 启用方式(一次性): git config core.hooksPath .githooks
+# 绕过(仅限确证误报且已登记白名单后的紧急场景): SKIP_SECRET_SCAN=1 git commit ...
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+if [ "${SKIP_SECRET_SCAN:-0}" = "1" ]; then
+  echo "⚠️  SKIP_SECRET_SCAN=1:已跳过 pre-commit 密钥扫描(请确保已在 scan-allowlist.json 登记理由)" >&2
+  # 绕过留痕:记录时间/用户/暂存文件,使绕过可追溯(红队要求)
+  mkdir -p "$ROOT/security" 2>/dev/null
+  printf '%s\tpre-commit\t%s\t%s\n' "$(date -u +%FT%TZ)" "$(whoami)" "$(git diff --cached --name-only | tr '\n' ',')" >> "$ROOT/security/skip-audit.log" 2>/dev/null || true
+  exit 0
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "❌ pre-commit:未找到 node,无法运行密钥扫描;拒绝提交(设 SKIP_SECRET_SCAN=1 可临时绕过)" >&2
+  exit 1
+fi
+node "$ROOT/security/secret-scan.js" --staged

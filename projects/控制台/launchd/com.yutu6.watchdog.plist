@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.yutu6.watchdog</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+		<string>/Users/yutu6/玉兔6工作区/projects/控制台/watchdog-daemon.js</string>
+		<string>--daemon</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/yutu6/玉兔6工作区/projects/控制台</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>YUTU6_NODE_BIN</key>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+		<key>CONSOLE_NODE_BIN</key>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+		<key>YUTU6_PEEKABOO_BIN</key>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+		<key>CONSOLE_PEEKABOO_BIN</key>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+		<key>CONSOLE_PEEKABOO_IMAGE_BIN</key>
+		<string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+		<key>HTTP_PROXY</key>
+		<string>http://127.0.0.1:10808</string>
+		<key>HTTPS_PROXY</key>
+		<string>http://127.0.0.1:10808</string>
+		<key>ALL_PROXY</key>
+		<string>http://127.0.0.1:10808</string>
+		<key>WATCHDOG_INTERVAL_MS</key>
+		<string>30000</string>
+		<key>WATCHDOG_WORKER_STALE_MS</key>
+		<string>300000</string>
+		<key>WATCHDOG_RUNNING_STALE_MS</key>
+		<string>600000</string>
+		<key>WATCHDOG_NO_PROGRESS_STALE_MS</key>
+		<string>720000</string>
+		<key>WATCHDOG_RESTART_COOLDOWN_MS</key>
+		<string>120000</string>
+		<key>WATCHDOG_RESTART_MAX_IN_WINDOW</key>
+		<string>3</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/watchdog/watchdog-daemon.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/watchdog/watchdog-daemon.log</string>
+</dict>
+</plist>

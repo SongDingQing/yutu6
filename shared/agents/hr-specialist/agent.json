@@ -1,0 +1,63 @@
+{
+  "id": "hr-specialist",
+  "name": "HR专员 Human Resources Specialist",
+  "schema_version": 1,
+  "role": "hr_specialist",
+  "runner": "zhipu-glm",
+  "tier": "standard",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "department": "HR",
+  "office": "人力资源部",
+  "read_paths": [
+    "shared/agents/",
+    "shared/knowledge/hr/",
+    "shared/DATA-MAP.md",
+    "projects/控制台/tools/hr-agent-onboarding.js",
+    "projects/控制台/config.json",
+    "shared/routing/model-routing.yaml",
+    "projects/控制台/public/workspace.html"
+  ],
+  "writes": [
+    "shared/agents/",
+    "shared/agents/INDEX.md",
+    "shared/DATA-MAP.md",
+    "shared/knowledge/hr/",
+    "projects/控制台/artifacts/hr/",
+    "projects/控制台/config.json",
+    "shared/routing/model-routing.yaml",
+    "projects/控制台/public/workspace.html"
+  ],
+  "tools": [
+    "projects/控制台/tools/hr-agent-onboarding.js",
+    "node shared/engine/agents-check.js"
+  ],
+  "triggers": [
+    "HR 主管批准低风险 agent 入职执行单",
+    "HR 主管下发高风险已审批规格卡",
+    "花名册/数据地图/办公室工位维护"
+  ],
+  "io": {
+    "inputs": [
+      "HR 主管批准的规格卡",
+      "agent 标准模板",
+      "注册和 smoke 验收要求"
+    ],
+    "outputs": [
+      "agent.json",
+      "prompt.md",
+      "路由和控制台注册变更",
+      "smoke 验证结果",
+      "花名册/数据地图更新"
+    ]
+  },
+  "boundary_statement": {
+    "does": "按 HR 主管批准的规格卡执行模板填充、注册、知识定位、办公室工位和 smoke 校验。",
+    "does_not": "不自行批准高风险创建;不扩大文件权限;不修改核心引擎/服务修复;不处理密钥、登录、授权或 Starlaid。"
+  },
+  "decoupling": "HR 专员是执行人,不是把关人;只能按已批准规格落地。发现规格缺四要素、重复或越权时必须退回 HR 主管。",
+  "validation": "完成后必须运行 hr-agent-onboarding smoke 与 agents-check;失败时回炉,不得报告入职完成。",
+  "prompt": "prompt.md"
+}

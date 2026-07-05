@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玉兔6 · 控制室</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#272b34; --fg:#e6e8ec; --mut:#9aa3b2; --accent:#6ea8fe; --ok:#4ade80; --warn:#fbbf24; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 -apple-system,system-ui,"PingFang SC",sans-serif; }
+	  header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { color:var(--mut); font-size:12px; min-width:0; max-width:min(42vw,320px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+	  header a { color:var(--accent); text-decoration:none; font-size:13px; border:1px solid transparent; border-radius:8px; padding:4px 8px; transition:border-color .15s,background .15s,color .15s; }
+	  header a:hover, header a:focus-visible { color:#cfe0ff; background:#16243a; border-color:rgba(110,168,254,.7); outline:none; }
+		  header .links { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+	  button { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:6px 12px; cursor:pointer; }
+	  button:hover { border-color:var(--accent); }
+	  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  main { padding:18px 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .card h2 { font-size:13px; margin:0 0 10px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
+	  .row-list { display:grid; gap:0; }
+	  .rowitem .row { border-top:1px solid var(--line); }
+	  .rowitem:first-child .row { border-top:none; }
+	  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; min-width:0; }
+  .name { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+	  .tag { font-size:12px; color:var(--fg); background:#0d0f14; border:1px solid var(--line); border-radius:6px; padding:1px 7px; white-space:nowrap; flex:0 1 auto; max-width:min(52vw,260px); overflow:hidden; text-overflow:ellipsis; }
+  .mut { color:var(--mut); font-size:12px; overflow-wrap:anywhere; word-break:break-word; }
+	  .events { grid-column:1/-1; max-height:min(52vh,460px); overflow:auto; }
+  .events h2 { position:sticky; top:0; z-index:1; margin:-2px 0 10px; padding:2px 0 8px; background:var(--card); overflow-wrap:anywhere; }
+  .ev { font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--mut); white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
+  .ev b { color:var(--fg); }
+  .ev.ok { color:var(--ok); }
+  .ev.bad { color:var(--err); }
+  .ev.flow { color:var(--warn); }
+  .ev.run { color:var(--accent); }
+	  .empty { color:var(--mut); font-size:13px; padding:8px 0; }
+	  .empty.err { color:#ffd0d0; border:1px dashed rgba(255,107,107,.46); border-radius:8px; background:rgba(78,15,15,.28); padding:10px 12px; }
+	  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:6px; }
+	  @media(max-width:560px){ header .links { width:100%; margin-left:0; justify-content:flex-start; } main { padding:14px 12px; grid-template-columns:1fr; } .card { padding:12px; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot"></span>
+  <h1>玉兔6 · 控制室</h1>
+	  <span class="sub" id="ts" role="status" aria-live="polite" aria-atomic="true" title="控制室更新时间: 加载中" aria-label="控制室更新时间: 加载中">加载中…</span>
+  <button type="button" onclick="load()" title="刷新控制室概览" aria-label="刷新控制室概览">刷新</button>
+  <span class="links"><a href="/api-gateway">API 网关</a><a href="/workspace">← 工作区</a></span>
+</header>
+<main id="main" aria-live="polite" aria-busy="true"></main>
+
+<script>
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function card(title, inner){ return `<section class="card" role="region" aria-label="${esc(title)}"><h2>${title}</h2>${inner}</section>`; }
+function emptyState(text){ const value=String(text||'暂无'); return `<div class="empty" role="status" title="${esc(value)}" aria-label="${esc(value)}">${esc(value)}</div>`; }
+function rows(arr, label, fn){ return arr.length ? `<div class="row-list" role="list" aria-label="${esc(label)}">${arr.map(fn).join('')}</div>` : emptyState(label+'暂无数据'); }
+function listItem(label, inner){ return `<div class="rowitem" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">${inner}</div>`; }
+function eventClass(type){
+  if(/fail|crash|timeout/.test(type)) return 'bad';
+  if(/done|end|human/.test(type)) return 'ok';
+  if(/^edge/.test(type)) return 'flow';
+  return 'run';
+}
+
+async function load(){
+  const main=document.getElementById('main');
+  const ts=document.getElementById('ts');
+  if(main) main.setAttribute('aria-busy','true');
+  let d;
+  try { d = await (await fetch('/api/cr/overview')).json(); }
+  catch(e){
+    const detail='控制室概览读取失败: '+(e&&e.message||e||'unknown');
+    if(ts){ ts.textContent='读取失败'; ts.title=detail; ts.setAttribute('role','alert'); ts.setAttribute('aria-label',detail); }
+    if(main){ main.innerHTML = `<div class="empty err" role="alert" title="${esc(detail)}" aria-label="${esc(detail)}">${esc(detail)}</div>`; main.setAttribute('aria-busy','false'); }
+    return;
+  }
+  const tsText = '更新 ' + new Date(d.generatedAt).toLocaleString('zh-CN');
+  if(ts){ ts.textContent=tsText; ts.title='控制室更新时间: '+tsText; ts.setAttribute('role','status'); ts.setAttribute('aria-label','控制室更新时间: '+tsText); }
+
+  const agents = card('系统级智能体 ('+d.agents.length+')', rows(d.agents, '系统级智能体列表', a => {
+    const reads=(a.reads||[]).join(' , ')||'—';
+    const label=`${a.name} · ${a.runner} · ${a.context_mode} · 角色 ${a.role} · 看 ${reads}`;
+    return listItem(label, `
+	    <div class="row"><span class="name">${esc(a.name)}</span><span class="tag">${esc(a.runner)} · ${esc(a.context_mode)}</span></div>
+	    <div class="mut">角色 ${esc(a.role)} · 看:${esc(reads)}</div>`);
+  }));
+
+  const runners = card('运行器 / Runner ('+d.runners.length+')', rows(d.runners, '运行器列表', r => {
+    const label=`${r.id} · ${r.kind||''} · ${r.role||''}`;
+    return listItem(label, `
+	    <div class="row"><span class="name">${esc(r.id)}</span><span class="tag">${esc(r.kind||'')}</span></div>
+	    <div class="mut">${esc(r.role||'')}</div>`);
+  }));
+
+  const roles = card('模型角色 (model-routing)', `<div class="mut">${d.roles.map(esc).join(' · ')||'—'}</div>`);
+
+  const flows = card('声明式流程 ('+d.flows.length+')', rows(d.flows, '声明式流程列表', f => {
+    const label=`${f.id} · ${f.nodes} 节点 · ${f.file}`;
+    return listItem(label, `
+	    <div class="row"><span class="name">${esc(f.id)}</span><span class="tag">${f.nodes} 节点</span></div>
+	    <div class="mut">${esc(f.file)}</div>`);
+  }));
+
+  const evs = (d.events && d.events.events) || [];
+  const eventTitle='引擎事件流 '+(d.events.source?('· '+d.events.source):'');
+  const events = `<section class="card events" role="region" aria-label="${esc(eventTitle)}"><h2>${esc(eventTitle)}</h2>${
+    evs.length ? `<div class="event-list" role="list" aria-label="引擎事件流列表">${evs.map(e => {
+      const label=`事件 #${e.seq} · ${e.type} · ${e.node||e.to||e.task||''}`;
+      return `<div class="ev ${eventClass(e.type)}" role="listitem" title="${esc(label)}" aria-label="${esc(label)}"><b>#${e.seq}</b> ${esc(e.type)} ${esc(e.node||e.to||e.task||'')}</div>`;
+    }).join('')}</div>`
+    : emptyState('暂无事件: 引擎在 Mac 接真 CLI 跑起来后会在这里实时显示')
+  }</section>`;
+
+  if(main){ main.innerHTML = agents + runners + roles + flows + events; main.setAttribute('aria-busy','false'); }
+}
+load();
+setInterval(load, 8000);
+</script>
+</body>
+</html>

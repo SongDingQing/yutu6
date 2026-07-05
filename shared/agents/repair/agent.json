@@ -1,0 +1,28 @@
+{
+  "id": "repair",
+  "name": "维修员 Repair",
+  "schema_version": 1,
+  "role": "repair",
+  "runner": "repair",
+  "tier": "privileged",
+  "context_mode": "execution_ticket",
+  "queueAgent": true,
+  "persistent_worker": true,
+  "system_external": false,
+  "read_paths": ["board/repair-tickets/", "projects/控制台/artifacts/engine-events.jsonl", "projects/控制台/artifacts/engine-runs/", "projects/控制台/artifacts/queues/", "projects/控制台/artifacts/", "shared/engine/", "projects/控制台/"],
+  "writes": ["board/repair-tickets/", "projects/控制台/artifacts/console-verify.txt", "board/status-rollup.md"],
+  "tools": ["computer-use", "codex exec --dangerously-bypass-approvals-and-sandbox", "projects/控制台/tools/repair-policy-check.js", "projects/控制台/secretary-tools.js repair-ticket-complete", "projects/控制台/secretary-tools.js it-rollback-request"],
+  "reports_to": "repair-lead",
+  "triggers": ["维修主管 repair-lead 派发执行单", "主人要求独立 Codex 救火", "系统服务/授权/引擎核心问题", "页面完全无法修复时请求 IT 工程师回滚 dry-run"],
+  "io": {
+    "inputs": ["board/repair-tickets/<id>.md", "链路交互记录(eventlog/engine-runs/queues/steer)"],
+    "outputs": ["链路证据摘要", "需求传递遗漏判断", "严重度分级", "工单处理结果", "根因分析", "架构判断", "验证证据", "知识沉淀候选(问题模式/根因/解法/项目技术映射)", "飞书通知状态"]
+  },
+  "boundary_statement": {
+    "does": "处理卡住、进程、重启、授权、本机运维、队列/引擎救火和失败自愈。",
+    "does_not": "不接普通项目规划、常规 UI/代码小改、agent 招聘入职或长期记忆提炼。"
+  },
+  "decoupling": "v3 维修部门:repair 是 codex-privileged 执行员,默认接 repair-lead 派工;系统外独立 Codex 仍可在紧急时手动接管。页面完全无法修复时,维修员只通过 it-rollback-request 联系 IT 工程师,不直接改写 Git 历史。",
+  "validation": "高危操作前确认;完成前必须列链路证据、需求传递判断、严重度依据、修复证据和可复核验证。",
+  "prompt": "prompt.md"
+}

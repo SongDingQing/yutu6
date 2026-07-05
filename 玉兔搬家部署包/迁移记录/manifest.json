@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "Hermes Yutu Migration Records",
+  "created_at": "2026-04-26",
+    "purpose": "Migration-ready summary of Hermes/Yutu voice, Feishu, Codex handoff, ASR, Brave Search customizations, and the shared Hermes/Codex multi-agent collaboration contract.",
+  "contains_secrets": false,
+  "read_first": "README.md",
+  "handoff_prompt": "00-handoff-prompt.md",
+  "live_paths": "07-live-paths-and-data.md",
+  "knowledge_architecture_and_project_todos": "08-knowledge-architecture-skills-and-project-todos.md",
+  "module_registry": "/Users/yutu/.codex/modules/registry.json",
+    "primary_module": "/Users/yutu/.codex/modules/hermes-yutu-voice-bridge/INDEX.md",
+    "collaboration_contract_module": "/Users/yutu/.codex/modules/multi-agent-collaboration-contract/INDEX.md",
+  "sensitive_sources_not_copied": [
+    "/Users/yutu/.hermes/.env",
+    "/Users/yutu/.codex/auth.json"
+  ],
+  "service_labels": [
+    "com.yutu.hermes.voicewake",
+    "ai.hermes.gateway"
+  ]
+}

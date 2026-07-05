@@ -1,0 +1,4 @@
+interface:
+  display_name: "玉虎"
+  short_description: "Bug 根因审计、最小修复、回归验证与回滚安全护栏"
+  default_prompt: "Use $yuhu to investigate and fix this bug with root-cause evidence, regression tests, and rollback notes."

@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>玉兔6 · new-api 网关</title>
+<style>
+  :root{
+    --bg:#101114;--surface:#17191f;--surface2:#1e222b;--surface3:#111820;
+    --line:#303540;--line2:#3c4450;--text:#eceff4;--muted:#9aa4b2;
+    --soft:#c4ccd7;--blue:#72a7ff;--green:#55d39b;--amber:#f5c76a;--red:#ff7d7d;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
+  a{color:inherit}
+  header{height:56px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#17191e;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  h1{font-size:15px;margin:0;font-weight:750;white-space:nowrap}
+  .nav{height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 10px;border:1px solid var(--line2);border-radius:8px;background:#20242c;color:#dce6f5;text-decoration:none;font-size:12px}
+  .nav:hover,.btn:hover{border-color:var(--blue)}
+  .spacer{flex:1}
+  .status-pill{height:28px;display:inline-flex;align-items:center;gap:7px;padding:0 9px;border:1px solid #3b4b61;border-radius:999px;background:#151b23;color:#c9d8ec;font:12px var(--mono)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(245,199,106,.12)}
+  .dot.ok{background:var(--green);box-shadow:0 0 0 3px rgba(85,211,155,.12)}
+  main{display:flex;flex-direction:column;gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+  .band{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+  .band-head{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border-bottom:1px solid var(--line)}
+  .band-title{display:flex;align-items:baseline;gap:9px;min-width:0}
+  .band-title h2{font-size:14px;margin:0;font-weight:760;white-space:nowrap}
+  .band-title span{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .btn,select{height:30px;border:1px solid var(--line2);border-radius:8px;background:#20242c;color:#dce4ef;font:12px var(--sans);padding:0 10px;text-decoration:none}
+  .detail-btn{height:24px;padding:0 8px;font-size:11px}
+  button.btn{cursor:pointer}
+  select{padding-right:24px}
+  .overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px}
+  .metric{min-height:86px;background:var(--surface2);border:1px solid #343b48;border-radius:8px;padding:12px}
+  .metric strong{display:block;font:760 25px/1.05 var(--mono);letter-spacing:0;color:#fff}
+  .metric span{display:block;margin-top:6px;color:var(--muted);font-size:12px}
+  .metric small{display:block;margin-top:10px;color:#c5d0dd;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gateway-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1.15fr;gap:10px;padding:0 12px 12px}
+  .lane{min-height:142px;background:#141a21;border:1px solid #303947;border-radius:8px;padding:11px;display:flex;flex-direction:column;gap:9px}
+  .lane h3{margin:0;font-size:13px}
+  .lane p{margin:0;color:var(--muted);line-height:1.45}
+  .lane .mono{font-family:var(--mono);color:#d8e5f2}
+  .lane-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+  .mini-list{display:flex;flex-wrap:wrap;gap:6px;max-height:58px;overflow:hidden}
+  .chip{display:inline-flex;align-items:center;max-width:100%;height:24px;padding:0 8px;border:1px solid #3a4656;border-radius:999px;background:#1c2530;color:#d6e2ef;font:11px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .usage-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:12px;border-bottom:1px solid var(--line)}
+  .usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
+  .panel{background:#14171d;border:1px solid #303642;border-radius:8px;min-width:0}
+  .panel.wide{grid-column:1 / -1}
+  .panel-head{height:39px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid #2d3440}
+  .panel-head h3{margin:0;font-size:13px}
+  .panel-body{padding:10px;overflow:auto}
+  table{width:100%;border-collapse:collapse;min-width:620px}
+  th,td{padding:8px 8px;border-bottom:1px solid #29303a;text-align:right;vertical-align:middle}
+  th{font-size:11px;color:#aeb8c5;font-weight:680;background:#171c23;position:sticky;top:0;z-index:1}
+  td{font:12px var(--mono);color:#e5eaf1}
+  th:first-child,td:first-child{text-align:left}
+  tr.clickable{cursor:pointer}
+  tr.clickable:hover td{background:#1c2430}
+  .name-cell{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+  .muted{color:var(--muted)}
+  .ok-text{color:var(--green)}
+  .warn-text{color:var(--amber)}
+  .bar-list{display:flex;flex-direction:column;gap:7px}
+  .bar-row{display:grid;grid-template-columns:98px 1fr 90px 86px;align-items:center;gap:8px;font:12px var(--mono);color:#dce4ef}
+  .bar-track{height:9px;background:#222832;border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--blue));border-radius:999px}
+  .empty{padding:18px 10px;color:var(--muted);text-align:center}
+  .glm-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
+  .route-list{display:flex;flex-direction:column;gap:8px}
+  .route-item{display:grid;grid-template-columns:150px 110px 1fr;gap:8px;align-items:center;padding:9px;border:1px solid #303947;border-radius:8px;background:#151b22}
+  .route-item strong{font-family:var(--mono);font-size:12px}
+  .route-item span{color:var(--muted);font-size:12px;line-height:1.4}
+  .admin-frame{height:560px;display:flex;flex-direction:column}
+  iframe{border:0;flex:1;width:100%;background:#fff;border-radius:0 0 8px 8px}
+  .drawer{position:fixed;inset:0;display:none;z-index:50}
+  .drawer.open{display:block}
+  .drawer-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+  .drawer-panel{position:absolute;right:0;top:0;height:100%;width:min(520px,92vw);background:#171a20;border-left:1px solid var(--line);box-shadow:-20px 0 40px rgba(0,0,0,.35);display:flex;flex-direction:column}
+  .drawer-head{height:55px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--line)}
+  .drawer-head h2{font-size:14px;margin:0}
+  .detail{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow:auto}
+  .detail-item{background:#121820;border:1px solid #2e3744;border-radius:8px;padding:10px;min-width:0}
+  .detail-item.full{grid-column:1 / -1}
+  .detail-item span{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}
+  .detail-item strong{font:13px var(--mono);word-break:break-word}
+  @media(max-width:1150px){
+    main{padding:10px}
+    .overview,.gateway-grid,.usage-summary,.usage-grid,.glm-grid{grid-template-columns:1fr}
+    .panel.wide{grid-column:auto}
+    .admin-frame{height:680px}
+    header{height:auto;min-height:56px;flex-wrap:wrap;padding:10px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>玉兔6 · new-api 网关</h1>
+  <a class="nav" href="/workspace">工作区</a>
+  <a class="nav" href="/control-room">控制室</a>
+  <span class="spacer"></span>
+  <span class="status-pill"><span class="dot" id="healthDot"></span><span id="source">读取中</span></span>
+  <a class="nav" id="newWindow" href="http://localhost:3000/console" target="_blank" rel="noreferrer">新窗口</a>
+</header>
+
+<main>
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">
+        <h2>网关资源</h2>
+        <span id="baseUrl">localhost:3000</span>
+      </div>
+      <div class="actions">
+        <button class="btn" id="refreshAll" type="button">刷新</button>
+      </div>
+    </div>
+    <div class="overview">
+      <div class="metric"><strong id="metricChannels">-</strong><span>渠道</span><small id="metricEnabled">启用 -</small></div>
+      <div class="metric"><strong id="metricTokens">-</strong><span>令牌</span><small>不显示 key 值</small></div>
+      <div class="metric"><strong id="metricUsage">-</strong><span>今日 quota</span><small id="metricCost">估算费用 -</small></div>
+      <div class="metric"><strong id="metricLogs">-</strong><span>今日调用</span><small id="metricModels">模型 -</small></div>
+    </div>
+    <div class="gateway-grid">
+      <div class="lane">
+        <h3>渠道</h3>
+        <p>上游供应商、权重、模型映射与状态。</p>
+        <p class="mono" id="channelState">-</p>
+        <div class="lane-actions">
+          <a class="btn jump" data-route="channels" href="http://localhost:3000/console/channel">渠道后台</a>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>模型</h3>
+        <div class="mini-list" id="modelList"></div>
+        <div class="lane-actions">
+          <a class="btn jump" data-route="pricing" href="http://localhost:3000/pricing">模型价格</a>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>令牌</h3>
+        <p>按 token 名称聚合消耗,不展示真实 key。</p>
+        <p class="mono" id="tokenState">-</p>
+        <div class="lane-actions">
+          <a class="btn jump" data-route="tokens" href="http://localhost:3000/console/token">令牌后台</a>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>日志</h3>
+        <p>调用次数、token、quota、估算费用与单次明细。</p>
+        <p class="mono" id="logState">-</p>
+        <div class="lane-actions">
+          <a class="btn jump" data-route="dashboard" href="http://localhost:3000/detail">数据看板</a>
+          <a class="btn jump" data-route="logs" href="http://localhost:3000/console/log">日志后台</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">
+        <h2>API 调用消耗</h2>
+        <span id="usageMeta">按本地日志聚合</span>
+      </div>
+      <div class="actions">
+        <select id="rangeSelect" aria-label="时间范围">
+          <option value="1">今天</option>
+          <option value="7" selected>近 7 天</option>
+          <option value="30">近 30 天</option>
+          <option value="90">近 90 天</option>
+        </select>
+        <a class="btn jump" data-route="logs" href="http://localhost:3000/console/log">日志后台</a>
+      </div>
+    </div>
+    <div class="usage-summary">
+      <div class="metric"><strong id="sumCalls">-</strong><span>调用次数</span><small>requests</small></div>
+      <div class="metric"><strong id="sumTokens">-</strong><span>总 tokens</span><small id="sumTokenSplit">prompt / completion</small></div>
+      <div class="metric"><strong id="sumQuota">-</strong><span>总 quota</span><small>new-api 原始计量</small></div>
+      <div class="metric"><strong id="sumCost">-</strong><span>估算费用</span><small id="sumCostNote">quota / 500000</small></div>
+      <div class="metric"><strong id="sumLatency">-</strong><span>平均耗时</span><small id="sumLast">最近 -</small></div>
+    </div>
+    <div class="usage-grid">
+      <div class="panel">
+        <div class="panel-head"><h3>按模型</h3><span class="muted">quota 排序</span></div>
+        <div class="panel-body"><table><thead><tr><th>模型</th><th>次数</th><th>tokens</th><th>quota</th><th>费用</th></tr></thead><tbody id="modelUsage"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>按 Key</h3><span class="muted">显示 token 名称</span></div>
+        <div class="panel-body"><table><thead><tr><th>Key</th><th>次数</th><th>tokens</th><th>quota</th><th>费用</th></tr></thead><tbody id="keyUsage"></tbody></table></div>
+      </div>
+      <div class="panel wide">
+        <div class="panel-head"><h3>按时间</h3><span class="muted">本地日期</span></div>
+        <div class="panel-body"><div class="bar-list" id="dayUsage"></div></div>
+      </div>
+      <div class="panel wide">
+        <div class="panel-head"><h3>调用明细</h3><span class="muted">查看单次消耗</span></div>
+        <div class="panel-body"><table><thead><tr><th>时间</th><th>模型</th><th>Key</th><th>tokens</th><th>quota</th><th>费用</th><th>耗时</th><th>明细</th></tr></thead><tbody id="recentCalls"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">
+        <h2>GLM-5.2 分担</h2>
+        <span id="glmRunner">zhipu-glm</span>
+      </div>
+      <div class="actions">
+        <a class="btn" href="/public/assets/avatars/manifest.json" target="_blank" rel="noreferrer">资源清单</a>
+      </div>
+    </div>
+    <div class="glm-grid">
+      <div class="panel">
+        <div class="panel-head"><h3>已路由角色</h3><span class="muted">来自 roleRouting</span></div>
+        <div class="panel-body"><div class="route-list" id="glmRoutes"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>保留主力路径</h3><span class="muted">暂不切换</span></div>
+        <div class="panel-body"><div class="route-list" id="glmKept"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band admin-frame">
+    <div class="band-head">
+      <div class="band-title">
+        <h2>new-api 后台</h2>
+        <span id="frameTitle">console</span>
+      </div>
+      <div class="actions">
+        <a class="btn jump" data-route="console" href="http://localhost:3000/console">控制台</a>
+        <a class="btn jump" data-route="channels" href="http://localhost:3000/console/channel">渠道</a>
+        <a class="btn jump" data-route="tokens" href="http://localhost:3000/console/token">令牌</a>
+        <a class="btn jump" data-route="logs" href="http://localhost:3000/console/log">日志</a>
+      </div>
+    </div>
+    <iframe id="gatewayFrame" name="gatewayFrame" src="http://localhost:3000/console" title="new-api 管理后台"></iframe>
+  </section>
+</main>
+
+<div class="drawer" id="detailDrawer" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true">
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <div class="drawer-panel">
+    <div class="drawer-head">
+      <h2 id="detailTitle">调用明细</h2>
+      <button class="btn" id="closeDrawer" type="button">关闭</button>
+    </div>
+    <div class="detail" id="detailBody"></div>
+  </div>
+</div>
+
+<script>
+let baseUrl = 'http://localhost:3000';
+let routes = {};
+let quotaDivisor = 500000;
+let lastDetailFocus = null;
+const $ = s => document.querySelector(s);
+const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtInt = n => {
+  n = Number(n || 0);
+  return n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
+};
+const fmtFull = n => Number(n || 0).toLocaleString('en-US');
+const fmtQuota = n => fmtFull(Math.round(Number(n || 0)));
+const fmtUsd = n => '$' + Number(n || 0).toFixed(Number(n || 0) >= 1 ? 2 : 4);
+const fmtSec = n => Number(n || 0) ? Number(n || 0).toFixed(1) + 's' : '-';
+const fmtTime = ts => {
+  const n = Number(ts || 0);
+  if (!n) return '-';
+  const d = new Date(n * 1000);
+  return d.toLocaleString('zh-CN', { hour12:false, month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+};
+function setText(id, value){ const node = $('#' + id); if (node) node.textContent = value; }
+function costFromQuota(quota){ return Number(quota || 0) / quotaDivisor; }
+function setHealth(ok, label){
+  const dot = $('#healthDot');
+  dot.classList.toggle('ok', !!ok);
+  setText('source', label);
+}
+function routeUrl(name){
+  return routes[name] || ({
+    console: baseUrl + '/console',
+    channels: baseUrl + '/console/channel',
+    tokens: baseUrl + '/console/token',
+    logs: baseUrl + '/console/log',
+    dashboard: baseUrl + '/detail',
+    pricing: baseUrl + '/pricing',
+  })[name] || baseUrl;
+}
+function openInFrame(url, label){
+  $('#gatewayFrame').src = url;
+  $('#newWindow').href = url;
+  setText('frameTitle', label || url.replace(baseUrl + '/', ''));
+}
+function bindJumpLinks(){
+  document.querySelectorAll('.jump').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const name = a.dataset.route;
+      const url = routeUrl(name) || a.href;
+      openInFrame(url, name || a.textContent.trim());
+    });
+  });
+}
+function renderModels(models){
+  const box = $('#modelList');
+  box.innerHTML = '';
+  if (!models || !models.length) {
+    box.innerHTML = '<span class="muted">未读取到模型清单</span>';
+    return;
+  }
+  box.innerHTML = models.map(m => `<span class="chip">${esc(m)}</span>`).join('');
+}
+async function loadOverview(){
+  try {
+    const data = await (await fetch('/api/newapi/overview')).json();
+    if (!data.ok) throw new Error(data.error || 'overview failed');
+    baseUrl = data.baseUrl || baseUrl;
+    routes = data.routes || {};
+    setText('baseUrl', baseUrl);
+    setHealth(true, (data.source || 'local') + (data.settings && data.settings.selfUseMode ? ' · 自用' : ''));
+    const m = data.metrics || {};
+    setText('metricChannels', fmtInt(m.channels));
+    setText('metricEnabled', '启用 ' + fmtFull(m.enabledChannels || 0));
+    setText('metricTokens', fmtInt(m.tokens));
+    setText('metricUsage', fmtQuota(m.todayQuota));
+    setText('metricCost', '估算费用 ' + fmtUsd(costFromQuota(m.todayQuota)));
+    setText('metricLogs', fmtInt(m.todayLogs));
+    setText('metricModels', '模型 ' + ((m.models || []).length || '-'));
+    setText('channelState', `${fmtFull(m.enabledChannels || 0)} / ${fmtFull(m.channels || 0)} enabled`);
+    setText('tokenState', `${fmtFull(m.tokens || 0)} tokens`);
+    setText('logState', `${fmtFull(m.todayLogs || 0)} calls today`);
+    renderModels(m.models || []);
+    document.querySelectorAll('[data-route]').forEach(a => { a.href = routeUrl(a.dataset.route); });
+    $('#newWindow').href = routeUrl('console');
+  } catch (e) {
+    setHealth(false, '概览不可用');
+    renderModels([]);
+  }
+}
+function usageRow(row, nameField){
+  const name = row[nameField] || row.model || row.token_name || '-';
+  const tokens = Number(row.total_tokens || 0);
+  const quota = Number(row.quota || 0);
+  return `<tr>
+    <td><div class="name-cell" title="${esc(name)}">${esc(name)}</div></td>
+    <td>${fmtFull(row.calls)}</td>
+    <td>${fmtFull(tokens)}</td>
+    <td>${fmtQuota(quota)}</td>
+    <td>${fmtUsd(/glm-?5\.?2|zhipu/i.test(String(row.model||'')) ? 0 : (row.estimated_cost_usd != null ? row.estimated_cost_usd : costFromQuota(quota)))}</td>
+  </tr>`;
+}
+function renderAggregate(id, rows, nameField){
+  const body = $('#' + id);
+  if (!rows || !rows.length) {
+    body.innerHTML = '<tr><td colspan="5" class="empty">暂无日志</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => usageRow(r, nameField)).join('');
+}
+function renderDays(rows){
+  const box = $('#dayUsage');
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="empty">暂无日志</div>';
+    return;
+  }
+  const maxQuota = Math.max(...rows.map(r => Number(r.quota || 0)), 1);
+  box.innerHTML = rows.map(r => {
+    const width = Math.max(3, Math.round(Number(r.quota || 0) / maxQuota * 100));
+    return `<div class="bar-row">
+      <span>${esc(r.day || '-')}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${width}%"></span></span>
+      <span>${fmtQuota(r.quota)}</span>
+      <span>${fmtFull(r.calls)} 次</span>
+    </div>`;
+  }).join('');
+}
+function renderRecent(rows){
+  const body = $('#recentCalls');
+  if (!rows || !rows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="empty">暂无调用</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const cost = r.estimated_cost_usd != null ? r.estimated_cost_usd : costFromQuota(r.quota);
+    return `<tr class="clickable" data-log-id="${esc(r.id)}">
+      <td>${esc(fmtTime(r.created_at))}</td>
+      <td><div class="name-cell" title="${esc(r.model)}">${esc(r.model)}</div></td>
+      <td><div class="name-cell" title="${esc(r.token_name)}">${esc(r.token_name)}</div></td>
+      <td>${fmtFull(r.total_tokens)}</td>
+      <td>${fmtQuota(r.quota)}</td>
+      <td>${fmtUsd(cost)}</td>
+      <td>${fmtSec(r.use_time)}</td>
+      <td><a class="btn detail-btn" data-detail-id="${esc(r.id)}" href="#log-${esc(r.id)}">查看</a></td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('[data-log-id]').forEach(row => row.addEventListener('click', () => showDetail(row.dataset.logId)));
+  body.querySelectorAll('[data-detail-id]').forEach(btn => btn.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    history.replaceState(null, '', '#log-' + btn.dataset.detailId);
+    showDetail(btn.dataset.detailId);
+  }));
+}
+async function loadUsage(){
+  try {
+    const days = $('#rangeSelect').value;
+    const data = await (await fetch('/api/newapi/usage?days=' + encodeURIComponent(days) + '&limit=120')).json();
+    if (!data.ok) throw new Error(data.error || 'usage failed');
+    quotaDivisor = data.quotaUnit && data.quotaUnit.divisor ? Number(data.quotaUnit.divisor) : quotaDivisor;
+    const usage = data.usage || {};
+    const t = usage.totals || {};
+    setText('usageMeta', `${data.source || 'local'} · ${usage.days || days} 天 · ${data.dbPath || ''}`);
+    setText('sumCalls', fmtInt(t.calls));
+    setText('sumTokens', fmtInt(t.total_tokens));
+    setText('sumTokenSplit', `${fmtFull(t.prompt_tokens)} / ${fmtFull(t.completion_tokens)}`);
+    setText('sumQuota', fmtQuota(t.quota));
+    setText('sumCost', fmtUsd(t.estimated_cost_usd != null ? t.estimated_cost_usd : costFromQuota(t.quota)));
+    setText('sumCostNote', 'quota / ' + fmtFull(quotaDivisor));
+    setText('sumLatency', fmtSec(t.avg_use_time));
+    setText('sumLast', '最近 ' + fmtTime(t.last_at));
+    renderAggregate('modelUsage', usage.byModel || [], 'model');
+    renderAggregate('keyUsage', usage.byToken || [], 'token_name');
+    renderDays(usage.byDay || []);
+    renderRecent(usage.recent || []);
+  } catch (e) {
+    setText('usageMeta', 'usage 不可用: ' + e.message);
+    ['modelUsage','keyUsage','recentCalls'].forEach(id => { $('#' + id).innerHTML = '<tr><td colspan="7" class="empty">读取失败</td></tr>'; });
+    $('#dayUsage').innerHTML = '<div class="empty">读取失败</div>';
+  }
+}
+function routeCard(role, runner, scenes, reason){
+  const sceneText = Array.isArray(scenes) ? scenes.join(' / ') : (reason || '');
+  return `<div class="route-item">
+    <strong>${esc(role)}</strong>
+    <span class="${runner === 'zhipu-glm' ? 'ok-text' : 'warn-text'}">${esc(runner || '-')}</span>
+    <span>${esc(sceneText || reason || '-')}</span>
+  </div>`;
+}
+async function loadRunners(){
+  try {
+    const data = await (await fetch('/api/runners')).json();
+    const runners = new Map((data.runners || []).map(r => [r.id, r]));
+    const plan = data.glm52Delegation || {};
+    const routed = plan.routedRoles || Object.entries(data.roles || {})
+      .filter(([, r]) => r && r.runner === 'zhipu-glm')
+      .map(([role, r]) => ({ role, scenes:[r.label || role], reason:'roleRouting' }));
+    const kept = plan.keptOnPrimary || [];
+    const runner = runners.get(plan.runner || 'zhipu-glm');
+    setText('glmRunner', (plan.runner || 'zhipu-glm') + (runner ? ' · ' + runner.label : ''));
+    $('#glmRoutes').innerHTML = routed.length
+      ? routed.map(x => routeCard(x.role, plan.runner || 'zhipu-glm', x.scenes, x.reason)).join('')
+      : '<div class="empty">暂无 GLM 路由</div>';
+    $('#glmKept').innerHTML = kept.length
+      ? kept.map(x => {
+        const runnerId = data.roles && data.roles[x.role] && data.roles[x.role].runner;
+        return routeCard(x.role, runnerId || 'primary', null, x.reason);
+      }).join('')
+      : '<div class="empty">暂无保留清单</div>';
+  } catch (e) {
+    $('#glmRoutes').innerHTML = '<div class="empty">读取失败</div>';
+    $('#glmKept').innerHTML = '<div class="empty">读取失败</div>';
+  }
+}
+function detailItem(label, value, full){
+  return `<div class="detail-item${full ? ' full' : ''}"><span>${esc(label)}</span><strong>${esc(value == null || value === '' ? '-' : value)}</strong></div>`;
+}
+async function showDetail(id){
+  const drawer = $('#detailDrawer');
+  lastDetailFocus = document.activeElement && document.activeElement.focus ? document.activeElement : null;
+  $('#detailTitle').textContent = '调用 #' + id;
+  $('#detailBody').innerHTML = '<div class="empty">读取中</div>';
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  const closeBtn = $('#closeDrawer');
+  if (closeBtn) closeBtn.focus();
+  try {
+    const data = await (await fetch('/api/newapi/logs/' + encodeURIComponent(id))).json();
+    if (!data.ok) throw new Error(data.error || 'detail failed');
+    quotaDivisor = data.quotaUnit && data.quotaUnit.divisor ? Number(data.quotaUnit.divisor) : quotaDivisor;
+    const d = data.detail || {};
+    $('#detailBody').innerHTML = [
+      detailItem('时间', fmtTime(d.created_at)),
+      detailItem('模型', d.model),
+      detailItem('Key', d.token_name),
+      detailItem('渠道', d.channel_name),
+      detailItem('Prompt tokens', fmtFull(d.prompt_tokens)),
+      detailItem('Completion tokens', fmtFull(d.completion_tokens)),
+      detailItem('总 tokens', fmtFull(d.total_tokens)),
+      detailItem('Quota', fmtQuota(d.quota)),
+      detailItem('估算费用', fmtUsd(d.estimated_cost_usd != null ? d.estimated_cost_usd : costFromQuota(d.quota))),
+      detailItem('耗时', fmtSec(d.use_time)),
+      detailItem('流式', d.is_stream ? 'yes' : 'no'),
+      detailItem('Token ID', d.token_id),
+      detailItem('Request ID', d.request_id || '-', true),
+      detailItem('Upstream Request ID', d.upstream_request_id || '-', true),
+      detailItem('内容', d.content_hidden_reason || 'hidden', true),
+    ].join('');
+  } catch (e) {
+    $('#detailBody').innerHTML = '<div class="empty">读取失败: ' + esc(e.message) + '</div>';
+  }
+}
+function closeDrawer(){
+  const drawer = $('#detailDrawer');
+  const wasOpen = drawer.classList.contains('open');
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  if (wasOpen && lastDetailFocus && document.contains(lastDetailFocus)) lastDetailFocus.focus();
+  lastDetailFocus = null;
+}
+function openHashDetail(){
+  const match = String(location.hash || '').match(/^#log-(\d+)$/);
+  if (match) showDetail(match[1]);
+}
+bindJumpLinks();
+$('#refreshAll').addEventListener('click', () => { loadOverview(); loadUsage(); loadRunners(); });
+$('#rangeSelect').addEventListener('change', loadUsage);
+$('#closeDrawer').addEventListener('click', closeDrawer);
+$('#drawerBackdrop').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('#detailDrawer').classList.contains('open')) closeDrawer();
+});
+window.addEventListener('hashchange', openHashDetail);
+loadOverview();
+loadUsage().then(openHashDetail);
+loadRunners();
+setInterval(loadOverview, 15000);
+setInterval(loadUsage, 30000);
+</script>
+</body>
+</html>

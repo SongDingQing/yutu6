@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yutu6.console-long-run-maintenance</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <string>/Users/yutu6/玉兔6工作区/projects/控制台/tools/long-run-maintenance.js</string>
+    <string>--json</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>YUTU6_NODE_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <key>CONSOLE_NODE_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <key>YUTU6_PEEKABOO_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+    <key>CONSOLE_PEEKABOO_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+    <key>CONSOLE_PEEKABOO_IMAGE_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/long-run-maintenance/launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/long-run-maintenance/launchd.err.log</string>
+</dict>
+</plist>
