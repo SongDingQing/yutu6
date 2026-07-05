@@ -446,7 +446,7 @@ function initGitRoot() {
   git(['config', 'user.email', 't@t'], root);
   git(['config', 'user.name', 't'], root);
   git(['config', 'commit.gpgsign', 'false'], root);
-  git(['remote', 'add', 'gitee', bare], root);
+  git(['remote', 'add', 'github', bare], root); // 2026-07-05 引擎默认发布远端切 github
   write(path.join(root, 'VERSION.json'), JSON.stringify({
     schema_version: 1,
     owner_agent: 'it-engineer',

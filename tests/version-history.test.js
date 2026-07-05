@@ -49,8 +49,8 @@ function testHistoryParsing() {
     const top = h[0];
     assert(!/0\.1\.0\.0/.test(top.desc), '描述应清掉版本号: ' + top.desc);
     assert(/月球森林部门/.test(top.desc), '描述应保留正文: ' + top.desc);
-    // commitUrl 指向 gitee
-    assert(/gitee\.com/.test(top.commitUrl), 'commitUrl 应指向 gitee');
+    // commitUrl 指向发布远端(2026-07-05 起为 github)
+    assert(/github\.com/.test(top.commitUrl), 'commitUrl 应指向 github');
     // 时间字段存在且可解析
     assert(top.at && !isNaN(new Date(top.at).getTime()), 'at 应为可解析时间');
   } finally {
