@@ -7,9 +7,13 @@ const { spawnSync } = require('child_process');
 
 const DEFAULT_ROOT = path.resolve(__dirname, '../../..');
 const VERSION_FILE_NAME = 'VERSION.json';
-const DEFAULT_REMOTE_NAME = 'gitee';
-const GITEE_WEB_URL = 'https://gitee.com/songdingqing/yutu6';
-const GITEE_SSH_URL = 'git@gitee.com:songdingqing/yutu6.git';
+// 2026-07-05 主仓迁 GitHub:引擎默认发布远端改 github(gitee 保留为私有历史存档,不再自动推)。
+const GITHUB_WEB_URL = 'https://github.com/SongDingQing/yutu6';
+const GITHUB_SSH_URL = 'git@github.com:SongDingQing/yutu6.git';
+const DEFAULT_REMOTE_NAME = 'github';
+// 兼容旧引用名:GITEE_* 现别名到 github 值,全仓无需逐处改名即切换。
+const GITEE_WEB_URL = GITHUB_WEB_URL;
+const GITEE_SSH_URL = GITHUB_SSH_URL;
 const VERSION_SCHEMA = 1;
 const PARTS = ['manual', 'major', 'minor', 'fix'];
 const PART_LABELS = {
@@ -570,6 +574,9 @@ module.exports = {
   PART_LABELS,
   GITEE_WEB_URL,
   GITEE_SSH_URL,
+  GITHUB_WEB_URL,
+  GITHUB_SSH_URL,
+  DEFAULT_REMOTE_NAME,
   parseArgs,
   parseVersion,
   formatVersion,

@@ -155,9 +155,9 @@
     "ownerRole": "it_engineer",
     "ownerAgent": "it-engineer",
     "ownerLabel": "IT 工程师",
-    "remoteName": "gitee",
-    "remoteWebUrl": "https://gitee.com/songdingqing/yutu6",
-    "remotePushUrl": "git@gitee.com:songdingqing/yutu6.git",
+    "remoteName": "github",
+    "remoteWebUrl": "https://github.com/SongDingQing/yutu6",
+    "remotePushUrl": "git@github.com:SongDingQing/yutu6.git",
     "versionFile": "VERSION.json",
     "scope": [
       "Gitee push",

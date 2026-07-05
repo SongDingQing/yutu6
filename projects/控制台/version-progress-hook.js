@@ -593,7 +593,7 @@ function giteeCommitPushPublisher(ctx = {}) {
   if (!isGitRepo(root)) {
     return publishPlan(ctx.releaseImpact, ctx.nextVersion, ctx.task); // 非 git:退回 deferred(测试/非仓库)
   }
-  const remote = ctx.remoteName || 'gitee';
+  const remote = ctx.remoteName || VersionManager.DEFAULT_REMOTE_NAME || 'github';
   const branch = currentBranch(root);
   const files = declaredChangedFiles(ctx.task, ctx.gate);
   const addRes = runGit(['add', '--', 'VERSION.json', ...files], root);
