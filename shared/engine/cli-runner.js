@@ -1037,6 +1037,21 @@ function makeCliRunner(opts) {
   const quotaBreakerEnabled = opts.quotaBreaker !== false && process.env.YUTU6_QUOTA_BREAKER !== '0';
   const quotaRoot = opts.quotaStateRoot || opts.queueRoot || null;
   const quotaBreaker = quotaBreakerEnabled && quotaRoot ? loadQuotaBreakerModule(opts) : null;
+  // runner.call/runner.quality 增量观测事件:默认开(纯 emit,不改决策);YUTU6_RUNNER_EVENTS=0 关(防事件流膨胀)。
+  const runnerEventsEnabled = process.env.YUTU6_RUNNER_EVENTS !== '0';
+  // 健康加权路由(洞察#1):off=不算;shadow=算但不改路由、只 emit route.score 观测(默认,先观察);on=实际重排候选。
+  const routeScoreMode = String(process.env.YUTU6_ROUTE_SCORE || 'shadow').toLowerCase();
+
+  // 只读健康查询(喂 scoreCandidates):熔断/退避中→blocked;有 strike 未熔断→strikes>0。无副作用。
+  function runnerHealth(candidateId) {
+    if (!quotaBreaker) return null;
+    try {
+      const state = quotaBreaker.readState(quotaRoot, quotaBreaker.runnerScope(candidateId));
+      if (!state) return null; // 无状态记录 = 健康
+      const dec = quotaBreaker.breakerDecision(state);
+      return { blocked: !!dec.blocked, strikes: (state.breaker && state.breaker.strikes) || 0 };
+    } catch (_) { return null; }
+  }
 
   function emitQuotaEvent(type, node, attempt, data) {
     if (!opts.eventlog) return;
@@ -1156,13 +1171,51 @@ function makeCliRunner(opts) {
     return { resolved, runnerId, r, dir, prompt };
   }
 
-  // 候选 runnerId 序列:首选(roleMap,不变)+ prefer 降级候选。
-  function candidatesFor(node) {
+  // 候选 runnerId 序列:首选(roleMap,不变)+ prefer 降级候选;再按健康信号做稳定重排(受 routeScoreMode 门控)。
+  function candidatesFor(node, attempt) {
     const role = node && node.agent_role;
     const primary = roleMap[role] || 'codex';
     if (!failoverEnabled) return [primary];
     const chain = Failover.failoverCandidates(role, { primaryRunnerId: primary, runners, rolePrefer });
-    return chain.length ? chain : [primary];
+    const base = chain.length ? chain : [primary];
+    if (routeScoreMode === 'off' || base.length <= 1) return base;
+    const reordered = Failover.scoreCandidates(base, { healthOf: runnerHealth });
+    const changed = reordered.length === base.length && reordered.some((id, i) => id !== base[i]);
+    if (changed && opts.eventlog) {
+      try {
+        opts.eventlog.emit('route.score', {
+          task: opts.taskId || null, node: node && node.id || null, role, attempt,
+          mode: routeScoreMode, original: base, reordered,
+          applied: routeScoreMode === 'on', projectId: opts.projectId || null,
+        });
+      } catch (_) {}
+    }
+    return routeScoreMode === 'on' ? reordered : base; // shadow:算并观测,但不改实际路由
+  }
+
+  // runner.call:每次 runner 调用后 emit(role×runner 调用账本地基;洞察#2/#4/#6)。纯观测,不改决策。
+  function emitRunnerCall(node, attempt, runnerId, candidateIndex, latencyMs, res, result) {
+    if (!runnerEventsEnabled || !opts.eventlog) return;
+    try {
+      opts.eventlog.emit('runner.call', {
+        task: opts.taskId || null,
+        node: node && node.id || null,
+        role: node && node.agent_role || null,
+        attempt,
+        runner: runnerId,
+        candidate_index: candidateIndex,
+        failover: candidateIndex > 0,
+        ok: !result.fail,
+        fail: result.fail ? Failover.classifyFailure(result.fail) : null,
+        status: res && typeof res.status === 'number' ? res.status : null,
+        signal: (res && res.signal) || null,
+        latency_ms: latencyMs,
+        span: `${node && node.id}-${attempt}${candidateIndex > 0 ? '-fo' + candidateIndex : ''}`,
+        trace_id: process.env.YUTU6_TRACE_ID || opts.taskId || null,
+        projectId: opts.projectId || null,
+        queueId: opts.queueId || null,
+      });
+    } catch (_) {}
   }
 
   function emitFailover(node, attempt, from, to, fail) {
@@ -1183,7 +1236,7 @@ function makeCliRunner(opts) {
   }
 
   function cliRunner(node, ctx, attempt) {
-    const candidates = candidatesFor(node);
+    const candidates = candidatesFor(node, attempt);
     const timeoutSec = nodeTimeoutSec(opts);
     let lastFail = null;
     let executed = 0;
@@ -1195,8 +1248,10 @@ function makeCliRunner(opts) {
       if (prepared.fail) { lastFail = prepared.fail; continue; }   // 该候选不可用(如纯文本无 harness)→ 跳下一个
       const { runnerId, r, dir, prompt } = prepared;
       executed++;
+      const t0 = Date.now();
       const res = runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
       const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec });
+      emitRunnerCall(node, attempt, runnerId, i, Date.now() - t0, res, result);
       noteQuotaOutcome(node, attempt, candidates[i], gate, result);
       if (!result.fail) return result;
       lastFail = result.fail;
@@ -1206,7 +1261,7 @@ function makeCliRunner(opts) {
     return { fail: lastFail || `所有候选 runner 均不可用: ${candidates.join(',')}` };
   }
   cliRunner.runNodeAsync = async function runNodeAsync(node, ctx, attempt) {
-    const candidates = candidatesFor(node);
+    const candidates = candidatesFor(node, attempt);
     const timeoutSec = nodeTimeoutSec(opts);
     let lastFail = null;
     let executed = 0;
@@ -1218,8 +1273,10 @@ function makeCliRunner(opts) {
       if (prepared.fail) { lastFail = prepared.fail; continue; }
       const { runnerId, r, dir, prompt } = prepared;
       executed++;
+      const t0 = Date.now();
       const res = await runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
       const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec });
+      emitRunnerCall(node, attempt, runnerId, i, Date.now() - t0, res, result);
       noteQuotaOutcome(node, attempt, candidates[i], gate, result);
       if (!result.fail) return result;
       lastFail = result.fail;

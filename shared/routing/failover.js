@@ -81,6 +81,30 @@ function failoverCandidates(role, opts = {}) {
   return chain;
 }
 
+// 健康加权重排(洞察#1 Routerly:路由带健康信号,兑现 predictive)。
+// 纯函数、不增删元素、零外部依赖:健康信号由调用方以 healthOf 闭包注入(避免 shared→projects 反向依赖)。
+//   healthOf(runnerId) => { blocked:bool, strikes:number }|null|undefined  (未知/异常一律当健康,保守不误伤)
+// 策略:稳定分区——健康候选保持原相对顺序在前,有 strike 的次之,当前熔断/退避中的沉底。
+//   · 全健康时顺序【完全不变】(penalty 全 0),对现有正确性零影响。
+//   · 遍历执行时 quotaGateFor 本就会跳过熔断候选;本函数只是把"跳过"提前到排序,减少无谓 skip、显式化健康信号。
+function scoreCandidates(chain, opts = {}) {
+  const list = Array.isArray(chain) ? chain.slice() : [];
+  if (list.length <= 1) return list;
+  const healthOf = typeof opts.healthOf === 'function' ? opts.healthOf : null;
+  if (!healthOf) return list; // 无健康源 → 原样返回,完全无害
+  const scored = list.map((id, i) => {
+    let penalty = 0;
+    try {
+      const h = healthOf(id);
+      if (h && h.blocked) penalty = 2;            // 熔断/退避中 → 沉底
+      else if (h && h.strikes > 0) penalty = 1;   // 有 strike 未熔断 → 轻微降权
+    } catch (_) { /* 健康未知 → 当健康 */ }
+    return { id, i, penalty };
+  });
+  scored.sort((a, b) => (a.penalty - b.penalty) || (a.i - b.i)); // penalty 升序;同组保持原 index 序(稳定)
+  return scored.map((s) => s.id);
+}
+
 // 失败原因分类:只给 runner.failover 事件标 reason 类型,不决定是否降级(exec 级失败一律降级)。
 function classifyFailure(failText) {
   const s = String(failText || '');
@@ -99,5 +123,6 @@ module.exports = {
   parseRolePrefer,
   loadRolePrefer,
   failoverCandidates,
+  scoreCandidates,
   classifyFailure,
 };

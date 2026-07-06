@@ -14,6 +14,7 @@ const tests = [
   'repair-department.test.js',
   'board-review.test.js',
   'agents-check.test.js',
+  'action-verify.test.js',
   'front-door-policy.test.js',
   'learning-cases-policy.test.js',
   'ui-optimizer-event-writer.test.js',
@@ -27,6 +28,7 @@ const tests = [
   'it-engineer-interface.test.js',
   'workspace-title.test.js',
   'newapi-a11y.test.js',
+  'control-room-llm-gateway.test.js',
   'office-experiment.test.js',
   'office-image-template.test.js',
   'workspace-taskboard.test.js',
@@ -59,6 +61,7 @@ const tests = [
   'node-failure-retry.test.js',
   'quota-degrade.test.js',
   'llm-usage-safety.test.js',
+  'locate-anything-service.test.js',
   'auto-schedulers-default-off.test.js',
   'insight-scout-repos.test.js',
   'auto-page-review.test.js',
@@ -71,6 +74,7 @@ const tests = [
   'e2e-canary.test.js',
   'role-performance-report.test.js',
   'secret-hygiene.test.js',
+  'routing-scoring.test.js',
 ];
 
 let failed = 0;

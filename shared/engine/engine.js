@@ -431,8 +431,9 @@ function runFlow(opts) {
             });
           }
         }
+        let reviewLoopResult = null;
         if (!out.fail && flow.id === 'review-loop' && node.id === 'review' && opts.loopEngineering && typeof opts.loopEngineering.afterReview === 'function') {
-          const loopResult = opts.loopEngineering.afterReview(ctx, {
+          reviewLoopResult = opts.loopEngineering.afterReview(ctx, {
             taskId,
             flow: flow.id,
             eventlog,
@@ -440,15 +441,31 @@ function runFlow(opts) {
             loop: ctx.loop,
             attempt,
           });
-          if (loopResult && loopResult.round) {
+          if (reviewLoopResult && reviewLoopResult.round) {
             t.evidence.push({
               type: 'loop_engineering_round',
-              round: loopResult.round.round,
-              score: loopResult.round.score,
-              decision: loopResult.decision,
+              round: reviewLoopResult.round.round,
+              score: reviewLoopResult.round.score,
+              decision: reviewLoopResult.decision,
             });
             taskstore.update(t, { evidence: t.evidence, vars: ctx, visits });
           }
+        }
+        // runner.quality:review 节点收尾 emit 质量分,作 role×runner 质量回写路由的地基(洞察#2/#4)。
+        // 纯观测事件,不改决策;role 维度(engine 侧无 runnerType),runner 由消费端 role-performance-report 补。
+        if (!out.fail && flow.id === 'review-loop' && node.id === 'review' && process.env.YUTU6_RUNNER_EVENTS !== '0') {
+          try {
+            const rv = ctx.review || {};
+            const roundScore = reviewLoopResult && reviewLoopResult.round && typeof reviewLoopResult.round.score === 'number'
+              ? reviewLoopResult.round.score : null;
+            eventlog.emit('runner.quality', {
+              task: taskId, node: current, role: node.agent_role || null, attempt, loop: ctx.loop,
+              pass: rv.pass === true,
+              score: roundScore != null ? roundScore : (typeof rv.score === 'number' ? rv.score : null),
+              decision: (reviewLoopResult && reviewLoopResult.decision) || null,
+              projectId,
+            });
+          } catch (_) {}
         }
         if (out.fail && isPeekabooSoftFailure(flow, node, ctx, out.fail)) {
         ctx.screenshot_pending = true;
