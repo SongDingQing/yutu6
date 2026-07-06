@@ -1531,8 +1531,15 @@ function isQuotaScopePausedForEntry(agent, entry, runnerTypeHint = null) {
   if (!QUOTA_DEGRADE_ENABLED) return { paused: false, scope: null, state: null };
   const scope = quotaScopeForAgentEntry(agent, entry, runnerTypeHint);
   const state = QuotaDegrade.readState(ARTIFACTS_ROOT, scope);
+  // 调度层额度门:用 breakerDecision(计入 retry_after)而非裸 statePaused(只看 status)。
+  // 根因修复(2026-07-06 停机):statePaused 对 degraded 恒真,retry_after 过期后调度层仍无限 block,
+  // 而恢复所需的试探(probe)在 cli-runner,任务被挡在调度层永远到不了 cli-runner → degraded 死锁、all_blocked 空转。
+  // breakerDecision:retry_after 未到→blocked(仍等);过期→{blocked:false,probe:true}(放行,让 cli-runner 跑一次 probe 自愈);
+  // 人工 degraded 无 retry_after→blocked(维持等人工 restore)。三种既有语义不变,只补"退避过期即放行试探"这条自愈路径。
+  const decision = QuotaDegrade.breakerDecision(state);
   return {
-    paused: QuotaDegrade.statePaused(state),
+    paused: !!decision.blocked,
+    probe: !!decision.probe,
     scope,
     state,
   };

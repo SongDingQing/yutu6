@@ -218,6 +218,16 @@ async function main() {
   assert.strictEqual(secondClaim.allowed, false);
   assert.strictEqual(secondClaim.reason, 'probe_in_flight');
 
+  // 死锁回归防护(2026-07-06 停机根因):调度层额度门(ceo-worker isQuotaScopePausedForEntry)以
+  // breakerDecision(state).blocked 作 paused 判据。retry_after 过期时 blocked 必须为 false,
+  // 否则调度层无限 block、cli-runner 的 probe 永远轮不到 → degraded 永久死锁、all_blocked 空转。
+  const gateExpired = QuotaDegrade.breakerDecision(QuotaDegrade.readState(artifactsDir, breakerScope), probeNow);
+  assert.strictEqual(gateExpired.blocked, false, 'retry_after 过期后调度门必须放行(paused=false),否则 degraded 死锁');
+  assert.strictEqual(gateExpired.probe, true, '过期应标记为可试探(probe)');
+  // 退避未到:调度门仍须 block(不误放,避免额度未恢复就狂试)
+  const gateBackoff = QuotaDegrade.breakerDecision(QuotaDegrade.readState(artifactsDir, breakerScope), Date.parse(tripped2.breaker.retry_after) - 1000);
+  assert.strictEqual(gateBackoff.blocked, true, 'retry_after 未到时调度门必须仍 block');
+
   // 试探成功 → restored + strikes 清零;scope 不再暂停
   const resolvedBreaker = QuotaDegrade.resolveQuotaBreaker(artifactsDir, breakerScope, { restoredBy: 'unit-test' });
   assert.strictEqual(resolvedBreaker.ok, true);
