@@ -48,3 +48,6 @@ projects/控制台/artifacts/new-api/*.env
 
 # 绕过审计日志(运行时,不入库)
 security/skip-audit.log
+
+# 元宵审批账本(运行时决策数据,不入 git)
+projects/控制台/artifacts/yuanxiao-approvals/
