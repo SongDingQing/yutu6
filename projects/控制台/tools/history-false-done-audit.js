@@ -133,9 +133,8 @@ function entryRef(file, agent, state, entry) {
 
 function isControlScope(ref) {
   const hay = `${ref.projectId || ''}\n${ref.agent || ''}\n${ref.text || ''}`;
-  const projectAgent = `${ref.projectId || ''}\n${ref.agent || ''}`;
-  if (/Starlaid|星桥/i.test(projectAgent)) return false;
-  if (/Simulaid|模拟纪元/i.test(projectAgent)) return false;
+  if (ref.projectId && ref.projectId !== PROJECT_ID) return false;
+  if (/^supervisor-/.test(String(ref.agent || '')) && ref.agent !== `supervisor-${PROJECT_ID}`) return false;
   if (ref.projectId === PROJECT_ID) return true;
   if (ref.agent === `supervisor-${PROJECT_ID}`) return true;
   return /(控制台|workspace|工作区|CEO|ceo|queue|队列|new-api|办公室)/i.test(hay);
@@ -490,7 +489,7 @@ function main() {
     '# 控制台历史任务漏做/假完成审计',
     '',
     `- 生成时间:${summary.generated_at}`,
-    `- 审计范围:${PROJECT_ID} 项目 artifacts/queues + engine-tasks,近 ${WINDOW_DAYS} 天;Starlaid 排除`,
+    `- 审计范围:${PROJECT_ID} 项目 artifacts/queues + engine-tasks,近 ${WINDOW_DAYS} 天;其他项目不纳入`,
     `- 入口:${rel(QUEUES_DIR)}`,
     '',
     '## 汇总',

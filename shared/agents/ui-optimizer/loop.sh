@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 玉兔6 · 四智能体自优化 · 生产者(优化师 Codex + Peekaboo)
 #   按次数跑 MAX_ITER 轮(默认10),每轮跑到完成;问题入队,开发(dev-worker)异步消化、不阻塞。
-#   架构详见同目录 自优化循环架构.md。只动 UI 层,不碰业务/密钥,Starlaid 不涉及。
+#   架构详见同目录 自优化循环架构.md。只动 UI 层,不碰业务/密钥或未授权项目。
 # 后台:nohup bash loop.sh > /tmp/ui-opt.log 2>&1 &
 set -uo pipefail
 

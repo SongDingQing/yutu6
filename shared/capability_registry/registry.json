@@ -1,10 +1,7 @@
 {
-  "schema_version": 1,
-  "updated_at": "2026-06-19",
-  "note": "玉兔6 新机能力注册表。源自旧机 ~/.codex/modules/registry.json + multi-agent agent-manifest.json,repath 到新机并加迁移状态。",
-  "policy_2026_06_18": "41 项目技能与项目模块不再批量拷;改为【按需拉】(pull_on_demand)——做到对应项目时再从旧机/备份取该项目相关技能。全局只维护 3 件:①本模块索引 ②环境配置(shared/config/environment.md)③补齐指令稿(instruction-expansion-router,已重建)。Starlaid 硬排除。",
-  "old_machine_root": "/Users/yutu/.codex/modules",
-  "new_machine_root": "/Users/yutu6/.codex/modules",
+  "schema_version": 2,
+  "updated_at": "2026-07-14",
+  "note": "玉兔6 通用能力注册表。系统能力随发行版安装，具体项目能力通过 project-packs 独立接入。",
   "workspace_modules_dir": "shared/capability_registry/modules",
   "policy": {
     "lookup_first_for": [
@@ -12,11 +9,9 @@
       "previously configured features",
       "Hermes/Yutu voice workflow",
       "Feishu integrations",
-      "Codex handoff",
       "multi-agent collaboration",
       "agent capability contracts",
-      "ASR hotwords and corrections",
-      "Brave Search"
+      "ASR hotwords and corrections"
     ],
     "do_not_store": [
       "API keys",
@@ -27,17 +22,19 @@
     ],
     "instruction_expansion_priority": [
       "explicit_named_skill_or_agent",
-      "project_command_expander",
+      "installed_project_pack",
       "cross_project_wrapper",
       "global_instruction_expansion_router"
-    ]
+    ],
+    "project_boundary": "具体项目的 agent、skill、发布流程和业务资料不得进入通用发行版；项目能力包安装后才登记。",
+    "project_pack_contract": "project-packs/README.md"
   },
   "modules": [
     {
       "id": "multi-agent-collaboration-contract",
       "status": "present_in_workspace",
       "path": "shared/capability_registry/modules/multi-agent-collaboration-contract",
-      "summary": "Hermes/Yutu、Codex、未来 agent 的能力目录与交接契约。",
+      "summary": "系统智能体的能力目录、职责边界与交接契约。",
       "keywords": [
         "multi-agent",
         "多智能体",
@@ -45,197 +42,98 @@
         "能力目录",
         "接口契约",
         "handoff",
-        "Hermes",
-        "玉兔",
-        "Codex",
-        "飞书确认",
-        "Gmail",
-        "Unity",
-        "APK"
+        "Codex"
       ]
     },
     {
       "id": "hermes-yutu-voice-bridge",
       "status": "present_in_workspace",
       "path": "shared/capability_registry/modules/hermes-yutu-voice-bridge",
-      "summary": "玉兔语音唤醒、飞书记录、确认卡片、Codex handoff、ASR 热词纠错、Brave Search。",
+      "summary": "可选的玉兔语音、飞书通知、ASR 纠错与搜索桥接能力。",
       "keywords": [
         "玉兔",
         "Hermes",
         "语音唤醒",
         "飞书",
-        "确认卡片",
-        "Codex handoff",
+        "确认消息",
         "ASR",
         "热词",
-        "纠错",
-        "Brave Search"
+        "纠错"
       ]
     },
     {
       "id": "instruction-expansion-router",
-      "status": "rebuilt_in_workspace",
+      "status": "present_in_workspace",
       "path": "shared/capability_registry/modules/instruction-expansion-router",
-      "summary": "前门指令补齐路由器(新机重建);把口语/简略/截图/跨项目指令补成完整 task 信封。只绑前门秘书 Claude Code CLI(2026-07-03 接管,原 Codex),内部 agent 不挂。",
+      "summary": "前门指令补齐路由器；把口语、简略、截图或跨项目指令补成完整任务信封。",
       "keywords": [
         "指令补齐",
         "instruction expansion",
         "前门",
         "口语",
-        "简略指令",
         "截图",
         "跨项目",
-        "router",
-        "总管",
-        "task 信封",
-        "Claude Code"
+        "task envelope"
       ]
     },
     {
       "id": "self-reflection-optimizer",
       "status": "present_in_workspace",
       "path": "shared/capability_registry/modules/self-reflection-optimizer",
-      "summary": "自省优化共享能力:针对指定模块强力挑刺,逐项给优化建议;低风险高收益项自动执行,争议/不确定/影响现有功能项交给主人拍板;优秀案例进入学习案例库并可自动触发后续自省。",
+      "summary": "对指定模块挑刺并沉淀可复用改进；争议或高风险变更交给主人拍板。",
       "keywords": [
         "自省优化",
         "反思优化",
-        "挑刺优化",
         "模块复盘",
-        "自动优化",
         "优秀案例",
-        "learning cases",
-        "owner decision",
-        "auto execute",
-        "critique ledger"
+        "owner decision"
       ]
     },
     {
       "id": "meowa-game-assets",
       "status": "present_in_workspace",
       "path": "shared/capability_registry/modules/meowa-game-assets",
-      "summary": "Meowa 游戏素材生成共享能力;统一 CLI 在 shared/tools/meowa,统一 key 为 MEOWART_API_KEY,授权 secretary / codex / supervisor-Simulaid。",
+      "summary": "可选的共享游戏素材生成能力；授权给秘书、执行智能体及已安装项目部门。",
       "keywords": [
         "Meowa",
         "MeowArt",
-        "meowart_api",
-        "游戏素材",
         "game assets",
+        "游戏素材",
         "pixel art",
-        "像素",
         "sprite",
-        "透明 PNG",
         "tileset",
-        "texture",
-        "map tile",
-        "animation",
-        "SFX",
-        "BGM",
-        "Simulaid"
+        "animation"
       ]
     },
     {
       "id": "peekaboo-desktop-control",
       "type": "runner",
-      "status": "installed_external",
+      "status": "optional_external",
       "registered_in": "shared/routing/runners.yaml (id=peekaboo)",
-      "summary": "GUI/桌面控制 runner(手和眼):截屏 + 读 a11y 树 + click/type/scroll/menu/window;CLI + MCP。CLI/API 够不到的'需点击'任务派给它。brew steipete/tap/peekaboo;待授 Screen Recording + Accessibility。",
+      "summary": "可选 GUI 控制 runner；安装并授予屏幕录制和辅助功能权限后可截图、点击、输入和滚动。",
       "keywords": [
         "peekaboo",
         "GUI",
         "桌面控制",
         "点击",
-        "click",
         "截屏",
-        "screenshot",
-        "accessibility",
-        "a11y",
-        "type",
-        "scroll",
-        "menu",
-        "window",
-        "MCP",
-        "原生 App",
-        "无 API 网页"
+        "accessibility"
       ]
-    },
-    {
-      "id": "chang-e-android-control-plane",
-      "status": "pull_on_demand",
-      "old_path": "/Users/yutu/.codex/modules/chang-e-android-control-plane",
-      "summary": "元宵/嫦娥 Android 控制面、任务队列、文件、更新、自恢复。"
-    },
-    {
-      "id": "simulaid-optimize-build-deliver",
-      "status": "pull_on_demand",
-      "old_path": "/Users/yutu/.codex/modules/simulaid-optimize-build-deliver",
-      "summary": "Simulaid 优化、测试、Android/iOS 交付工作流。"
-    },
-    {
-      "id": "simulaid-studio-operating-model",
-      "status": "pull_on_demand",
-      "old_path": "/Users/yutu/.codex/modules/simulaid-studio-operating-model",
-      "summary": "Simulaid 小型制作组/质量门/协作模型。"
-    },
-    {
-      "id": "simulaid-taptap-release-gate",
-      "status": "pull_on_demand",
-      "old_path": "/Users/yutu/.codex/modules/simulaid-taptap-release-gate",
-      "summary": "TapTap 上架包检查门禁。"
-    },
-    {
-      "id": "user-clipboard-response-preference",
-      "status": "pull_on_demand",
-      "old_path": "/Users/yutu/.codex/modules/user-clipboard-response-preference",
-      "summary": "用户要\"一句话/一段话\"时复制到剪贴板的偏好。"
-    },
-    {
-      "id": "starlaid-unity-project",
-      "status": "hard_excluded",
-      "old_path": "/Users/yutu/.codex/modules/starlaid-unity-project",
-      "summary": "Starlaid 项目信息;自动研究中硬排除,仅按用户显式确认处理。"
     }
   ],
   "skills": {
-    "old_root": "/Users/yutu/.codex/skills",
-    "new_root": "/Users/yutu6/.codex/skills",
-    "new_machine_state": "fresh_install_only_system_skills",
-    "custom_count": 41,
-    "status": "archived_in_workspace",
-    "policy": "全量(减 Starlaid)已从 U盘归档进知识库作重建源;按项目登记/安装。Starlaid 四项硬排除。",
     "archive": {
       "path": "knowledge/corpus/codex-skills",
-      "count": 38,
-      "excluded_starlaid": 4,
-      "source": "U盘 月饼/codex-41-skills-yutu-2026-06-18",
-      "date": "2026-06-18"
+      "scope": "generic_only"
     },
-    "architecture_doc": "knowledge/corpus/codex-skills/SKILL_ARCHITECTURE.md",
     "global_expander": {
       "id": "instruction-expansion-router",
-      "status": "rebuilt_in_workspace",
-      "note": "不从旧机拷,已在 modules/ 重建并绑前门 Codex CLI"
+      "status": "present_in_workspace"
     },
-    "by_project": {
-      "Simulaid": {
-        "status": "registered",
-        "count": 13,
-        "index": "projects/Simulaid/capabilities.md",
-        "wrappers": [
-          "玉猿",
-          "玉鼠",
-          "玉豚",
-          "玉凤",
-          "玉虎",
-          "玉衡",
-          "玉鸡",
-          "玉龙",
-          "玉灵",
-          "玉玲珑",
-          "玉凰",
-          "黄龙"
-        ],
-        "install_to_codex": "pending(见 _迁移/转发给codex.txt)"
-      }
+    "project_skills": {
+      "status": "not_bundled",
+      "install_contract": "project-packs/README.md",
+      "registration": "knowledge/corpus/codex-skills/skills/project-routes/<projectId>.md"
     },
     "manifest": "skills-manifest.md"
   }

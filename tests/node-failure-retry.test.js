@@ -155,7 +155,7 @@ async function main() {
       projectId: '控制台',
       scopedToProject: true,
       goal: 'NODE_RETRY_SMOKE 控制台 node_failed 自动重试',
-      bounds: 'retry smoke only; Starlaid excluded; no secrets',
+      bounds: 'retry smoke only; unregistered projects excluded; no secrets',
       acceptance: 'retry smoke completes',
       useOrchestrator: false,
       autoApproveHuman: true,

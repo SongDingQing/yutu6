@@ -78,7 +78,7 @@
 
 ## 红线
 - 密钥/token/cookie/私钥/验证码不回显、不写日志。
-- Starlaid 排除。
+- 未登记或未授权项目不处理。
 - 不做删数据、改密钥分发、移动资金等不可逆动作,除非主人明确确认。
 - 你默认在 `repair` 常驻队列里运行,接受 `repair-lead` 派工;如果控制台队列自身故障,可由系统外独立 Codex 手动接管同一工单。
 - 自动队列运行时仍然不能做不可逆破坏:删数据、改密钥分发、移动资金、外发密钥、发布生产版本都必须先停下给主人确认。
@@ -86,5 +86,6 @@
 ## 紧急手动接管命令
 
 ```bash
-codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C /Users/yutu6/玉兔6工作区 "$(cat /Users/yutu6/玉兔6工作区/board/repair-tickets/<id>.md)"
+ROOT="$(git rev-parse --show-toplevel)"
+codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C "$ROOT" "$(cat "$ROOT/board/repair-tickets/<id>.md")"
 ```

@@ -226,7 +226,7 @@ function testStructuredAcceptanceHeaderDoesNotForceDeliveryEvidence() {
 function testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows() {
   const goal = [
     '项目主管(控制台)执行 CEO brief。原始目标:',
-    '研究 cc-connect 桥接借鉴点(手机元宵端用)',
+    '研究 cc-connect 桥接借鉴点(通用手机客户端用)',
     '',
     'cc-connect(chenhg5)把 AI 编程 agent 双向桥接到飞书/微信/Telegram/钉钉等消息平台,手机随时随地对话、多数平台无需公网 IP。',
     '研究相对玉兔6(现仅 hermes 单向飞书通知)可借鉴的优点:①双向指令(手机发→玉兔6执行→回复);②手机远程派单/看进度;③无需公网IP的连接方式。',
@@ -532,11 +532,11 @@ function testRoleQueueLifecycleProposalDoesNotTriggerQueueMergeRegression() {
 
 function testStructuredAcceptanceTablePassesWhenFilled() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回; 证据对不上打回',
   );
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance),
     review: structuredReview(acceptance),
@@ -556,7 +556,7 @@ function testStructuredAcceptanceUsesTemplateReference() {
     'templates/structured-acceptance-table.md',
   );
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过',
   );
   assert.match(acceptance, /模板: templates\/structured-acceptance-table\.md/);
@@ -565,11 +565,11 @@ function testStructuredAcceptanceUsesTemplateReference() {
 
 function testStructuredAcceptanceTableRejectsBlankEvidence() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回; 证据对不上打回',
   );
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { evidence: '' }),
     review: structuredReview(acceptance),
@@ -584,11 +584,11 @@ function testStructuredAcceptanceTableRejectsBlankEvidence() {
 
 function testStructuredAcceptanceTableRejectsMismatchedEvidence() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回; 证据对不上打回',
   );
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { evidence: 'projects/控制台/__missing_done_gate_evidence__.png' }),
     review: structuredReview(acceptance),
@@ -603,14 +603,14 @@ function testStructuredAcceptanceTableRejectsMismatchedEvidence() {
 
 function testStructuredAcceptanceTableRejectsExistingUnrelatedEvidence() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '结构化验收表机制上线; 填齐才过; 留空打回',
   );
   const taskRows = DoneGate.parseStructuredAcceptanceRows(acceptance);
   const taskRowIndex = taskRows.findIndex(row => /^任务验收:/.test(row.point));
   assert(taskRowIndex >= 0, 'fixture must contain a task acceptance row');
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { index: taskRowIndex, evidence: 'shared/engine/queue.js' }),
     review: structuredReview(acceptance),
@@ -625,14 +625,14 @@ function testStructuredAcceptanceTableRejectsExistingUnrelatedEvidence() {
 
 function testStructuredAcceptanceTableRejectsDesignRowWithoutDecisionLineEvidence() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回',
   );
   const designRowIndex = DoneGate.parseStructuredAcceptanceRows(acceptance)
     .findIndex(row => /^设计对照/.test(row.point));
   assert(designRowIndex >= 0, 'fixture must contain a design row');
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { index: designRowIndex, evidence: 'tests/done-gate.test.js' }),
     review: structuredReview(acceptance),
@@ -642,17 +642,17 @@ function testStructuredAcceptanceTableRejectsDesignRowWithoutDecisionLineEvidenc
     requireDeliveryEvidence: true,
   });
   assert.strictEqual(gate.ok, false);
-  assert.match(gate.reason, /decisions\.md:289|证据对不上/);
+  assert.match(gate.reason, /decisions\.md:1|证据对不上/);
 }
 
 function testStructuredAcceptancePlaceholderWordsNeedTokenBoundaries() {
   const acceptance = structuredAcceptance(
-    'LiteLLM canary 分析, 对照 memory/decisions.md 第534行',
+    'LiteLLM canary 分析, 对照 memory/decisions.md 第1行',
     '在 控制台 项目 scope 内跑 review-loop',
   );
   const notes = '后续 canary 条件保留; serial smoke pass=true, nodeOverlap=null。';
   const task = reviewLoopTask({
-    goal: 'LiteLLM canary 分析, 对照 memory/decisions.md 第534行',
+    goal: 'LiteLLM canary 分析, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { notes }),
     review: structuredReview(acceptance, { notes }),
@@ -666,11 +666,11 @@ function testStructuredAcceptancePlaceholderWordsNeedTokenBoundaries() {
 
 function testStructuredAcceptanceRejectsStandalonePlaceholderEvidence() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回',
   );
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { evidence: 'null' }),
     review: structuredReview(acceptance),
@@ -685,11 +685,11 @@ function testStructuredAcceptanceRejectsStandalonePlaceholderEvidence() {
 
 function testStructuredAcceptanceRejectsOnlyStatementNotes() {
   const acceptance = structuredAcceptance(
-    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     '填齐才过; 留空打回',
   );
   const task = reviewLoopTask({
-    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
+    goal: '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第1行',
     acceptance,
     implementation: structuredImplementation(acceptance, { notes: '只写声明' }),
     review: structuredReview(acceptance),
@@ -788,11 +788,11 @@ function testAutoVisualRowDoesNotForceDecisionRows() {
 
 function testVisualStructuredAcceptanceRequiresPeekabooAndCodex() {
   const acceptance = structuredAcceptance(
-    'UI 页面调整, 对照 memory/decisions.md 第478行, 必须截图自验',
+    'UI 页面调整, 对照 memory/decisions.md 第1行, 必须截图自验',
     '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
   );
   const task = reviewLoopTask({
-    goal: 'UI 页面调整, 对照 memory/decisions.md 第478行, 必须截图自验',
+    goal: 'UI 页面调整, 对照 memory/decisions.md 第1行, 必须截图自验',
     acceptance,
     implementation: structuredImplementation(acceptance),
     review: structuredReview(acceptance),
@@ -818,7 +818,7 @@ function testVisualStructuredAcceptanceRejectsFailureMarkerPlusUnrelatedImage() 
   fs.writeFileSync(codexReport, 'codex fixture review\n');
   try {
     const acceptance = structuredAcceptance(
-      'UI 页面调整, 对照 memory/decisions.md 第478行, 必须截图自验',
+      'UI 页面调整, 对照 memory/decisions.md 第1行, 必须截图自验',
       '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
     );
     const evidence = [
@@ -834,7 +834,7 @@ function testVisualStructuredAcceptanceRejectsFailureMarkerPlusUnrelatedImage() 
     review.verification.checked = review.verification.checked.concat(['implementation.acceptance_table']);
     review.verification.acceptance_table = acceptanceTable;
     const task = reviewLoopTask({
-      goal: 'UI 页面调整, 对照 memory/decisions.md 第478行, 必须截图自验',
+      goal: 'UI 页面调整, 对照 memory/decisions.md 第1行, 必须截图自验',
       acceptance,
       implementation,
       review,

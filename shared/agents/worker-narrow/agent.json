@@ -3,7 +3,7 @@
   "name": "外包员工 / 轻量执行 Worker Narrow",
   "schema_version": 1,
   "role": "worker_narrow",
-  "runner": "zhipu-glm",
+  "runner": "codex",
   "tier": "cheap",
   "context_mode": "last_only",
   "queueAgent": true,

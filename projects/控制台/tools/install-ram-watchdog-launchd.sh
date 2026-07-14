@@ -5,7 +5,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="${RAM_WATCHDOG_LAUNCHD_LABEL:-com.yutu6.ram-watchdog}"
 UID_VALUE="$(id -u)"
 DOMAIN="gui/${UID_VALUE}"
-NODE_BIN="${NODE_BIN:-/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node}"
+NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
+[[ -n "${NODE_BIN}" && -x "${NODE_BIN}" ]] || { echo "node executable not found" >&2; exit 1; }
+PATH_VALUE="$(dirname "${NODE_BIN}"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 ARTIFACTS="${ROOT}/artifacts"
 LOG_DIR="${ARTIFACTS}/ram-watchdog"
 PLIST_DST="${ARTIFACTS}/${LABEL}.plist"
@@ -37,7 +39,7 @@ cat > "${PLIST_DST}" <<PLIST
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<string>${PATH_VALUE}</string>
 		<key>YUTU6_NODE_BIN</key>
 		<string>${NODE_BIN}</string>
 		<key>CONSOLE_NODE_BIN</key>

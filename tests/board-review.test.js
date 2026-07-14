@@ -34,9 +34,8 @@ async function main() {
     assert.strictEqual(BoardReview.MAX_ROUNDS, 1);
     assert.strictEqual(BoardReview._test.boardReviewMaxRounds(), 1);
     assert.deepStrictEqual(BoardReview.DIRECTORS.map(d => d.id), ['board_deepseek', 'board_glm52', 'board_claude', 'board_opus48']);
-    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_claude' && d.runner === 'claude-opus-4-8' && !d.final), 'Claude 董事(暂用 Opus-4.8)须在席且不占最终裁决位');
+    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_claude' && d.runner === 'claude-fable-5' && !d.final), '可选 Claude Fable 5 董事须在席且不占最终裁决位');
     assert.strictEqual(BoardReview.DIRECTORS.filter(d => d.runner === 'codex').length, 1, '董事会不能同时有两个 Codex/GPT-5.5 席位');
-    assert(!BoardReview.DIRECTORS.some(d => d.id === 'board_kimi'), 'Kimi 董事已暂停,不得进入活跃董事会');
     assert(BoardReview.DIRECTORS.find(d => d.id === 'board_opus48' && d.final), 'Codex/GPT-5.5 必须保留最终裁决席位');
     // 2026-07-03 架构审视 A-5:董事会修订压缩前必须剥离秘书背景包,保住老板任务正文。
     const packOldFormat = '秘书补全稿:\n\n[秘书后台背景包]\n' + '背景行\n'.repeat(800) + '\n目标:修复任务板启用按钮\n项目:控制台';
@@ -223,7 +222,6 @@ async function main() {
     assert.strictEqual(approved.maxRounds, 1);
     assert.strictEqual(approved.tier, 'full', '引擎/队列/路由高危任务分级=full');
     assert.strictEqual(approveCalls.length, 4, '高危任务(engine/queue/routing)必须 4 席全体出动');
-    assert(!approveCalls.some(call => call.role === 'board_kimi'));
     assert(approveCalls.some(call => call.role === 'board_opus48'));
     assert(fs.readFileSync(memoryFile, 'utf8').includes('董事会评议'));
     const okEvents = readEvents(okEventsFile);

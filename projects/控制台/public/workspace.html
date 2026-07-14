@@ -95,7 +95,7 @@
 	  .office-zone{position:relative;z-index:2;width:100%;min-height:0;display:flex;flex-direction:column;overflow:visible;border:1px solid rgba(112,132,153,.42);border-radius:9px;background:linear-gradient(180deg,rgba(35,44,48,.48),rgba(15,20,23,.48));box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 12px 24px rgba(0,0,0,.18)}
 	  .office-zone::before{content:"";position:absolute;left:14px;right:14px;top:38px;z-index:3;height:1px;background:linear-gradient(90deg,transparent,rgba(199,220,235,.34),transparent);pointer-events:none}.office-zone::after{content:"";position:absolute;inset:38px 0 auto;height:38px;z-index:2;background:linear-gradient(180deg,rgba(121,154,176,.08),transparent);pointer-events:none}
 	  .office-zone h3{position:relative;z-index:4;width:max-content;max-width:calc(100% - 18px);margin:10px 0 0 12px;padding:4px 10px;font-size:12px;letter-spacing:0;color:#eef4fb;border:1px solid rgba(176,192,211,.26);border-radius:999px;background:rgba(9,13,18,.58);box-shadow:0 5px 12px rgba(0,0,0,.18);text-shadow:0 1px 2px rgba(0,0,0,.72)}.office-zone h3 span{font:10.5px var(--mono);color:#c0c7b6;margin-left:7px}
-	  .chairman-suite{order:1}.office-boardroom{order:2;min-height:236px}.office-common{order:3;min-height:236px}.office-repair{order:88;min-height:236px}.office-hr{order:90;min-height:240px}.office-servers{order:92;min-height:236px}.office-projects{display:contents}.project-office{order:6}
+	  .chairman-suite{order:1}.office-boardroom{order:2;min-height:236px}.office-common{order:3;min-height:236px}.office-repair{order:88;min-height:236px}.office-hr{order:90;min-height:240px}.office-servers{order:92;min-height:236px}.office-projects{display:contents}.project-office{order:5}
 	  /* 服务器卡片(办公室"智能体+服务器"):复用工位结构,换机箱图标+在线/离线语义 */
 	  .office-agent.server .office-face{bottom:52px}
 	  .office-agent.server .office-face svg{width:100%;height:100%;display:block;filter:drop-shadow(0 7px 7px rgba(0,0,0,.34))}
@@ -352,6 +352,7 @@
   <a class="nav" href="/control-room">控制室</a>
   <a class="nav" href="/public/office-experiment.html">办公室·实验版</a>
   <a class="nav" href="/api-gateway">API 网关</a>
+  <a class="nav" href="/setup#projects">项目部门</a>
   <span class="sp"></span>
   <span id="versionBadge" class="version-badge" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="verOverlay" aria-expanded="false" title="点击看版本历史" aria-label="版本 v0.0.0.0,点击看版本历史">v0.0.0.0</span>
   <span id="ts" class="empty" role="status" aria-live="polite" aria-atomic="true" title="工作区更新时间: 待读取" aria-label="工作区更新时间: 待读取">待读取</span>
@@ -571,13 +572,13 @@
 	  chairman:{label:'董事长',runner:'入口'},
 	  ceo:{label:'CEO',runner:'queue'},
 	  secretary:{label:'秘书',runner:'codex'},
-		  'insight-scout':{label:'洞察员',runner:'zhipu-glm'},
+	  'insight-scout':{label:'洞察员',runner:'codex'},
 	  'repair-lead':{label:'维修主管',runner:'codex-privileged'},
 	  repair:{label:'维修员',runner:'codex-privileged'},
 		  ui_optimizer:{label:'优化师',runner:'ui-opt'},
-		  frontend_designer:{label:'前端程序员',runner:'zhipu-glm'},
+	  frontend_designer:{label:'前端程序员',runner:'codex'},
 		  hr_manager:{label:'HR主管',runner:'codex'},
-		  hr_specialist:{label:'HR专员',runner:'zhipu-glm'},
+		  hr_specialist:{label:'HR专员',runner:'codex'},
 	  board_deepseek:{label:'董事 DeepSeek',runner:'new-api'},
 	  board_glm52:{label:'董事 GLM-5.2',runner:'zhipu-glm'},
 	  board_opus48:{label:'董事 Codex/GPT-5.5',runner:'codex'},
@@ -647,7 +648,7 @@
 	  if(projectId&&['supervisor','worker_code','worker_narrow'].includes(base)) return `${base}-${projectId}`;
 	  return base;
 	}
-	function unscopedRole(role){ return String(role||'').replace(/-(Simulaid|控制台|[^-]+)$/,''); }
+	function unscopedRole(role){ return String(role||'').replace(/-[^-]+$/,''); }
 	function avatarAlias(id){
 	  const raw=String(id||'').trim();
 	  if(!raw) return '';
@@ -734,7 +735,6 @@
 	}
 	function officeProjectTitle(projectId){
 	  if(projectId==='控制台') return '系统办公室';
-	  if(projectId==='Simulaid') return 'Simulaid 片区';
 	  return `${projectId} 片区`;
 	}
 	function officeTileProfile(name){
@@ -847,7 +847,7 @@
 	}
 	function baseEdge(from,to,tier){ return {from,to,tier:tier||'primary'}; }
 	function rebuildTopology(){
-	  PROJECTS=uniq(queueAgents.filter(a=>a.projectId&&a.projectId!=='Starlaid').map(a=>a.projectId));
+	  PROJECTS=uniq(queueAgents.filter(a=>a.projectId).map(a=>a.projectId));
 	  if(!PROJECTS.length) PROJECTS=['控制台'];
 	  const metas=[
 	    {id:'chairman',label:'董事长',group:'office',flowGroup:'core',accent:'#d6b56d',x:10,y:10},
@@ -1255,8 +1255,7 @@
 	}
 	function projectOfficeOrder(projectId){
 	  if(projectId==='控制台') return 4;
-	  if(projectId==='Simulaid') return 5;
-	  return 6;
+	  return 5;
 	}
 	function projectOfficeHtml(projectId){
 	  const ids=projectOfficeAgentIds(projectId);
@@ -1286,7 +1285,7 @@
 	  if(ob) ob.innerHTML=BOARD_DIRECTOR_IDS.map(officeActorHtml).join('');
 	  if(oh) oh.innerHTML=hrIds.map(officeActorHtml).join('');
 	  if(op) op.innerHTML=PROJECTS.map(projectOfficeHtml).join('');
-	  renderServers(); startServerPolling();          // 服务器机房(嫦娥等),探活轮询
+	  renderServers(); startServerPolling();          // 可选外部服务,探活轮询
 	  renderOfficeTiles();
 	  const oo=$('#office-overview'); if(oo){ const old=$('#overview'), html=old?old.innerHTML:''; oo.innerHTML=html||`<span class="ov"><b>${AGENT_META.length}</b> 工位</span>`; }
 	  bindScrollMemory(root);
@@ -3943,7 +3942,7 @@ async function pollQueue(){
 	    const payload={
 	      role,flowId:role==='orchestrator'?'review-loop':'agent-once',goal,attachments:outgoingImages,autoApproveHuman:true,
 	      useOrchestrator:role==='orchestrator',
-	      bounds:'只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+	      bounds:'只处理本任务; 未登记项目必须先创建项目部门; 不得跨项目操作; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
 	      acceptance:'跑通 review-loop: 总管拆解、实现、评审、完成事件都写入 engine-events.jsonl; 如无需改文件请明确说明'
 	    };
 	    const resp=await fetch(`/api/queue/${encodeURIComponent(queueAgent)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task:payload})});

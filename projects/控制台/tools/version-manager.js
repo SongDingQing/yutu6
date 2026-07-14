@@ -7,11 +7,10 @@ const { spawnSync } = require('child_process');
 
 const DEFAULT_ROOT = path.resolve(__dirname, '../../..');
 const VERSION_FILE_NAME = 'VERSION.json';
-// 2026-07-05 主仓迁 GitHub:引擎默认发布远端改 github(gitee 保留为私有历史存档,不再自动推)。
-const GITHUB_WEB_URL = 'https://github.com/SongDingQing/yutu6';
-const GITHUB_SSH_URL = 'git@github.com:SongDingQing/yutu6.git';
-const DEFAULT_REMOTE_NAME = 'github';
-// 兼容旧引用名:GITEE_* 现别名到 github 值,全仓无需逐处改名即切换。
+const GITHUB_WEB_URL = String(process.env.YUTU6_RELEASE_WEB_URL || '').trim();
+const GITHUB_SSH_URL = String(process.env.YUTU6_RELEASE_REMOTE_URL || '').trim();
+const DEFAULT_REMOTE_NAME = 'origin';
+// 兼容旧导出名；通用发行版不内置任何个人仓库地址。
 const GITEE_WEB_URL = GITHUB_WEB_URL;
 const GITEE_SSH_URL = GITHUB_SSH_URL;
 const VERSION_SCHEMA = 1;
@@ -184,21 +183,39 @@ function getRemoteUrl(root, remote) {
   return res.ok ? res.stdout.trim() : '';
 }
 
+function remoteWebUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return null;
+  const scp = raw.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (scp) return `https://${scp[1]}/${scp[2].replace(/\.git$/, '')}`;
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:', 'ssh:'].includes(parsed.protocol)) return null;
+    const pathname = parsed.pathname.replace(/\.git$/, '').replace(/^\/+/, '');
+    return pathname ? `https://${parsed.hostname}/${pathname}` : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function inspectGiteeRemote(root, remoteName = DEFAULT_REMOTE_NAME) {
   const existing = getRemoteUrl(root, remoteName);
   if (existing) {
-    return { name: remoteName, action: 'kept', url: redact(existing), webUrl: GITEE_WEB_URL };
+    return { name: remoteName, action: 'kept', url: redact(existing), webUrl: remoteWebUrl(existing) };
   }
-  return { name: remoteName, action: 'would-add', url: GITEE_SSH_URL, webUrl: GITEE_WEB_URL };
+  const configured = String(process.env.YUTU6_RELEASE_REMOTE_URL || '').trim();
+  return { name: remoteName, action: configured ? 'would-add' : 'missing', url: redact(configured), webUrl: remoteWebUrl(configured) };
 }
 
 function ensureGiteeRemote(root, remoteName = DEFAULT_REMOTE_NAME) {
   const existing = getRemoteUrl(root, remoteName);
   if (existing) {
-    return { name: remoteName, action: 'kept', url: redact(existing), webUrl: GITEE_WEB_URL };
+    return { name: remoteName, action: 'kept', url: redact(existing), webUrl: remoteWebUrl(existing) };
   }
-  git(root, ['remote', 'add', remoteName, GITEE_SSH_URL]);
-  return { name: remoteName, action: 'added', url: GITEE_SSH_URL, webUrl: GITEE_WEB_URL };
+  const configured = String(process.env.YUTU6_RELEASE_REMOTE_URL || '').trim();
+  if (!configured) throw new Error(`remote ${remoteName} is missing; configure it explicitly before release`);
+  git(root, ['remote', 'add', remoteName, configured]);
+  return { name: remoteName, action: 'added', url: redact(configured), webUrl: remoteWebUrl(configured) };
 }
 
 function flattenValues(...values) {
@@ -296,14 +313,15 @@ function commitMessage(version, summary, part, extraLines = []) {
 
 function writeVersionState(root, patch) {
   const prev = readVersionState(root);
+  const remoteUrl = getRemoteUrl(root, DEFAULT_REMOTE_NAME);
   const next = Object.assign({}, prev, patch, {
     schema_version: VERSION_SCHEMA,
     owner_agent: 'it-engineer',
     updated_at: new Date().toISOString(),
     remote: {
       name: DEFAULT_REMOTE_NAME,
-      web_url: GITEE_WEB_URL,
-      push_url: GITEE_SSH_URL,
+      web_url: remoteWebUrl(remoteUrl),
+      push_url: remoteUrl ? redact(remoteUrl) : null,
     },
     parts: {
       manual: PART_LABELS.manual,
@@ -320,7 +338,7 @@ function release(args = {}) {
   const root = rootFromArgs(args);
   ensureGitRepo(root);
   const remoteName = String(args.remote || DEFAULT_REMOTE_NAME);
-  let remote = args.noRemote ? { name: remoteName, action: 'skipped', url: '', webUrl: GITEE_WEB_URL } : inspectGiteeRemote(root, remoteName);
+  let remote = args.noRemote ? { name: remoteName, action: 'skipped', url: '', webUrl: null } : inspectGiteeRemote(root, remoteName);
   const part = normalizePart(args.part || args.bump || args.kind || 'fix');
   const summary = String(args.message || args.summary || args.update || '').trim();
   if (!summary) throw new Error('release requires --message');
@@ -496,7 +514,7 @@ function status(args = {}) {
     remote: {
       name: remoteName,
       url: redact(getRemoteUrl(root, remoteName)) || null,
-      web_url: GITEE_WEB_URL,
+      web_url: remoteWebUrl(getRemoteUrl(root, remoteName)),
     },
     dirtyCount: dirtyFiles(root).length,
   };
@@ -517,6 +535,7 @@ function versionHistory(root, opts = {}) {
   const res = git(root, ['log', '-n', String(limit), '--no-merges', '--format=%cI%x09%H%x09%s', '--', VERSION_FILE_NAME], { allowFailure: true });
   if (!res.ok) return [];
   const out = [];
+  const webUrl = remoteWebUrl(getRemoteUrl(root, String(opts.remote || DEFAULT_REMOTE_NAME)));
   const seen = new Set();
   for (const line of res.stdout.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -533,7 +552,7 @@ function versionHistory(root, opts = {}) {
       at,
       hash,
       desc: cleanVersionDesc(subject),
-      commitUrl: hash ? `${GITEE_WEB_URL}/commit/${hash}` : null,
+      commitUrl: hash && webUrl ? `${webUrl}/commit/${hash}` : null,
       group: version ? version.split('.').slice(0, 2).join('.') : null,
     });
   }

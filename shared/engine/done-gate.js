@@ -175,8 +175,10 @@ function workspacePath(file, workspaceRoot) {
   if (!file || typeof file !== 'string') return null;
   const raw = file.trim();
   if (!raw || /(^|\/)\.\.(\/|$)/.test(raw)) return null;
-  if (/Starlaid|星桥/i.test(raw)) return null;
-  return path.isAbsolute(raw) ? raw : path.resolve(workspaceRoot || process.cwd(), raw);
+  const root = path.resolve(workspaceRoot || process.cwd());
+  const resolved = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(root, raw);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
+  return resolved;
 }
 
 function pathExists(file, workspaceRoot) {
@@ -186,7 +188,7 @@ function pathExists(file, workspaceRoot) {
 
 function extractPathPointers(text) {
   const out = [];
-  const re = /((?:\/Users\/[^\s'"`，,。；;)]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]\d+)?/g;
+  const re = /((?:\/[A-Za-z0-9_\-.\u3400-\u9fff][A-Za-z0-9_\-./\u3400-\u9fff]*)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]\d+)?/g;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const raw = m[1].replace(/[)\]}.,;，。；]+$/g, '');
@@ -197,7 +199,7 @@ function extractPathPointers(text) {
 
 function extractPathPointerDetails(text) {
   const out = [];
-  const re = /((?:\/Users\/[^\s'"`，,。；;)]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]L?(\d+))?/g;
+  const re = /((?:\/[A-Za-z0-9_\-.\u3400-\u9fff][A-Za-z0-9_\-./\u3400-\u9fff]*)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]L?(\d+))?/g;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const raw = m[1].replace(/[)\]}.,;，。；]+$/g, '');
@@ -656,7 +658,10 @@ function validateStructuredAcceptanceTable(vars, opts = {}) {
     vars && vars.bounds,
   ]).join('\n');
   const designRows = requiredRows.filter(row => !/^视觉\/UI证据/i.test(normalizePoint(row && row.point)));
-  const designText = collectText([taskText, designRows]).join('\n');
+  // “Codex 对照设计挑错”是视觉证据的固定措辞，不代表任务引用了某份既有设计决策。
+  // 先剥离该固定短语，避免空白通用发行版被错误要求提供 decisions.md 行号。
+  const designText = collectText([taskText, designRows]).join('\n')
+    .replace(/Codex\s*对照设计挑错(?:报告|证据)?/gi, 'Codex视觉挑错');
   if (DESIGN_GATE_RE.test(designText) && !requiredRows.some(row => /(?:memory\/|board\/)?decisions\.md:\d+/i.test(row.point))) {
     return { ok: false, reason: '对照设计门缺少 decisions.md:行号 要点' };
   }
@@ -974,19 +979,11 @@ function validateChangedFiles(implementation, opts = {}) {
   const workspaceRoot = opts.workspaceRoot || process.cwd();
   const changed = normalizeChangedFiles(implementation);
   const missing = [];
-  const blocked = [];
   for (const file of changed) {
-    if (/Starlaid|星桥/i.test(file)) {
-      blocked.push(file);
-      continue;
-    }
     if (!pathExists(file, workspaceRoot)) missing.push(file);
   }
-  if (blocked.length) {
-    return { ok: false, reason: `changed_files 涉及排除范围: ${blocked.slice(0, 3).join(', ')}`, changed, missing, blocked };
-  }
   if (missing.length) {
-    return { ok: false, reason: `changed_files 声明文件不存在: ${missing.slice(0, 5).join(', ')}`, changed, missing, blocked };
+    return { ok: false, reason: `changed_files 声明文件不存在或越出工作区: ${missing.slice(0, 5).join(', ')}`, changed, missing, blocked: [] };
   }
   if (opts.gitVerify === true) {
     // P0-A:不只查文件存在,还要 git 真有改动;明确无改动(false)才打回,无法判定(null)放行
@@ -995,10 +992,10 @@ function validateChangedFiles(implementation, opts = {}) {
       if (gitFileHasChange(file, workspaceRoot) === false) unchanged.push(file);
     }
     if (unchanged.length) {
-      return { ok: false, reason: `changed_files 声明已改但 git 显示无改动: ${unchanged.slice(0, 5).join(', ')}`, changed, missing, blocked, unchanged };
+      return { ok: false, reason: `changed_files 声明已改但 git 显示无改动: ${unchanged.slice(0, 5).join(', ')}`, changed, missing, blocked: [], unchanged };
     }
   }
-  return { ok: true, reason: null, changed, missing, blocked };
+  return { ok: true, reason: null, changed, missing, blocked: [] };
 }
 
 function deliveryEvidenceRequiredFromText(...values) {
@@ -1244,7 +1241,7 @@ function validateReviewLoopCompletion(task, opts = {}) {
     if (!hasArtifact) return { ok: false, reason: '交付型任务缺少 changed_files/截图/diff 等交付证据' };
   }
   // 拍板⑤:特权 runner 写路径白名单审计(告警模式)——完成校验链末尾收口。
-  // 允许区外只在回执附 write_audit 告警字段、不打回;Starlaid/星桥命中仍硬失败(红线不放宽)。
+  // 允许区外只在回执附 write_audit 告警字段、不打回；项目隔离由通用写权限与工作区边界承担。
   // opts.runnersConfig 未注入或 env YUTU6_WRITE_AUDIT=0 时零行为变化(保守默认)。
   const writeAudit = WriteAudit.auditPrivilegedTaskWrites(task, opts);
   if (writeAudit && !writeAudit.ok) {

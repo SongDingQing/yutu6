@@ -177,7 +177,7 @@ function enqueueCeo(id, goal) {
     flowId: 'project-route',
     projectId: '控制台',
     goal,
-    bounds: 'serial smoke only; Starlaid excluded; no secrets',
+    bounds: 'serial smoke only; unregistered projects excluded; no secrets',
     acceptance: 'serial smoke completes',
     useOrchestrator: false,
     autoApproveHuman: true,

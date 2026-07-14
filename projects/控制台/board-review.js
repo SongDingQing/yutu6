@@ -17,8 +17,8 @@ const DIRECTORS = [
     id: 'board_deepseek',
     role: 'board_deepseek',
     name: 'DeepSeek 董事',
-    model: 'DeepSeek(new-api)',
-    runner: 'new-api',
+    model: 'DeepSeek(直连)',
+    runner: 'deepseek',
   },
   {
     id: 'board_glm52',
@@ -30,15 +30,15 @@ const DIRECTORS = [
   {
     id: 'board_claude',
     role: 'board_claude',
-    name: 'Claude 董事(暂用 Opus-4.8)',
-    model: 'Claude Opus-4.8(claude-opus-4-8)',
-    runner: 'claude-opus-4-8',
+    name: 'Claude Fable 5 董事',
+    model: 'Claude Fable 5(可选)',
+    runner: 'claude-fable-5',
   },
   {
     id: 'board_opus48',
     role: 'board_opus48',
-    name: 'Codex/GPT-5.5 最终董事',
-    model: 'Codex(GPT-5.5)',
+    name: 'Codex 最终董事',
+    model: 'Codex(本机登录态)',
     runner: 'codex',
     final: true,
   },
@@ -53,7 +53,7 @@ const IMPORTANT_AREAS = [
   { key: 'routing', label: '路由', re: /(路由(?:系统|引擎|机制|规则|层|表|重构|改造)?|project-route|model-routing|runners\.yaml|runner\s*注册|分流规则|派单链路)/i },
   { key: 'agent', label: 'agent体系', re: /(agent\s*(?:体系|系统|注册|编排|角色|routing)|智能体体系|智能体编排|shared\/agents|agent\.json|roleRouting|角色路由|董事会(?:评议|触发|流程|规则|机制)|多模型评议|秘书钩子|主管实例|总管编排|orchestrator)/i },
   { key: 'data', label: '数据架构', re: /(数据架构|schema|存储|memory\/|decisions\.md|taskstore|持久化|状态机)/i },
-  { key: 'release', label: '版本发布', re: /(版本发布|release|上线|发布|回滚|rollback|Gitee|远端同步)/i },
+  { key: 'release', label: '版本发布', re: /(版本发布|release|上线|发布|回滚|rollback|GitHub|GitLab|Gitee|远端同步)/i },
   { key: 'performance', label: '性能与资源', re: /(性能|资源占用|资源争用|吞吐|延迟|卡顿|内存|CPU|cpu|memory|latency|throughput|performance|perf|bottleneck|瓶颈|轮询|渲染性能|热点)/i },
   { key: 'concurrency', label: '并发与锁', re: /(并发|读写锁|资源域锁|锁|lock|mutex|semaphore|串行|serial|race|竞态|冲突仲裁)/i },
 ];
@@ -70,7 +70,7 @@ const ARCH_ACTION_EN_RE = new RegExp(
   'i',
 );
 const NEGATED_ARCH_ACTION_RE = /(不|无需|不要|不再|未|非).{0,8}(改|修|重构|重写|落地|接入|新增|添加|加|删除|移除|替换|升级|调整|优化|收紧|放开|启用|禁用|合并|拆分|迁移|发布|上线|设计|实现|建设|治理|加固|钩子|版本|沉淀)|\b(?:do\s+not|don't|not|no|without)\b.{0,24}(?:build|implement|refactor|route|release|design|deploy|migrate|enable|disable|upgrade|optimize|replace|remove|delete|add|merge|split|harden|govern|hook)/i;
-const EXPLICIT_BOARD_RE = /(重要架构|董事会(?:评议|触发|流程|规则|机制)|多模型评议|最终决策者|Codex|Opus-4\.8|架构决策)/i;
+const EXPLICIT_BOARD_RE = /(重要架构|董事会(?:评议|触发|流程|规则|机制)|多模型评议|最终决策者|Codex|Claude Fable|架构决策)/i;
 const UI_SMALL_CHANGE_RE = /(?:纯\s*)?(?:UI|界面|视觉|文案|显示|样式|布局|按钮|颜色|图标|文字|copy|css|html|前端|任务板|运行时长|输入时长|头像|滚动条|卡片|字号|间距|排版|截图|素材|办公室视觉).{0,40}(?:改|修|调整|优化|精修|小改|显示|变更|缩短|更换)|(?:改|修|调整|优化|精修|小改|变更|缩短|更换).{0,40}(?:UI|界面|视觉|文案|显示|样式|布局|按钮|颜色|图标|文字|copy|css|html|前端|任务板|运行时长|输入时长|头像|滚动条|卡片|字号|间距|排版|截图|素材|办公室视觉)|单文件前端|前端微调|纯\s*UI\s*小改/i;
 const UI_ONLY_ARCHITECTURE_CONTEXT_RE = /(显示|展示|渲染|文案|样式|布局|按钮|颜色|图标|头像|任务板|办公室|workspace\.html|html|css|前端|UI|界面|视觉)/i;
 const STRONG_ARCHITECTURE_CONTEXT_RE = /(核心引擎|队列引擎|队列机制|队列系统|路由(?:系统|机制|规则)|agent\s*体系|智能体体系|数据架构|状态机|持久化|版本发布|性能|资源占用|吞吐|延迟|内存|CPU|cpu|performance|perf|bottleneck|瓶颈|并发|锁|lease|heartbeat|schema|shared\/engine|queue\.js|engine-runner|ceo-worker|watchdog|resource-lock)/i;
@@ -490,7 +490,7 @@ function makeDirectorGoal({ director, round, maxRounds, instruction, planText, p
     '- 合理改动应允许通过:普通建议写进 issues/suggestions,但 can_execute 仍为 true,misjudgment_risk 仍为 false。',
     '- 只有红线、越界、密钥/授权、严重队列/路由事故或明确不可执行硬阻断,才设置 can_execute:false 或 hard_block:true。',
     '- 不要泄露或要求任何密钥/token/登录。',
-    '- 只评议这条控制台任务,Starlaid 排除。',
+    '- 只评议这条控制台任务,未注册项目 排除。',
     '',
     '最后输出 JSON:',
     '```json',

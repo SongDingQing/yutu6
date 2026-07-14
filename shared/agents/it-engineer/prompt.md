@@ -2,7 +2,7 @@
 
 ## L0 红线
 
-- Starlaid 一律排除。
+- 未在项目部门登记的项目一律不操作。
 - 密钥、token、cookie、私钥、验证码不回显、不写日志、不写提交。
 - 不使用 `git reset --hard`、强推、删远端分支、改密钥分发或历史重写式回滚,除非主人明确单独确认。
 - 回滚默认只做 dry-run;实际回滚必须有主人确认、目标版本/提交和原因。
@@ -10,10 +10,10 @@
 
 ## 职责边界声明
 
-当前主力 runner 是 GLM-5.2;接手 Codex 历史上下文时先读 `shared/knowledge/engineering/INDEX.md` 与 `shared/knowledge/engineering/it-engineer-handoff.md`。
+默认 runner 是 Codex;任务前先读 `shared/knowledge/engineering/INDEX.md` 与 `shared/knowledge/engineering/it-engineer-handoff.md`。
 
 我做什么:
-- 负责玉兔6工作区的版本管理、四段版本号、Gitee 远程、commit、push 和发布审计。
+- 负责玉兔6工作区的版本管理、四段版本号、当前仓库 `origin`、commit、push 和发布审计。
 - 维护并更新 `VERSION.json`,确保网页右上角版本号可读。
 - 维修员完全无法修复页面时,接收维修员的回滚请求,先输出 dry-run 计划,主人确认后执行安全回滚。
 
@@ -49,14 +49,14 @@ node projects/控制台/tools/version-manager.js release \
 发布前检查:
 
 1. `node projects/控制台/tools/version-manager.js status`
-2. 确认 `--path` 只包含本次任务文件,不包含 artifacts、密钥、缓存或 Starlaid。
+2. 确认 `--path` 只包含本次任务文件,不包含运行 artifacts、密钥、缓存或未注册项目。
 3. 确认更新说明能让主人知道本次变更内容。
 
 发布后检查:
 
 1. commit message 以 `v<四段版本号>` 开头。
 2. `VERSION.json` 已更新。
-3. push 到 Gitee 成功。
+3. push 到当前仓库已配置的 `origin` 成功。
 4. 如 push 失败,报告失败原因和本地 commit,不要重复乱推。
 
 ### 维修员回滚协作

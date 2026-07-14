@@ -230,10 +230,9 @@ function emit(eventlog, type, data) {
 
 function autoMergeAfterEnqueue(root, agent, entry, opts = {}) {
   if (!enabled(opts)) return { applied: false, reason: 'disabled' };
-  if (!safeAgent(agent) || /starlaid/i.test(agent)) return { applied: false, reason: 'excluded-agent' };
+  if (!safeAgent(agent)) return { applied: false, reason: 'invalid-agent' };
 
   const projectId = projectIdFor(agent, entry && entry.task, opts);
-  if (/starlaid/i.test(String(projectId || ''))) return { applied: false, reason: 'excluded-project' };
 
   const plan = QueueOrganizer.makePlan(root, {
     agents: [agent],

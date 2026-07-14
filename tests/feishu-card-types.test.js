@@ -42,7 +42,7 @@ function testProgress() {
 
 function testDecision() {
   const { msg_type, content } = dryRun([
-    '--type', 'decision', '--title', '是否clone元宵', '--body', '在GitHub不在gitee',
+    '--type', 'decision', '--title', '是否克隆新项目', '--body', '使用 GitHub 作为项目来源',
     '--buttons', '现在clone|http://localhost:8787/d/yes;;等重装|http://localhost:8787/d/wait',
   ]);
   assert.strictEqual(msg_type, 'interactive', '决策应为 interactive 卡片');

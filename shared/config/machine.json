@@ -1,48 +1,46 @@
 {
-  "schema_version": 1,
-  "updated_at": "2026-07-03",
-  "note": "玉兔6 环境配置机器可读子集。非密——不含任何密钥值。人读版见 environment.md。",
-  "machines": {
-    "old": { "user": "yutu", "home": "/Users/yutu", "role": "cold_backup_reference" },
-    "new": { "user": "yutu6", "home": "/Users/yutu6", "role": "active_core" }
-  },
+  "schema_version": 2,
+  "updated_at": "2026-07-14",
+  "note": "通用发行版的非密环境契约；实际路径和登录状态由初始化向导写入本机私有配置。",
   "paths": {
-    "workspace": "~/玉兔6工作区",
-    "secrets_vault": "~/.config/yutu6-secrets",
-    "hermes": "~/.hermes/hermes-agent",
-    "hermes_env": "~/.hermes/.env",
-    "codex_skills": "~/.codex/skills",
-    "codex_modules": "~/.codex/modules",
-    "yuanxiao": "~/Projects/YuanXiao",
-    "simulaid": "~/Simulaid",
-    "kb_sqlite": "~/玉兔6工作区/knowledge/kb.sqlite"
+    "workspace": "${YUTU6_ROOT}",
+    "private_config": "~/.config/yutu6",
+    "provider_env": "~/.config/yutu6/providers.env",
+    "setup_state": "~/.config/yutu6/setup-state.json",
+    "codex_skills": "~/.codex/skills"
   },
   "services": {
-    "console": { "port": 41218, "bind": ["127.0.0.1", "::1"], "launchd": "com.yutu6.console" },
-    "hermes_gateway": { "status": "not_started" }
+    "console": {
+      "port": 41218,
+      "bind": ["127.0.0.1"],
+      "required": true
+    },
+    "hermes_gateway": {
+      "status": "optional"
+    }
   },
   "runners": {
-    "front_door": "claude",
-    "claude": { "cmd": "claude", "role": "secretary_front_door", "status": "active", "login": "ok" },
-    "claude-code": { "cmd": "claude", "role": "repair_lead_privileged", "status": "active", "login": "ok" },
-    "codex": { "cmd": "codex", "role": "orchestrator_and_engineering", "version": "0.140.0", "login": "ok" },
-    "hermes": { "cmd": "hermes", "role": "voice_feishu_entry_alt", "gateway": "not_started" },
-    "peekaboo": { "cmd": "peekaboo", "role": "gui_desktop_control", "kind": "cli_and_mcp", "installed": true, "permissions_needed": ["screen_recording", "accessibility"] },
-    "local_models": { "provider": "external_machine_endpoint", "ollama_on_mini": false }
-  },
-  "secrets_distribution": {
-    "~/.hermes/.env": ["FEISHU_*", "BRAVE_*", "MINIMAX_*", "LLM_MODEL", "API_SERVER_*"],
-    "~/Projects/YuanXiao/ops/config/yuanxiao.env": ["YUANXIAO_*"],
-    "~/.ssh/": ["ssh_private_keys (not in secrets.env)"]
-  },
-  "backup": {
-    "secrets_vault": "quark_netdisk_encrypted_archive",
-    "workspace_snapshot": "yutu2_cold_backup",
-    "workspace_source": "gitee_no_secrets"
+    "front_door": "codex",
+    "codex": {
+      "cmd": "codex",
+      "role": "front_door_and_engineering",
+      "setup_probe": "codex login status"
+    },
+    "claude": {
+      "cmd": "claude",
+      "role": "optional_board_or_executor",
+      "optional": true
+    },
+    "peekaboo": {
+      "cmd": "peekaboo",
+      "role": "optional_gui_desktop_control",
+      "optional": true,
+      "permissions_needed": ["screen_recording", "accessibility"]
+    }
   },
   "hard_constraints": {
-    "starlaid": "hard_excluded",
     "secrets": "local_only_never_transmit_never_echo",
-    "oauth_2fa": "manual_by_user"
+    "oauth_2fa": "manual_by_user",
+    "project_specific_content": "install_via_project_pack"
   }
 }

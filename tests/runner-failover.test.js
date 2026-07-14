@@ -19,8 +19,9 @@ function testTokenMap() {
   assert.strictEqual(Failover.preferTokenToRunnerId('subscription.codex'), 'codex');
   assert.strictEqual(Failover.preferTokenToRunnerId('api.zhipu.glm-5.2'), 'zhipu-glm');
   assert.strictEqual(Failover.preferTokenToRunnerId('subscription.claude.sonnet'), 'claude', 'Claude subscription routes to claude runner (2026-07-03 复活)');
-  assert.strictEqual(Failover.preferTokenToRunnerId('api.deepseek.deepseek-chat'), 'new-api');
-  assert.strictEqual(Failover.preferTokenToRunnerId('api.kimi.kimi-k2.7-code'), 'kimi-k2');
+  assert.strictEqual(Failover.preferTokenToRunnerId('api.deepseek.deepseek-chat'), 'deepseek');
+  assert.strictEqual(Failover.preferTokenToRunnerId('api.minimax.MiniMax-M3'), 'minimax');
+  assert.strictEqual(Failover.preferTokenToRunnerId('api.unknown.vendor-model'), null, '未注册 provider 不得静默映射 runner');
   assert.strictEqual(Failover.preferTokenToRunnerId('api.openai.gpt-5'), null, 'openai 无独立 runner → null');
   assert.strictEqual(Failover.preferTokenToRunnerId('local.ollama.qwen2.5'), null, 'ollama 无 runner → null');
   assert.strictEqual(Failover.preferTokenToRunnerId('garbage'), null);
@@ -104,14 +105,14 @@ function testFrontendDesignerCurrentConfigHasCodexFallback() {
   const config = require('../projects/控制台/config.json');
   const frontend = config.roleRouting && config.roleRouting.frontend_designer;
   assert(frontend, '当前配置应定义 roleRouting.frontend_designer');
-  assert.strictEqual(frontend.runner, 'zhipu-glm', 'frontend_designer primary runner 应为 GLM-5.2');
+  assert.strictEqual(frontend.runner, 'codex', 'frontend_designer primary runner 应为通用发行版必备的 Codex');
 
   const rolePrefer = Failover.loadRolePrefer(path.resolve(__dirname, '../shared/routing/model-routing.yaml'));
   assert(rolePrefer.frontend_designer, 'model-routing.yaml 应定义 roles.frontend_designer.prefer');
   assert.deepStrictEqual(
     rolePrefer.frontend_designer,
-    ['api.zhipu.glm-5.2', 'subscription.codex'],
-    'frontend_designer 应在 GLM 繁忙/限流后降级到 Codex',
+    ['subscription.codex', 'api.zhipu.glm-5'],
+    'frontend_designer 应优先使用 Codex,再尝试可选 GLM',
   );
 
   const chain = Failover.failoverCandidates('frontend_designer', {
@@ -119,12 +120,12 @@ function testFrontendDesignerCurrentConfigHasCodexFallback() {
     runners: config.runners,
     rolePrefer,
   });
-  assert.deepStrictEqual(chain, ['zhipu-glm', 'codex'], 'frontend_designer failover chain 应为 GLM→Codex: ' + JSON.stringify(chain));
+  assert.deepStrictEqual(chain, ['codex', 'zhipu-glm'], 'frontend_designer failover chain 应为 Codex→GLM: ' + JSON.stringify(chain));
 }
 
 function testClassifyFailure() {
   assert.strictEqual(Failover.classifyFailure('codex 运行超时(1800s)'), 'timeout');
-  assert.strictEqual(Failover.classifyFailure('kimi-k2 退出码 1: Invalid Authentication'), 'auth');
+  assert.strictEqual(Failover.classifyFailure('provider 退出码 1: Invalid Authentication'), 'auth');
   assert.strictEqual(Failover.classifyFailure('预扣费额度失败, 用户剩余额度: 0.4'), 'quota_exhausted');
   assert.strictEqual(Failover.classifyFailure('预扣费失败, 余额: 0'), 'quota_exhausted');
   assert.strictEqual(Failover.classifyFailure('退出码 1: insufficient_quota'), 'quota_exhausted');

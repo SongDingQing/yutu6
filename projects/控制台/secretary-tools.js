@@ -31,9 +31,10 @@ const EVENTS = process.env.CONSOLE_EVENTS_FILE
   ? path.resolve(process.env.CONSOLE_EVENTS_FILE)
   : path.join(QUEUE_ROOT, 'engine-events.jsonl');
 const MEOWA_CLI = path.join(WORKDIR, 'shared', 'tools', 'meowa', 'meowart_api.py');
-const HERMES_ENV = path.join(process.env.HOME || '/Users/yutu6', '.hermes', '.env');
-const YUTU_SECRETS = path.join(process.env.HOME || '/Users/yutu6', '.config', 'yutu6-secrets', 'secrets.env');
-const YUTU_REMINDER = path.join(process.env.HOME || '/Users/yutu6', '.codex', 'modules', 'hermes-yutu-voice-bridge', 'scripts', 'send_yutu_reminder.py');
+const HOME_DIR = process.env.HOME || '.';
+const HERMES_ENV = path.join(HOME_DIR, '.hermes', '.env');
+const YUTU_SECRETS = path.join(HOME_DIR, '.config', 'yutu6-secrets', 'secrets.env');
+const YUTU_REMINDER = path.join(HOME_DIR, '.codex', 'modules', 'hermes-yutu-voice-bridge', 'scripts', 'send_yutu_reminder.py');
 const FEISHU_NOTIFY = path.join(WORKDIR, 'shared', 'agents', 'ui-optimizer', 'notify-feishu.sh');
 const MEMORY_OFFICER_AGENT = 'memory-officer';
 const IT_ENGINEER_AGENT = 'it_engineer';
@@ -493,9 +494,9 @@ function enqueueRepairMemoryReview(ticketId, ticketFile, result, stamp) {
       '1. 若完成结果中的"泛化判断"为可泛化模式,把「问题模式 → 根因 → 解法/预防/自动化建议」写入或合并到 `memory/experience.md`。',
       '2. 若包含"项目技术映射",把 `项目 → 技术/方案 → 文件路径/用途` 写入或合并到 `memory/entities.md`。',
       '3. 一次性个案默认不入库;已有记忆冲突时更新/合并,不要堆流水账。',
-      '4. 只写 `memory/`;不要直接写 `knowledge/`、`kb.sqlite` 或 ingest 管道。Starlaid 排除,密钥不回显。',
+      '4. 只写 `memory/`;不要直接写 `knowledge/`、`kb.sqlite` 或 ingest 管道。未注册项目 排除,密钥不回显。',
     ].join('\n'),
-    bounds: '只做长期记忆提炼;只写 memory/; Starlaid 一律排除; 密钥/token/验证码不写入、不回显; 不改 knowledge/ 管道。',
+    bounds: '只做长期记忆提炼;只写 memory/; 未注册项目 一律排除; 密钥/token/验证码不写入、不回显; 不改 knowledge/ 管道。',
     inputs: [relFile, 'memory/experience.md', 'memory/entities.md', 'memory/INDEX.md'],
     acceptance: '可泛化维修经验进入 memory/experience.md; 项目技术映射进入 memory/entities.md; 一次性信息不流水账; 无密钥泄露。',
     useOrchestrator: false,
@@ -632,7 +633,7 @@ function buildContextText() {
     toolLines,
     !SECRETARY_CONTEXT_FULL && omittedToolCount > 0 ? `- 其余 ${omittedToolCount} 个低频工具已省略;需要时运行 SECRETARY_CONTEXT_MODE=full node projects/控制台/secretary-tools.js context-text 查看。` : null,
     '',
-    '工具红线:不回显密钥/token/cookie; Starlaid 排除; 外部登录/OAuth/扫码交给主人。',
+    '工具红线:不回显密钥/token/cookie; 未注册项目 排除; 外部登录/OAuth/扫码交给主人。',
     '定位:前台 Cowork 负责深度交互/规格/可视化; 后台 secretary 负责补背景、路由、派单、队列/公告板运营; 维修员负责秘书够不到的本机特权运维工单。',
   ].join('\n');
 }
@@ -659,7 +660,7 @@ async function runSearch(args) {
   if (!env.BRAVE_SEARCH_API_KEY) throw new Error('BRAVE_SEARCH_API_KEY is not configured');
   const count = Math.max(1, Math.min(parseInt(args.count || args.limit || '5', 10) || 5, 10));
   const { spawnSync } = require('child_process');
-  const plugin = path.join(process.env.HOME || '/Users/yutu6', '.hermes', 'plugins', 'brave-search', '__init__.py');
+  const plugin = path.join(HOME_DIR, '.hermes', 'plugins', 'brave-search', '__init__.py');
   const script = `
 import importlib.util, json, sys
 path, payload = sys.argv[1], json.loads(sys.argv[2])
@@ -799,7 +800,7 @@ function normalizeTask(args) {
     flowId: args.flow || args.flowId || (args.agent === 'ceo' ? 'project-route' : 'agent-once'),
     projectId: args.project || args.projectId || '控制台',
     goal,
-    bounds: args.bounds || '只处理本秘书运营任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
+    bounds: args.bounds || '只处理本秘书运营任务; 未注册项目 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
     acceptance: args.acceptance || '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
     useOrchestrator: args.useOrchestrator !== 'false',
     autoApproveHuman: args.autoApproveHuman !== 'false',
@@ -869,14 +870,14 @@ function itReleaseRequest(args) {
       `路径清单:${paths.join(', ')}`,
       '',
       '必须执行:',
-      '1. 先检查路径清单,确认不含密钥、运行产物、Starlaid。',
+      '1. 先检查路径清单,确认不含密钥、运行产物、未注册项目。',
       '2. 运行发布命令:',
       command,
       '3. 回报版本号、commit 短哈希、push 结果。',
     ].join('\n'),
-    bounds: '只做版本发布/Gitee push; 不改业务代码; 不读/写密钥; 不用 git add -A; Starlaid 排除。',
+    bounds: '只做版本发布/当前 Git 远端 push; 不改业务代码; 不读/写密钥; 不用 git add -A; 未注册项目排除。',
     inputs: ['VERSION.json', 'projects/控制台/tools/version-manager.js', ...paths],
-    acceptance: 'VERSION.json 更新; commit message 以 v<四段版本号> 开头并写明更新内容; Gitee push 成功或报告本地 commit 与失败原因。',
+    acceptance: 'VERSION.json 更新; commit message 以 v<四段版本号> 开头并写明更新内容; 当前 Git 远端 push 成功或报告本地 commit 与失败原因。',
     useOrchestrator: false,
     autoApproveHuman: true,
   };
@@ -922,7 +923,7 @@ function itRollbackRequest(args) {
       '只有主人明确确认后,才可在后续任务中执行:',
       confirmCommand,
     ].join('\n'),
-    bounds: '只做回滚 dry-run 和确认等待; 未经主人确认不得执行 --confirm; 不重写历史、不强推、不读密钥; Starlaid 排除。',
+    bounds: '只做回滚 dry-run 和确认等待; 未经主人确认不得执行 --confirm; 不重写历史、不强推、不读密钥; 未注册项目 排除。',
     inputs: ['VERSION.json', 'projects/控制台/tools/version-manager.js'],
     acceptance: '返回 dry-run 计划; 如需实际回滚,明确等待主人确认; 不产生未确认回滚提交。',
     useOrchestrator: false,
@@ -1101,7 +1102,7 @@ function bulletinCardFromArgs(args) {
       flowId: target === 'ceo' ? 'project-route' : 'agent-once',
       projectId: project,
       goal,
-      bounds: '只处理本公告板任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
+      bounds: '只处理本公告板任务; 未注册项目 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
       acceptance: '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
       useOrchestrator: target === 'ceo',
       autoApproveHuman: true,
@@ -1211,7 +1212,7 @@ function repairTicketMarkdown(ticket) {
   const redlines = ticket.redlines ? String(ticket.redlines).split(/\\n|\r?\n/).map(x => `- ${x}`).join('\n') : [
     '- 高危/不可逆操作必须先给主人确认',
     '- 密钥/token/cookie/私钥不回显、不写日志',
-    '- Starlaid 排除',
+    '- 未注册项目排除',
     '- 不破现有功能; 能验证就写验证结果',
   ].join('\n');
   return [
@@ -1238,7 +1239,8 @@ function repairTicketMarkdown(ticket) {
     '`repair-lead` 是维修主管队列(Codex 特权),所有工单默认先进主管:链路核查、根因分析、严重度分级、必要时分派 `repair` Codex 维修员执行。紧急时仍可由独立 Codex 特权会话手动接管。推荐手动命令:',
     '',
     '```bash',
-    `codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C /Users/yutu6/玉兔6工作区 "$(cat /Users/yutu6/玉兔6工作区/board/repair-tickets/${ticket.id}.md)"`,
+    'cd "${YUTU6_ROOT:-$HOME/yutu6}"',
+    `codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C "$PWD" "$(cat "board/repair-tickets/${ticket.id}.md")"`,
     '```',
     '',
     '## 处理结果',
@@ -1299,7 +1301,7 @@ function repairTicketAdd(args) {
         '小问题可直接最小修复;严重问题做全局系统排查,并把写码执行分派给 repair 维修员。',
         '复核维修员结果后再 repair-ticket-complete 结案。',
       ].join('\n'),
-      bounds: '维修主管特权工单; 高危先确认; Starlaid 排除; 密钥不回显。',
+      bounds: '维修主管特权工单; 高危先确认; 未注册项目 排除; 密钥不回显。',
       acceptance: '链路证据、严重度、根因、处理/派工、复核验证和架构判断写入工单结果; 必要时通知主人。',
       useOrchestrator: false,
       autoApproveHuman: false,

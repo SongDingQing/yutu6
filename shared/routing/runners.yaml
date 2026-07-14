@@ -1,249 +1,78 @@
-# 玉兔6 · Runner 注册表(谁来真正执行 / 一等 vs 二等)
-# 依据:§10 可靠性(Codex=best-effort runner;可脚本化 CLI/API runner 一等,GUI 二等)
-#       + capability_registry/modules/multi-agent-collaboration-contract(Hermes=前门路由,Codex=最强推理执行)
-schema_version: 1
-updated_at: 2026-06-30
+# 玉兔6 通用 Runner 注册表
+schema_version: 2
+updated_at: 2026-07-14
 
 runners:
-  # ★ 默认对话 runner ───────────────────────────────────────────
-  - id: hermes-yutu
-    name: Hermes / 玉兔
-    klass: first_class                 # 可脚本化 CLI/服务 = 一等
-    role: default_conversation_runner  # ★ 玉兔搬家清单 D / 精华索引 §1
-    kind: cli_service
-    source:
-      gitee_repo: "git@gitee.com:songdingqing/lunar-forest-hermes.git"   # 全量改版, master, commit e8d5efa
-      upstream: "https://github.com/NousResearch/hermes-agent.git"        # MIT 基底
-      local_path: ~/.hermes/hermes-agent
-      includes: [gateway/platforms/feishu.py, gateway/run.py, hermes_cli/plugins.py, tools/transcription_tools.py, tests/gateway/test_busy_session_ack.py, yutu6-hermes-migration/]
-      status: INSTALLED   # 2026-06-18 clone 到 ~/.hermes/hermes-agent(e8d5efa)+ uv venv 装依赖 + hermes doctor 通过
-    interfaces: [feishu_gateway, voice_wake, codex_handoff_plugin]
-    capabilities: [voice_reply, feishu_cards, brave_search, asr_hotwords, confirmed_codex_scheduling, busy_queue_ack]
-    service_labels: [ai.hermes.gateway, com.yutu.hermes.voicewake, ai.hermes.dashboard]
-    capability_module: shared/capability_registry/modules/hermes-yutu-voice-bridge
-    confirmation_required: [send_email, send_files, send_apk, start_codex_from_voice_or_feishu]
-    secrets: { env_file: ~/.hermes/.env, status: RESTORED }   # restore-secrets.sh 已写,chmod 600
-    runtime: { hermes_cli: ok, doctor: pass, plugins_enabled: [codex-handoff, voice-asr-context, brave-search], gateway: not_started, voicewake_launchagent: not_installed }   # 自检通过;未接飞书(待授权)
-
-  # 最强推理 + 本地工程执行 ──────────────────────────────────────
   - id: codex
     name: OpenAI Codex
     klass: first_class
-    role: chief_reasoning_architect_and_engineering_runner
-    kind: cli_and_desktop
-    authority_note: best_effort_runner —— 以 bridge I/O(task/result 信封)为权威,Codex 内部历史仅参考
-    interfaces: [codex_cli, codex_desktop, gmail_connector]
-    capabilities: [architecture, planning, risk_assessment, task_decomposition, local_file_edits, repo_inspection, tests_builds, unity, apk_build, code_review, retrospective]
-    handoff_in: "codex-handoff 串行队列 (~/.hermes/codex-handoff/queue),一次一个"
-    durability_warning: "Codex 子 agent 仅会话内短助手,不作长期 worker / 回调目标(§10 + 失败案例)"
+    kind: cli
+    command: [codex, exec, --sandbox, danger-full-access, --skip-git-repo-check]
+    auth: local_cli_login
+    capabilities: [planning, local_file_edits, command_execution, tests_builds, code_review]
 
   - id: codex-privileged
     name: OpenAI Codex Privileged
-    label: Codex(特权)
     klass: first_class
-    role: privileged_local_repair_and_desktop_control
     kind: cli
-    source:
-      cli: "codex"
-      cmd: ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"]
-      auth: "本机 Codex 登录态"
-      status: LOCAL_CONFIGURED
-    capabilities: [local_file_edits, command_execution, service_restart, launchd_ops, computer_use, peekaboo_cli, emergency_repair]
-    execution: { can_write_files: true, can_run_commands: true, privileged_channel: true, engine_slot_bypass: true }
-    safeguards:
-      - "高危/不可逆操作必须先给主人确认"
-      - "密钥不回显"
-      - "Starlaid 排除"
-    note: "Claude 停用后,维修主管 repair-lead 和桌面控制类任务由此特权 Codex runner 接管。"
+    command: [codex, exec, --dangerously-bypass-approvals-and-sandbox, --skip-git-repo-check]
+    auth: local_cli_login
+    capabilities: [repair, service_restart, local_file_edits, command_execution, desktop_control]
+    safeguards: [owner_confirmation_for_irreversible_actions, no_secret_echo]
 
-  # 维修员 / 系统外特权救火 ─────────────────────────────────────
-  - id: repair
-    name: 维修员
-    label: 维修员
-    klass: first_class
-    role: repair
-    runner: codex-privileged
-    kind: privileged_codex_queue_worker
-    source:
-      ticket_dir: "board/repair-tickets"
-      queue: "projects/控制台/artifacts/queues/repair"
-      consumer: "repair queueAgent / codex-privileged; 紧急时独立 Codex 可手动接管"
-      status: V2_AUTO_QUEUE
-    capabilities: [service_restart, worker_cleanup, launchd_ops, permission_authorization, computer_use, engine_core_hotfix, docker_deploy, emergency_repair]
-    safeguards:
-      - "高危/不可逆操作必须先给主人确认"
-      - "密钥不回显"
-      - "Starlaid 排除"
-      - "常驻自动接单,但不可逆操作仍停下给主人确认"
-    note: "repair 是受 server 常驻监督的 queueAgent; node.fail/task.failed 可自动开工单并入队,维修员完成后写根因/验证/架构判断并通知主人。"
-
-  # Claude Code runner(秘书·前门)──────────────────────────────
   - id: claude
-    name: Claude Code (secretary)
-    label: Claude Code(秘书·前门)
+    name: Claude Code Optional
     klass: first_class
-    role: secretary_front_door
     kind: cli
-    source:
-      cli: "/Users/yutu6/.local/bin/claude"
-      cmd: ["/Users/yutu6/.local/bin/claude", "-p", "--dangerously-skip-permissions"]
-      auth: "本机 Claude Code 登录态"
-      status: ACTIVE
-    capabilities: [instruction_expansion, task_routing, queue_operations, bulletin_operations, repair_ticket_intake, output_validation]
-    execution: { can_write_files: true, can_run_commands: true }
-    safeguards:
-      - "凭据走本机配置,不回显"
-      - "Starlaid 排除"
-      - "登录/OAuth/2FA 交主人手动"
-    note: "2026-07-03 老板拍板:秘书(前门)由 Claude Code 接管(原 codex)。失败时按 model-routing prefer 链降级 codex/GLM。"
+    command: [claude, -p, --dangerously-skip-permissions]
+    auth: optional_local_cli_login
+    capabilities: [planning, review, local_file_edits, command_execution]
 
-  # Claude Code runner(维修主管·特权)────────────────────────────
-  - id: claude-code
-    name: Claude Code (repair lead)
-    label: Claude Code(维修主管·特权)
+  - id: claude-fable-5
+    name: Claude Fable 5 Optional Board Director
     klass: first_class
-    role: repair_lead_privileged
     kind: cli
-    source:
-      cli: "/Users/yutu6/.local/bin/claude"
-      cmd: ["/Users/yutu6/.local/bin/claude", "-p", "--dangerously-skip-permissions"]
-      auth: "本机 Claude Code 登录态"
-      status: ACTIVE
-    capabilities: [root_cause_analysis, severity_triage, chain_trace_review, local_file_edits, command_execution, test_verification, repair_delegation, done_gate_review]
-    execution: { can_write_files: true, can_run_commands: true, privileged_channel: true, engine_slot_bypass: true }
-    safeguards:
-      - "凭据走本机配置,不回显"
-      - "高危/不可逆操作必须先给主人确认"
-      - "Starlaid 排除"
-    note: "2026-07-03 老板拍板:维修主管由 Claude Code 接回(2026-06-30 因 Claude CLI 401 临时移交 codex-privileged,认证已恢复)。失败时按 prefer 链降级 codex。维修员 repair 仍为 codex-privileged。"
-
-  # Claude Opus-4.8 runner(董事会)─────────────────────────────
-  - id: claude-opus-4-8
-    name: Claude Opus-4.8 (board director)
-    label: Claude Opus-4.8(董事会)
-    klass: first_class
-    role: board_director
-    kind: cli
-    source:
-      cli: "/Users/yutu6/.local/bin/claude"
-      cmd: ["claude", "-p", "--model", "claude-opus-4-8", "--fallback-model", "opus", "--dangerously-skip-permissions"]
-      auth: "本机 Claude Code 登录态"
-      status: ACTIVE
-    capabilities: [architecture_review, risk_assessment, preflight_critique]
-    execution: { can_write_files: false, can_run_commands: false }
-    safeguards:
-      - "凭据走本机配置,不回显"
-      - "只评议不改文件"
-      - "Starlaid 排除"
-    note: "2026-07-03 老板拍板:补充董事会成员 board_claude,暂用 Opus-4.8。仅董事会事前评议输出意见 JSON。"
-
-  # 洞察员 / 联网研究来源标识 ───────────────────────────────────
-  - id: insight-scout
-    name: 洞察员
-    label: 洞察员
-    klass: first_class
-    role: insight-scout
-    runner: zhipu-glm
-    kind: scheduled_research_marker
-    source:
-      trigger: "秘书(Cowork)定时任务"
-      status: DISPLAY_AND_SOURCE_MARKER
-    capabilities: [scheduled_research, opportunity_scan, bulletin_source]
-    note: "系统里作为名分、工位展示和公告板卡来源标识;定时联网研究由秘书(Cowork)任务驱动,默认低成本走 GLM,需要强推理时由 Codex 接管。"
-
-  # 硬化产物 ───────────────────────────────────────────────────
-  - id: local-script
-    name: 本地脚本 / 骨头
-    klass: first_class
-    role: hardened_deterministic
-    kind: script
-    note: "§16 硬化:骨头(固定脚本)/ 软骨(参数化 skill)走这里,零 token、可回退 LLM"
-
-  # GUI / 桌面控制(手和眼)──────────────────────────────────────
-  - id: peekaboo
-    name: Peekaboo
-    klass: first_class                 # 可脚本化 CLI + MCP,非纯 GUI
-    role: gui_desktop_control          # CLI/API 够不到的"需点击"任务走它
-    kind: cli_and_mcp
-    source:
-      brew: "steipete/tap/peekaboo"
-      cli: "peekaboo"
-      agent_cmd: ["peekaboo", "agent"] # 自然语言 agent;也有 see/click/type/scroll/menu/window 子命令
-      status: INSTALLED                # 2026-06-18 brew 装好
-    capabilities: [screenshot, a11y_tree_read, click, type, scroll, hotkey, menu, window, app, dock, space, visual_qa]
-    interfaces: [peekaboo_cli, peekaboo_mcp]   # MCP/Codex 可当工具调用
-    permissions_required: [screen_recording, accessibility]   # 系统设置授权,用户手动
-    authority_note: best_effort GUI runner —— 以截图/a11y 证据为准;§10 GUI 类动作须附截图验收
-    note: "引擎把'需点击/原生 App/无 API 网页'的节点派给它(cli-runner role=gui_desktop_control → peekaboo)"
-
-  # 智谱 GLM Coding Plan / 通用 runner ───────────────────────────
-  - id: new-api
-    name: DeepSeek via new-api
-    klass: first_class
-    kind: openai_http_via_new_api
-    source:
-      new_api: "http://localhost:3000/v1"
-      model: "deepseek-chat"
-      token_file: "projects/控制台/artifacts/new-api/internal-token.env"
-      status: INSTALLED
-    capabilities: [architecture_review, risk_assessment, task_decomposition, code_review]
-    execution: { can_write_files: false, can_run_commands: false, boundary: pure_text_only }
-    secrets: { token_file: "projects/控制台/artifacts/new-api/internal-token.env", status: LOCAL_ONLY }
-    note: "董事会 DeepSeek 评议出口;密钥/token 不写源码、不回显。"
+    command: [claude, -p, --model, claude-fable-5, --dangerously-skip-permissions]
+    auth: optional_local_cli_login
+    capabilities: [architecture_review, risk_assessment]
 
   - id: zhipu-glm
-    name: GLM-5.2(通用)
+    name: Zhipu Coding Plan
     klass: first_class
-    kind: openai_http_via_new_api
-    source:
-      new_api: "http://localhost:3000/v1"
-      model: "glm-5.2"
-      coding_endpoint: "https://open.bigmodel.cn/api/coding/paas/v4"
-      token_file: "projects/控制台/artifacts/new-api/internal-token.env"
-      status: INSTALLED
-    capabilities: [coding, code_review, task_decomposition, planning, structured_acceptance]
-    execution:
-      can_write_files: false
-      can_run_commands: false
-      boundary: pure_text_only
-      tool_harness_runner: zhipu-glm-tools
-    secrets: { key_file: "projects/控制台/artifacts/new-api/zhipu.env", status: LOCAL_ONLY }
-    note: "new-api 统一出口;上游通过同 compose 网络的 zhipu-coding-proxy 转到 GLM Coding Plan 专属端点。纯文本 runner 不得直接承诺落盘;implement 交付型任务由 zhipu-glm-tools 接管。密钥/token 不写源码、不回显。"
+    kind: openai_http
+    env: [ZHIPU_API_KEY, ZHIPU_BASE_URL, ZHIPU_MODEL]
+    capabilities: [planning, review, structured_output]
 
-  - id: kimi-k2
-    name: Kimi K2.7 Code (board disabled)
+  - id: deepseek
+    name: DeepSeek
     klass: first_class
-    kind: openai_http_direct
-    source:
-      base_url: "https://api.moonshot.cn/v1"
-      model: "kimi-k2.7-code"
-      token_file: "projects/控制台/artifacts/new-api/kimi.env"
-      status: DISABLED_RETIRED_FROM_BOARD
-    capabilities: [architecture_review, code_review, agentic_coding_risk_assessment, long_context_review]
-    execution: { can_write_files: false, can_run_commands: false, boundary: pure_text_only }
-    secrets: { token_file: "projects/控制台/artifacts/new-api/kimi.env", status: LOCAL_ONLY }
-    note: "Kimi 董事席已按主人要求暂停;runner 仅保留为备用直连出口,不会参与董事会自动评议。"
+    kind: openai_http
+    env: [DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL]
+    capabilities: [architecture_review, risk_assessment]
 
-  - id: zhipu-glm-tools
-    name: GLM-5.2 + Codex 工具执行
+  - id: minimax
+    name: MiniMax
     klass: first_class
-    kind: openai_http_tool_harness
-    source:
-      planner_runner: zhipu-glm
-      executor_runner: codex
-      status: INSTALLED
-    capabilities: [coding, local_file_edits, shell_commands, tests_builds, structured_acceptance]
-    execution:
-      can_write_files: true
-      can_run_commands: true
-      boundary: text_model_plans_codex_executes
-      rollback: "删除 zhipu-glm.execution.toolHarnessRunner 或把角色 runner 改回 codex"
-    note: "重大修复:GLM 等纯文本模型先产出低成本规划,Codex CLI 作为工具 harness 真读写文件/跑命令,最终回填 changed_files 与逻辑链证据。"
+    kind: anthropic_http
+    env: [MINIMAX_API_KEY, MINIMAX_BASE_URL, MINIMAX_MODEL]
+    capabilities: [planning, review, conversation]
+
+  - id: peekaboo
+    name: Peekaboo
+    klass: first_class
+    kind: cli_and_mcp
+    command: [peekaboo]
+    capabilities: [screenshot, click, type, scroll, visual_qa]
+    permissions_required: [screen_recording, accessibility]
+
+  - id: local-script
+    name: Local Deterministic Script
+    klass: first_class
+    kind: script
+    capabilities: [zero_token_automation]
 
 policy:
-  authority: bridge_io          # 以 task.md / result.md 信封为权威,不靠对话历史(§3 规则三)
-  single_writer: true           # 单写主原则:一个文件只由一个任务写
-  queue:
-    immediate: serial_one_at_a_time
-    scheduled: hermes_cron       # ~/.hermes/cron/jobs.json
-  real_approval: typed_card      # 真实审批走 typed card,不用聊天"是否继续"阻塞(失败案例)
+  authority: task_and_result_envelopes
+  secret_source: ~/.config/yutu6/providers.env
+  setup_gate: executor_plus_one_api_provider
+  project_agents: generated_per_project_department

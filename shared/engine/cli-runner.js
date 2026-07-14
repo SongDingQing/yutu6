@@ -23,19 +23,19 @@ const OUTPUT_EVENT_MAX_CHARS = 1000;
 
 const DEFAULT_ROLE_MAP = {
   orchestrator: 'codex',
-  secretary: 'claude',
+  secretary: 'codex',
   supervisor:   'codex',
   reasoning_architect: 'codex',
   worker_code:  'codex',
-  worker_narrow: 'zhipu-glm',
-  'insight-scout': 'zhipu-glm',
-  quality_ops: 'zhipu-glm',
+  worker_narrow: 'codex',
+  'insight-scout': 'codex',
+  quality_ops: 'codex',
   memory_officer: 'codex',
   hr_manager: 'codex',
-  hr_specialist: 'zhipu-glm',
-  it_engineer: 'zhipu-glm',
-  frontend_designer: 'zhipu-glm',
-  'repair-lead': 'claude-code',
+  hr_specialist: 'codex',
+  it_engineer: 'codex',
+  frontend_designer: 'codex',
+  'repair-lead': 'codex-privileged',
   repair: 'codex-privileged',
   gui_desktop_control: 'peekaboo',   // 需点击/原生 App/无 API 网页 → Peekaboo(见 runners.yaml)
 };
@@ -157,8 +157,8 @@ function buildEnvelope(node, ctx, envOpts) {
   if (node.id === 'orchestrator-plan') {
     outputContract.push(
       `# 结构化输出要求`,
-      `请判断任务 projectId(如 控制台 或 Simulaid),并在最后输出 \`\`\`json 代码块: {"orchestrator":{"projectId":"控制台","summary":"...","acceptance":"..."}}。`,
-      `如果涉及 Starlaid,停止并说明不处理。`,
+      `请判断任务 projectId(如 控制台 或一个已注册项目部门 id),并在最后输出 \`\`\`json 代码块: {"orchestrator":{"projectId":"控制台","summary":"...","acceptance":"..."}}。`,
+      `如果目标项目尚未注册,停止并说明需要先创建项目部门。`,
       ``,
     );
   } else if (node.id === 'implement') {
@@ -206,7 +206,7 @@ function buildEnvelope(node, ctx, envOpts) {
     ctx.spec_fingerprint ? `- 规格指纹:${ctx.spec_fingerprint}` : null,
     ctx.projectId ? `- 项目:${ctx.projectId}${ctx.scopedToProject ? ' (scoped_to_project)' : ''}` : null,
     ...envelopeGoalSection(node, ctx, envOpts),
-    `- 边界:${ctx.bounds || '不要碰未点名的文件;Starlaid 一律排除'}`,
+    `- 边界:${ctx.bounds || '不要碰未点名的文件;未注册项目一律不操作'}`,
     `- 输入:${(ctx.inputs || []).join(', ') || '(无)'}`,
     `- 验收:${ctx.acceptance || '产出可验证;带视觉产物须附截图并对照用户证据'}`,
     ctx.orchestrator_plan ? `- 总管拆解:${ctx.orchestrator_plan}` : null,
@@ -451,9 +451,9 @@ function runOpenAiHttpSync(r, prompt, opts, ctx) {
   const cfgDir = opts.configDir || opts.workdir;
   const envFile = resolveConfigPath(cfgDir, r.tokenFile || r.envFile);
   const env = envFile ? readEnvFile(envFile) : {};
-  const baseUrl = String(r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
+  const baseUrl = String((r.baseUrlEnv && process.env[r.baseUrlEnv]) || r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
   const token = (r.tokenEnv && process.env[r.tokenEnv]) || env[r.tokenKey || 'NEW_API_TOKEN'] || r.token || '';
-  const model = r.model || env.NEW_API_MODEL || 'glm-5.2';
+  const model = (r.modelEnv && process.env[r.modelEnv]) || r.model || env.NEW_API_MODEL || 'glm-5.2';
   if (!baseUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
   const userContent = buildOpenAiUserContent(prompt, ctx, opts);
   const script = `
@@ -552,9 +552,9 @@ async function runOpenAiHttpAsync(r, prompt, opts, ctx) {
   const cfgDir = opts.configDir || opts.workdir;
   const envFile = resolveConfigPath(cfgDir, r.tokenFile || r.envFile);
   const env = envFile ? readEnvFile(envFile) : {};
-  const baseUrl = String(r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
+  const baseUrl = String((r.baseUrlEnv && process.env[r.baseUrlEnv]) || r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
   const token = (r.tokenEnv && process.env[r.tokenEnv]) || env[r.tokenKey || 'NEW_API_TOKEN'] || r.token || '';
-  const model = r.model || env.NEW_API_MODEL || 'glm-5.2';
+  const model = (r.modelEnv && process.env[r.modelEnv]) || r.model || env.NEW_API_MODEL || 'glm-5.2';
   if (!baseUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
   const userContent = buildOpenAiUserContent(prompt, ctx, opts);
   const script = `
@@ -593,6 +593,82 @@ const payload = JSON.parse(require('fs').readFileSync(0, 'utf8'));
   });
 }
 
+function anthropicSettings(r, opts) {
+  const cfgDir = opts.configDir || opts.workdir;
+  const envFile = resolveConfigPath(cfgDir, r.tokenFile || r.envFile);
+  const env = envFile ? readEnvFile(envFile) : {};
+  return {
+    baseUrl: String((r.baseUrlEnv && process.env[r.baseUrlEnv]) || r.baseUrl || '').replace(/\/+$/, ''),
+    token: (r.tokenEnv && process.env[r.tokenEnv]) || env[r.tokenKey || 'ANTHROPIC_API_KEY'] || r.token || '',
+    model: (r.modelEnv && process.env[r.modelEnv]) || r.model || '',
+  };
+}
+
+function anthropicChildScript() {
+  return `
+const payload = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+(async () => {
+  const res = await fetch(payload.url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': payload.token,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify(payload.body)
+  });
+  const text = await res.text();
+  let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
+  if (!res.ok || body.error) {
+    const msg = (body.error && body.error.message) || body.message || body.raw || ('HTTP ' + res.status);
+    console.error(String(msg).slice(0, 1000));
+    process.exit(1);
+  }
+  const content = Array.isArray(body.content) ? body.content : [];
+  process.stdout.write(content.map(part => part && part.text || '').filter(Boolean).join('\\n'));
+})().catch(e => { console.error(e.message); process.exit(1); });
+`;
+}
+
+function anthropicInput(r, prompt, opts) {
+  const settings = anthropicSettings(r, opts);
+  if (!settings.baseUrl || !settings.token || !settings.model) return null;
+  return JSON.stringify({
+    url: `${settings.baseUrl}/v1/messages`,
+    token: settings.token,
+    body: {
+      model: settings.model,
+      system: r.systemPrompt || undefined,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: r.maxTokens || 2048,
+      temperature: r.temperature == null ? 0.3 : r.temperature,
+    },
+  });
+}
+
+function runAnthropicHttpSync(r, prompt, opts) {
+  const input = anthropicInput(r, prompt, opts);
+  if (!input) return { status: 1, stdout: '', stderr: 'anthropic_http 缺 baseUrl、model 或 token' };
+  return spawnSync(process.execPath, ['-e', anthropicChildScript()], {
+    cwd: opts.workdir,
+    encoding: 'utf8',
+    input,
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: nodeTimeoutSec(opts) * 1000,
+  });
+}
+
+function runAnthropicHttpAsync(r, prompt, opts) {
+  const input = anthropicInput(r, prompt, opts);
+  if (!input) return Promise.resolve({ status: 1, stdout: '', stderr: 'anthropic_http 缺 baseUrl、model 或 token' });
+  return spawnBuffered(process.execPath, ['-e', anthropicChildScript()], {
+    cwd: opts.workdir,
+    input,
+    timeoutMs: nodeTimeoutSec(opts) * 1000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
 function runnerExecution(r) {
   const exec = r && r.execution && typeof r.execution === 'object' ? r.execution : {};
   const capabilities = Array.isArray(r && r.capabilities) ? r.capabilities : [];
@@ -601,7 +677,7 @@ function runnerExecution(r) {
   const explicitCanShell = exec.canRunCommands != null ? exec.canRunCommands : exec.shell;
   const kind = r && r.kind;
   const cmd0 = r && Array.isArray(r.cmd) ? r.cmd[0] : '';
-  const isTextOnly = kind === 'openai_http';
+  const isTextOnly = kind === 'openai_http' || kind === 'anthropic_http';
   const isHarness = kind === 'openai_http_tool_harness';
   const defaultCanWrite = isHarness || (!isTextOnly && cmd0 !== '__mock__');
   const defaultCanShell = isHarness || (!isTextOnly && cmd0 !== '__mock__');
@@ -836,6 +912,7 @@ child.on('close', (code, signal) => {
 
 function runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners) {
   if (r.kind === 'openai_http') return runOpenAiHttpSync(r, prompt, opts, ctx);
+  if (r.kind === 'anthropic_http') return runAnthropicHttpSync(r, prompt, opts, ctx);
   if (r.kind === 'openai_http_tool_harness') {
     return runOpenAiToolHarnessSync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
   }
@@ -859,6 +936,7 @@ function runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerI
 
 async function runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners) {
   if (r.kind === 'openai_http') return runOpenAiHttpAsync(r, prompt, opts, ctx);
+  if (r.kind === 'anthropic_http') return runAnthropicHttpAsync(r, prompt, opts, ctx);
   if (r.kind === 'openai_http_tool_harness') {
     return runOpenAiToolHarnessAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
   }
@@ -926,7 +1004,7 @@ function resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, 
   const stderr = res.stderr || '';
   fs.writeFileSync(path.join(dir, 'result.md'), stdout);
   if (stderr) fs.writeFileSync(path.join(dir, 'process.log'), stderr);
-  if (r.kind === 'openai_http' || r.kind === 'openai_http_tool_harness') {
+  if (r.kind === 'openai_http' || r.kind === 'anthropic_http' || r.kind === 'openai_http_tool_harness') {
     emitNodeOutput(opts, node, attempt, 'stdout', stdout);
     emitNodeOutput(opts, node, attempt, 'stderr', stderr);
   }

@@ -8,7 +8,7 @@ Changes:
 
 - Added `/Users/yutu/.codex/modules/hermes-yutu-voice-bridge/scripts/send_feishu_image.py`.
 - The helper uploads a local PNG/JPG to the configured Hermes/Yutu Feishu chat without printing credentials.
-- Intended for Simulaid `玉豚` sub-agent image previews, where the worker should send generated art to the user directly instead of relying on parent/worker progress-report loops.
+- Intended for project asset previews, where a worker may send generated art directly instead of relying on parent progress-report loops.
 
 ## 2026-04-25 / 2026-04-26
 

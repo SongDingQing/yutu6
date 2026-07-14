@@ -44,7 +44,7 @@ HOME="$FAKE_HOME" "$ROOT/deploy-macos.sh" \
 grep -q '没有写文件' "$TMP_ROOT/dry-run.log" || fail "dry-run 缺少无写入回执"
 
 HOME="$FAKE_HOME" "$ROOT/deploy-macos.sh" \
-  --target "$TARGET" --repo "$BARE" --ref main \
+  --no-start --target "$TARGET" --repo "$BARE" --ref main \
   > "$TMP_ROOT/first-run.log"
 [[ -x "$TARGET/deploy-macos.sh" ]] || fail "部署入口不可执行"
 [[ -z "$(git -C "$TARGET" status --porcelain --untracked-files=normal)" ]] || \
@@ -52,13 +52,13 @@ HOME="$FAKE_HOME" "$ROOT/deploy-macos.sh" \
 [[ "$(git -C "$TARGET" config --local --get core.hooksPath)" == '.githooks' ]] || \
   fail "Git hooks 未配置"
 
-HOME="$FAKE_HOME" "$TARGET/deploy-macos.sh" --target "$TARGET" \
+HOME="$FAKE_HOME" "$TARGET/deploy-macos.sh" --no-start --target "$TARGET" \
   > "$TMP_ROOT/second-run.log"
 grep -q '安全重复执行' "$TMP_ROOT/second-run.log" || fail "重复执行未走安全分支"
 
 printf 'must survive\n' > "$TARGET/local-only.txt"
 BEFORE_HASH="$(shasum -a 256 "$TARGET/local-only.txt" | awk '{print $1}')"
-if HOME="$FAKE_HOME" "$TARGET/deploy-macos.sh" --target "$TARGET" \
+if HOME="$FAKE_HOME" "$TARGET/deploy-macos.sh" --no-start --target "$TARGET" \
   > "$TMP_ROOT/dirty-run.log" 2>&1; then
   fail "脏工作树未被拒绝"
 fi
@@ -70,7 +70,7 @@ OCCUPIED="$TMP_ROOT/occupied"
 mkdir -p "$OCCUPIED"
 printf 'keep\n' > "$OCCUPIED/sentinel.txt"
 if HOME="$FAKE_HOME" "$ROOT/deploy-macos.sh" \
-  --target "$OCCUPIED" --repo "$BARE" --ref main \
+  --no-start --target "$OCCUPIED" --repo "$BARE" --ref main \
   > "$TMP_ROOT/occupied-run.log" 2>&1; then
   fail "非仓库目录未被拒绝"
 fi

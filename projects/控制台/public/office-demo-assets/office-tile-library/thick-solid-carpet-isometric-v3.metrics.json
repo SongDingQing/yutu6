@@ -1,0 +1,42 @@
+{
+  "name": "thick-solid-carpet-isometric-v3",
+  "source": "post-processed from Meowa thick tile job geometry to satisfy pure carpet top constraint",
+  "source_meowa_job_id": "workflow-hd_isometric_gen-9a65b38886fc4b299aa55513",
+  "raw_meowa_asset": "projects/控制台/public/office-demo-assets/office-tile-library/thick-carpet-meowa-raw-9a65.png",
+  "width": 192,
+  "height": 126,
+  "sha256": "664861f1a088fd17d5c54a75976055681eedad71902e411580f0e4190bb0504b",
+  "top_face_polygon": [
+    [
+      96,
+      6
+    ],
+    [
+      184,
+      50
+    ],
+    [
+      96,
+      94
+    ],
+    [
+      8,
+      50
+    ]
+  ],
+  "top_color_hex": "#87929B",
+  "top_face_exact_main_color_ratio": 1,
+  "top_face_opaque_pixels": 7744,
+  "side_face_opaque_pixels": 5636,
+  "visible_thickness_px": 32,
+  "side_faces_visible": true,
+  "isometric_angle": {
+    "top_width_px": 176,
+    "top_height_px": 88,
+    "ratio": 2,
+    "left_edge_slope": 0.5,
+    "right_edge_slope": -0.5
+  },
+  "render_contract": "draw floor tiles first by i+j z-order, then render chairman/desk/secretary actors above the tile surface",
+  "created_at": "2026-06-23T11:10:00+08:00"
+}

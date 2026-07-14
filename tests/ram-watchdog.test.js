@@ -196,7 +196,13 @@ async function main() {
     assert.strictEqual(rotation.kept, 1000);
     assert.strictEqual(fs.readFileSync(trendFile, 'utf8').trim().split(/\r?\n/).length, 1000);
 
-    const plist = path.join(__dirname, '../projects/控制台/launchd/com.yutu6.ram-watchdog.plist');
+    const installer = path.join(__dirname, '../projects/控制台/tools/install-ram-watchdog-launchd.sh');
+    const generated = spawnSync('bash', [installer, '--write-only'], {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_BIN: process.execPath },
+    });
+    assert.strictEqual(generated.status, 0, generated.stderr || generated.stdout);
+    const plist = generated.stdout.trim().split(/\r?\n/).pop();
     const plistText = fs.readFileSync(plist, 'utf8');
     assert(plistText.includes('<string>com.yutu6.ram-watchdog</string>'));
     assert(plistText.includes('ram-watchdog.js'));
@@ -207,6 +213,8 @@ async function main() {
     } else {
       assert.strictEqual(lint.status, 0, lint.stderr || lint.stdout);
     }
+    assert(!plistText.includes('/Users/yutu6/'), 'generated plist must not contain a developer-specific home path');
+    fs.rmSync(plist, { force: true });
 
     console.log(JSON.stringify({ pass: true, suite: 'ram-watchdog' }));
   } finally {

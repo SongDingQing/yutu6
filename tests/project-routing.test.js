@@ -25,8 +25,7 @@ function main() {
 
   try {
     fs.mkdirSync(path.join(projectsDir, '控制台'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Simulaid'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Starlaid'), { recursive: true });
+    fs.mkdirSync(path.join(projectsDir, 'ExampleProject'), { recursive: true });
     writeJson(configPath, { runners: {}, roleRouting: {} });
 
     process.env.CONSOLE_PROJECTS_DIR = projectsDir;
@@ -51,42 +50,42 @@ function main() {
     }), true);
 
     assert.strictEqual(_test.normalizeProjectId('控制台'), '控制台');
-    assert.strictEqual(_test.normalizeProjectId('Starlaid'), null);
+    assert.strictEqual(_test.normalizeProjectId('未注册项目'), null);
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '边界: Starlaid 一律排除; 密钥不回显',
+      goal: '边界: 未注册项目 一律排除; 密钥不回显',
     }, '', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 复核控制台 project-route 守卫',
-    }, '诊断: inferProjectId 显式 projectId 且非主动操作 Starlaid 时正常透传', null), '控制台');
+    }, '诊断: inferProjectId 显式 projectId 且非主动操作 未注册项目 时正常透传', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 新增 CEO 到秘书反馈通道',
-    }, '- **A. CEO→秘书反馈通道(核心新增)**:CEO 拆解区分「硬失败(红线/Starlaid)」与「需澄清」', null), '控制台');
+    }, '- **A. CEO→秘书反馈通道(核心新增)**:CEO 拆解区分「硬失败(红线/未注册项目)」与「需澄清」', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 自动维修直入队、不进公告板',
-    }, '本任务派给主管时**不得**再过会触发「检测到 Starlaid 或无法安全确定项目归属」的 CEO 转交判死分支(`buildSecretaryEnvelope()` 约 1309–1353)', null), '控制台');
+    }, '本任务派给主管时**不得**再过会触发「检测到 未注册项目 或无法安全确定项目归属」的 CEO 转交判死分支(`buildSecretaryEnvelope()` 约 1309–1353)', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复 未注册项目 项目的构建脚本并运行测试',
     }, '', null), '控制台');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复 未注册项目 项目的构建脚本并运行测试',
     }), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复 未注册项目 项目的构建脚本并运行测试',
     }, '', null), null);
     assert.strictEqual(workerTest.inferProjectId({
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复 未注册项目 项目的构建脚本并运行测试',
     }), null);
 
     assert.strictEqual(_test.inferProjectId({
@@ -95,15 +94,15 @@ function main() {
 
     assert.strictEqual(_test.inferProjectId({
       goal: '控制台任务板回归',
-    }, '', 'Simulaid'), '控制台');
+    }, '', 'ExampleProject'), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       goal: '普通系统恢复冒烟,未指定项目',
-    }, '', 'Simulaid'), 'Simulaid');
+    }, '', 'ExampleProject'), 'ExampleProject');
 
     assert.strictEqual(_test.inferProjectId({
-      goal: '模拟纪元 Unity 存档回归测试',
-    }, '', null), 'Simulaid');
+      goal: 'ExampleProject 项目回归测试',
+    }, '', null), 'ExampleProject');
 
     assert.strictEqual(_test.inferProjectId({
       goal: '普通系统恢复冒烟,未指定项目',
@@ -114,20 +113,20 @@ function main() {
 
     assert.strictEqual(_test.inferProjectId({
       goal: '整理一个没有项目关键词的后台提醒',
-    }, '```json\n{"orchestrator":{"projectId":"Simulaid","summary":"LLM 猜错","acceptance":"n/a"}}\n```', 'Simulaid'), 'Simulaid');
+    }, '```json\n{"orchestrator":{"projectId":"ExampleProject","summary":"LLM 猜错","acceptance":"n/a"}}\n```', 'ExampleProject'), 'ExampleProject');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: '边界: 如果涉及 Starlaid 就停止; buildSecretaryEnvelope() 只是函数名',
+      goal: '边界: 如果涉及 未注册项目 就停止; buildSecretaryEnvelope() 只是函数名',
     }), '控制台');
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '修复控制台 project-guard: buildStarlaidStatus() 只是函数名,不是 Starlaid 项目操作',
+      goal: '修复控制台 project-guard: build未注册项目Status() 只是函数名,不是 未注册项目 项目操作',
     }, '', null), '控制台');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: 'Refactor buildStarlaidStatus() helper in console guard only',
+      goal: 'Refactor build未注册项目Status() helper in console guard only',
     }), '控制台');
-    assert.strictEqual(workerTest.isRetryableEngineFailure('检测到 Starlaid 排除范围或项目归属需要主人确认,CEO 已软暂停派单', { code: 5, paused: true }), false);
+    assert.strictEqual(workerTest.isRetryableEngineFailure('检测到 未注册项目 排除范围或项目归属需要主人确认,CEO 已软暂停派单', { code: 5, paused: true }), false);
     assert.strictEqual(workerTest.isRetryableEngineFailure('node_failed', { code: 3 }), true);
 
     assert.strictEqual(_test.supervisorQueue('控制台'), 'supervisor-控制台');
@@ -138,9 +137,9 @@ function main() {
       goal: '前端设计师兼容别名: 调整 workspace.html 任务板滚动。',
     }, ''), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
     assert.deepStrictEqual(_test.directQueueForGoal({
-      goal: '重整办公室布局: 每个部门(总裁办/公共协作/系统办/Simulaid/人力资源/董事会)占一整行; 前端程序员做; Peekaboo 截图确认。',
-      bounds: '办公室改一行一行; 前端做; Starlaid 排除',
-    }, '前端程序员负责实现(布局/CSS),不是后端逻辑改动。{"summary":"前端程序员实现,Starlaid 排除。"}'), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
+      goal: '重整办公室布局: 每个部门(总裁办/公共协作/系统办/ExampleProject/人力资源/董事会)占一整行; 前端程序员做; Peekaboo 截图确认。',
+      bounds: '办公室改一行一行; 前端做; 未注册项目 排除',
+    }, '前端程序员负责实现(布局/CSS),不是后端逻辑改动。{"summary":"前端程序员实现,未注册项目 排除。"}'), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
     assert.deepStrictEqual(_test.directQueueForGoal({
       goal: 'HR主管安排一次智能体职责边界审核,并更新花名册',
     }, ''), { agent: 'hr_manager', role: 'hr_manager', flowId: 'agent-once' });
@@ -225,7 +224,7 @@ function main() {
       queueId: 'softRoute',
       role: 'orchestrator',
       flowId: 'project-route',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复 未注册项目 项目的构建脚本并运行测试',
       useOrchestrator: false,
       autoApproveHuman: true,
     });

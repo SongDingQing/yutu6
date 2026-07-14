@@ -20,7 +20,7 @@
  * 投递前扫描该 agent 全部状态目录(queued/running/paused/done/failed/canceled),
  * 命中即跳过。飞书汇报按标题+正文 hash 去重,内容变化时允许补发。
  *
- * 红线:Starlaid 一律排除;密钥不回显;只做本机 smoke/归档/通知,不做特权修复/不可逆操作。
+ * 红线:未登记或未授权项目不处理;密钥不回显;只做本机 smoke/归档/通知,不做特权修复/不可逆操作。
  *
  * 用法:
  *   node tools/daily-governance-hardening.js
@@ -179,12 +179,12 @@ function jobs(DATE) {
         useOrchestrator: false,
         autoApproveHuman: true,
         nodeTimeoutSec: 1500,
-        bounds: 'Starlaid 一律排除;密钥/token 不回显不写盘;登录/授权交主人;不替 CEO 拆解目标、不抢维修员修复;只复盘+经验沉淀,不做不可逆删除或权限放大。',
+        bounds: '未登记或未授权项目不处理;密钥/token 不回显不写盘;登录/授权交主人;不替 CEO 拆解目标、不抢维修员修复;只复盘+经验沉淀,不做不可逆删除或权限放大。',
         acceptance: '产出 knowledge/归档/复盘-' + DATE + '.md(当天问题/根因/维修结果/防复发规则/未闭环);经验追加 memory/experience.md(注明日期);最后输出结构化 JSON。',
         goal: [
           `你是监管/复盘智能体的【每日定时复盘】任务(北京时间凌晨5点触发,日期 ${pretty})。`,
           '',
-          '红线(L0):Starlaid 一律排除,不读取/评估/修改;密钥/token/cookie 不回显不写盘;登录/授权交主人;不做不可逆删除或权限放大;不替 CEO 拆解目标,不抢维修员修复。',
+          '红线(L0):未登记或未授权项目不读取/评估/修改;密钥/token/cookie 不回显不写盘;登录/授权交主人;不做不可逆删除或权限放大;不替 CEO 拆解目标,不抢维修员修复。',
           '',
           '目标:对过去约 24 小时做系统复盘,并把经验沉淀进 memory。复盘必须有事实、有根因、有未闭环缺口,不能只写空泛总结。',
           '',
@@ -220,14 +220,14 @@ function jobs(DATE) {
         useOrchestrator: false,
         autoApproveHuman: true,
         nodeTimeoutSec: 1200,
-        bounds: 'Starlaid 一律排除;密钥不回显;不做特权维修/不可逆操作;只提可回退硬化建议,不直接改核心引擎(高危改动开维修工单交主人/维修员)。',
+        bounds: '未登记或未授权项目不处理;密钥不回显;不做特权维修/不可逆操作;只提可回退硬化建议,不直接改核心引擎(高危改动开维修工单交主人/维修员)。',
         acceptance: '复核 daily-governance-hardening 本机写出的 knowledge/归档/硬化建议-' + DATE + '.md;若当前 runner 无文件系统/命令能力,必须明确 done=false,不能把执行清单或骨架当作已硬化。',
         goal: [
           `你是质量运营/硬化智能体的【每日定时稳定性硬化复核】任务(北京时间凌晨5点触发,日期 ${pretty})。`,
           '',
           '重要:本机可执行 smoke/资源检查由 daily-governance-hardening 工具负责,工具会写 knowledge/归档/硬化建议-' + DATE + '.md 并做产物审计。你负责复核硬化思路、补充可回退建议,不要声称自己执行了无法执行的命令。',
           '',
-          '红线(L0):Starlaid 一律排除;密钥不回显;不做特权维修/不可逆操作;只提可回退的硬化建议,不直接改核心引擎(高危改动交主人/维修员)。',
+          '红线(L0):未登记或未授权项目不处理;密钥不回显;不做特权维修/不可逆操作;只提可回退的硬化建议,不直接改核心引擎(高危改动交主人/维修员)。',
           '',
           '复核重点:',
           `1. 查看 knowledge/归档/硬化建议-${DATE}.md 是否有真实 smoke 结果、资源检查和回退建议。`,
@@ -510,7 +510,7 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
     `# 硬化建议归档 · ${pretty}`,
     '',
     '> daily-governance-hardening 本机执行器产出。只做可回退 smoke/资源检查/建议,不做特权维修或不可逆操作。',
-    '> 红线遵守:Starlaid 排除;无密钥回显;未处理登录/授权。',
+    '> 红线遵守:未授权项目未处理;无密钥回显;未处理登录/授权。',
     '',
     '## 1. Smoke / 自测结果',
     '',
@@ -575,7 +575,7 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
     `- [${failures.length ? ' ' : 'x'}] 本机 smoke 有真实执行结果`,
     `- [${failures.length ? ' ' : 'x'}] 硬化归档非空、非骨架`,
     '- [x] 每条硬化建议带风险和回退方式',
-    '- [x] Starlaid 排除、密钥未回显',
+    '- [x] 未授权项目未处理、密钥未回显',
     '',
   ].join('\n');
   if (!opts.dryRun) {
@@ -747,7 +747,7 @@ function createSmokeFailureRepairTicket(date, failure, audit, opts = {}) {
     problem,
     evidence,
     expectation: '读取全量断言,定位失败,归因(回归/环境/真 bug),修复或明确豁免,复跑绿后方可结案。',
-    redlines: 'Starlaid 排除;密钥不回显;高危/不可逆操作先给主人确认。',
+    redlines: '未登记或未授权项目不处理;密钥不回显;高危/不可逆操作先给主人确认。',
     skipBulletin: 'true',
   });
   const repairTaskId = `repair-lead-smoke-${date}-${fingerprint}`;
@@ -763,7 +763,7 @@ function createSmokeFailureRepairTicket(date, failure, audit, opts = {}) {
         `这是 daily-governance-hardening 按 NR13/NR16 自动创建的 smoke 当前仍红专项票。`,
         '先读失败断言和历史 ticket,定位根因,修复/豁免后复跑绿,再 repair-ticket-complete 结案。',
       ].join('\n'),
-      bounds: '维修主管特权工单; Starlaid 排除; 密钥不回显; 高危/不可逆操作先给主人确认。',
+      bounds: '维修主管特权工单; 未登记或未授权项目不处理; 密钥不回显; 高危/不可逆操作先给主人确认。',
       acceptance: '必须列出断言定位、根因、修复/豁免、复跑绿证据; 不接受残余债/不相关 done 结案。',
       useOrchestrator: false,
       autoApproveHuman: false,

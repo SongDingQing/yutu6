@@ -8,7 +8,7 @@
 - 地毯地块、墙/隔断、2x2 普通工位、5x5 董事长办公室
 - 坐姿 idle / working 动画、秘书交接动画
 
-Starlaid / 星桥不在本合约范围内。
+业务项目素材不在本系统办公室合约范围内;项目专属美术应由对应项目能力包管理。
 
 ## 生成前置
 
@@ -48,7 +48,7 @@ node projects/控制台/tools/office-image-template-check.js --spec <generation-
 - 参考图不存在
 - 参考图未获老板确认
 - 模板和 assetClass 不匹配
-- 任务或路径包含 Starlaid / 星桥
+- 任务越出系统办公室或当前已授权项目范围
 
 ## Meowa 命令选择
 

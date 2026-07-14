@@ -7,7 +7,7 @@
  * 维护 projects/控制台/artifacts/self-reflection-optimizer/rotation-state.json,
  * 按固定核心模块轮换表,每次调用取下一个模块,入队一条自省优化任务:
  *   - agent=repair-lead,flowId=agent-once,低优先级 90;
- *   - goal 按 .claude/skills/self-review-optimize 的流程描述:
+ *   - goal 按 shared/capability_registry/modules/self-reflection-optimizer 的流程描述:
  *     穷尽挑刺账本 ≤10 条 / auto_execute ≤3 条 / owner_decision 项写公告板卡。
  *
  * 幂等:同一"北京 ISO 周"已跑过则跳过(--force 覆盖);队列 id 按 模块+周 确定,
@@ -18,7 +18,7 @@
  *
  * env 开关:SELF_REVIEW_ROTATION_ENABLED=0 时 CLI 直接跳过(默认开;只影响 CLI,不影响模块函数)。
  *
- * 红线:Starlaid 一律排除;密钥不回显;只入队任务,不直接改模块代码。
+ * 红线:未登记或未授权项目不处理;密钥不回显;只入队任务,不直接改模块代码。
  *
  * 用法:
  *   node tools/self-review-rotation.js               # 本周未跑则入队下一个模块
@@ -139,14 +139,14 @@ function buildTask(modulePath, now) {
   const goal = [
     `自省优化定期轮换任务(拍板 Q10)· 目标模块:${modulePath}`,
     '',
-    '请按 .claude/skills/self-review-optimize 的流程,对上述模块做证据化的挑刺-优化闭环:',
+    '请按 shared/capability_registry/modules/self-reflection-optimizer/README.md 的流程,对上述模块做证据化的挑刺-优化闭环:',
     '1. 装载背景:读模块 README/相邻测试;grep memory/experience.md 相关教训;查 board/learning-cases/ 相关案例。',
     '2. 穷尽挑刺 → 账本 ≤10 条:每条写 证据(文件:行号)/影响/修法/风险/分级/验证,禁止"没问题"式回复(挑不满 3 条要把"没问题"证明出来)。',
     '3. 分级执行:auto_execute ≤3 条,逐条最小改动+跑账本里写的验证,失败立即回滚改判 defer;拿不准一律降级 owner_decision。',
     '4. owner_decision 项绝不动手:汇总成决策清单,用 secretary-tools bulletin-add 写公告板卡(--target ceo --source 自省优化),等老板拍板。',
     `5. 账本写 projects/控制台/artifacts/self-reflection-optimizer/${slug}-self-review-${date}.md;可复用教训按既有格式追加 board/learning-cases/self-reflection-optimizer-cases.md。`,
     '',
-    '红线:Starlaid 一律排除;密钥不读不回显;禁止 git add -A;不改公共 API/队列语义/鉴权/持久化格式;改动被核心引擎 require 时跑 node tests/run.js 全量。',
+    '红线:未登记或未授权项目不处理;密钥不读不回显;禁止 git add -A;不改公共 API/队列语义/鉴权/持久化格式;改动被核心引擎 require 时跑 node tests/run.js 全量。',
   ].join('\n');
   return {
     role: ROTATION_AGENT,
@@ -155,7 +155,7 @@ function buildTask(modulePath, now) {
     scopedToProject: true,
     title: `自省优化轮换:${modulePath}`,
     goal,
-    bounds: 'Starlaid 一律排除; 密钥不回显; 禁止 git add -A; auto_execute 只做窄改动且可回滚; owner_decision 项只写公告板卡不动手; 高危/不可逆操作先给主人确认。',
+    bounds: '未登记或未授权项目不处理; 密钥不回显; 禁止 git add -A; auto_execute 只做窄改动且可回滚; owner_decision 项只写公告板卡不动手; 高危/不可逆操作先给主人确认。',
     acceptance: `产出自省账本 projects/控制台/artifacts/self-reflection-optimizer/${slug}-self-review-${date}.md;auto_execute 每条附验证输出;owner_decision 项已写公告板卡(source=自省优化)。`,
     useOrchestrator: false,
     autoApproveHuman: true,

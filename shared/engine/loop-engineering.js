@@ -26,7 +26,6 @@ function sha256(text) {
 
 function safeSegment(value, fallback = 'x') {
   const s = String(value || fallback)
-    .replace(/Starlaid|星桥/ig, 'excluded')
     .replace(/[^A-Za-z0-9_.\-\u3400-\u9fff]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
@@ -55,7 +54,6 @@ function relPath(file, root) {
   const resolved = path.isAbsolute(file) ? file : path.resolve(root, file);
   const rel = path.relative(root, resolved).split(path.sep).join('/');
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  if (/Starlaid|星桥/i.test(rel)) return null;
   return rel;
 }
 
@@ -225,7 +223,7 @@ function ensureSkillFile(skillFile, ctx) {
 function validateSkillPatchWithDoneGate({ ctx, skillRel, backupRel, rollbackRel, workspaceRoot }) {
   const vars = {
     goal: '沉淀 loop engineering skill 改进',
-    acceptance: 'skill patch 必须可回滚、有证据、路径不触及 Starlaid',
+    acceptance: 'skill patch 必须可回滚、有证据、且不越出当前工作区授权范围',
     implementation: {
       done: true,
       summary: `patched ${skillRel}`,

@@ -142,30 +142,17 @@ function main() {
       fs.rmSync(conflictRoot, { recursive: true, force: true });
     }
 
-    const starlaidApplyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'console-queue-organizer-starlaid-apply-'));
+    const projectApplyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'console-queue-organizer-project-apply-'));
     try {
-      Q.enqueue(starlaidApplyRoot, agent, { projectId: '控制台', queueMergeKey: 'starlaid-apply-guard', goal: 'Starlaid apply guard keep' }, { id: 'star-keep', priority: 10 });
-      Q.enqueue(starlaidApplyRoot, agent, { projectId: '控制台', queueMergeKey: 'starlaid-apply-guard', goal: 'Starlaid apply guard drop' }, { id: 'star-drop', priority: 11 });
-      const starlaidPlan = Organizer.organize(starlaidApplyRoot, { agents: [agent], projectId: '控制台' });
-      const starlaidRejected = Organizer.organize(starlaidApplyRoot, { agents: [agent], projectId: 'Starlaid', apply: true, plan: starlaidPlan });
-      assert.strictEqual(starlaidRejected.ok, false);
-      assert.strictEqual(starlaidRejected.code, 'starlaid_excluded');
-      assert(Q.list(starlaidApplyRoot, agent).queued.some(entry => entry.id === 'star-drop'), 'Starlaid apply reject must not cancel plan items');
-      const forgedStarlaidPlan = {
-        snapshot: { agents: [], states: ['queued', 'paused', 'running'], hash: 'forged' },
-        groups: [{
-          type: 'merge',
-          reason: 'manual',
-          bucket: 'forged',
-          keep: { agent: 'starlaid_agent', id: 'star-keep', state: 'queued' },
-          cancel: [{ agent: 'starlaid_agent', id: 'star-drop', state: 'queued' }],
-        }],
-      };
-      const forgedRejected = Organizer.organize(starlaidApplyRoot, { agents: [agent], projectId: '控制台', apply: true, plan: forgedStarlaidPlan });
-      assert.strictEqual(forgedRejected.ok, false);
-      assert.strictEqual(forgedRejected.code, 'starlaid_excluded');
+      Q.enqueue(projectApplyRoot, agent, { projectId: 'demo-app', queueMergeKey: 'project-apply-guard', goal: 'generic project keep' }, { id: 'project-keep', priority: 10 });
+      Q.enqueue(projectApplyRoot, agent, { projectId: 'demo-app', queueMergeKey: 'project-apply-guard', goal: 'generic project drop' }, { id: 'project-drop', priority: 11 });
+      const projectPlan = Organizer.organize(projectApplyRoot, { agents: [agent], projectId: 'demo-app' });
+      const projectApplied = Organizer.organize(projectApplyRoot, { agents: [agent], projectId: 'demo-app', apply: true, plan: projectPlan });
+      assert.strictEqual(projectApplied.ok, true);
+      assert.strictEqual(projectApplied.applied, true, '任意新建项目应使用同一套队列整理协议');
+      assert(!Q.list(projectApplyRoot, agent).queued.some(entry => entry.id === 'project-drop'));
     } finally {
-      fs.rmSync(starlaidApplyRoot, { recursive: true, force: true });
+      fs.rmSync(projectApplyRoot, { recursive: true, force: true });
     }
 
     const crossAgentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'console-queue-organizer-cross-agent-'));

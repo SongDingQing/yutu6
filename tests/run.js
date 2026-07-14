@@ -5,6 +5,10 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const tests = [
+  'setup-service.test.js',
+  'project-departments.test.js',
+  'setup-gate.test.js',
+  'generic-distribution.test.js',
   'queue.test.js',
   'ceo-queue-control.test.js',
   'queue-organizer.test.js',

@@ -84,7 +84,7 @@ async function main() {
 
     const WorkerTest = require(path.join(WORKDIR, 'projects/控制台/ceo-worker'))._test;
     const Tools = require(path.join(WORKDIR, 'projects/控制台/secretary-tools'));
-    assert.strictEqual(WorkerTest.isExternalModelTransientFailure('kimi-k2 退出码 1: Invalid Authentication'), true);
+    assert.strictEqual(WorkerTest.isExternalModelTransientFailure('provider-x 退出码 1: Invalid Authentication'), true);
     assert.strictEqual(WorkerTest.isExternalModelTransientFailure('zhipu-glm 退出码 1: 该模型当前访问量过大，请您稍后再试'), true);
     assert.strictEqual(WorkerTest.isExternalModelTransientFailure('预扣费额度失败, 用户剩余额度不足'), true);
     assert.strictEqual(WorkerTest.isExternalModelTransientFailure('node tests/run.js failed'), false);

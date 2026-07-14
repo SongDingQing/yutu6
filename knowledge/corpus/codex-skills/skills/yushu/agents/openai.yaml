@@ -1,4 +1,0 @@
-interface:
-  display_name: "玉鼠"
-  short_description: "Cross-project content-definition steward for cards, roles, enemies, items, story, and copy standards."
-  default_prompt: "Use $yushu to design or standardize new game content definitions, coordinate 玉凤/玉豚 when story or art is involved, and ensure descriptions/tests stay consistent."

@@ -12,7 +12,7 @@
  *   4. 结果写 artifacts/canary/state.json(保留最近 7 次)。
  *
  * 幂等:同日已有绿色结果则跳过(--force 覆盖)。
- * 红线:Starlaid 一律排除;密钥不回显;金丝雀任务本身只写 artifacts/canary/ 下一个文本文件。
+ * 红线:未登记或未授权项目不处理;密钥不回显;金丝雀任务本身只写 artifacts/canary/ 下一个文本文件。
  *
  * 用法:
  *   node projects/控制台/tools/e2e-canary.js
@@ -100,7 +100,7 @@ function buildCanaryTask(date) {
       `具体要求:文件路径 projects/控制台/artifacts/canary/canary-${date}.txt,内容为 ${date}(一行纯文本)。`,
       '写完后回报文件路径与内容。这是端到端链路巡检任务,除该文件外不要改任何东西。',
     ].join('\n'),
-    bounds: '只写 projects/控制台/artifacts/canary/ 下这一个文本文件; 不改代码; Starlaid 一律排除; 密钥不回显。',
+    bounds: '只写 projects/控制台/artifacts/canary/ 下这一个文本文件; 不改代码; 未授权项目不处理; 密钥不回显。',
     acceptance: `projects/控制台/artifacts/canary/canary-${date}.txt 存在且内容为日期;回报路径与内容。`,
   };
 }
@@ -218,7 +218,7 @@ function defaultOpenTicket({ date, reason, queueId, agent, artifact }) {
         `state=projects/控制台/artifacts/canary/state.json`,
       ].join('\n'),
       '--expectation', '定位红灯环节(入队/认领/引擎/产物),修复后重跑 node projects/控制台/tools/e2e-canary.js --force 复验绿灯。',
-      '--redlines', 'Starlaid 排除; 密钥不回显; 高危操作先给主人确认。',
+      '--redlines', '未授权项目不处理; 密钥不回显; 高危操作先给主人确认。',
     ]);
     return { ok: true, ticketId: out && out.ticket && out.ticket.id || ticketId, existed: false };
   } catch (e) {

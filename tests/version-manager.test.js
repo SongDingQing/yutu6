@@ -44,7 +44,9 @@ function main() {
       dryRun: true,
     });
     assert.strictEqual(remoteDryRun.dryRun, true);
-    assert.strictEqual(remoteDryRun.remote.action, 'would-add');
+    assert.strictEqual(remoteDryRun.remote.action, 'missing');
+    assert.strictEqual(remoteDryRun.remote.webUrl, null);
+    assert.strictEqual(remoteDryRun.remote.url, '');
     assert.strictEqual(git(root, ['remote']), '');
 
     const first = VersionManager.release({

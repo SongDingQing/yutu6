@@ -445,13 +445,22 @@ async function main() {
       else process.env[tieredEnvKey] = prevTieredEnv;
     }
 
-    const plist = path.join(__dirname, '../projects/控制台/launchd/com.yutu6.watchdog.plist');
+    const installer = path.join(__dirname, '../projects/控制台/tools/install-watchdog-launchd.sh');
+    const generated = spawnSync('bash', [installer, '--write-only'], {
+      encoding: 'utf8',
+      env: { ...process.env, NODE_BIN: process.execPath, PEEKABOO_BIN: '/usr/bin/false' },
+    });
+    assert.strictEqual(generated.status, 0, generated.stderr || generated.stdout);
+    const plist = generated.stdout.trim().split(/\r?\n/).pop();
     const plistText = fs.readFileSync(plist, 'utf8');
     assert(plistText.includes('<string>com.yutu6.watchdog</string>'));
     assert(plistText.includes('watchdog-daemon.js'));
     assert(plistText.includes('<key>KeepAlive</key>'));
     const lint = spawnSync('plutil', ['-lint', plist], { encoding: 'utf8' });
     assert.strictEqual(lint.status, 0, lint.stderr || lint.stdout);
+    assert(!plistText.includes('/Users/yutu6/'), 'generated plist must not contain a developer-specific home path');
+    assert(!plistText.includes('127.0.0.1:10808'), 'generated plist must not force a developer proxy');
+    fs.rmSync(plist, { force: true });
 
     console.log(JSON.stringify({ pass: true, suite: 'watchdog-daemon' }));
   } finally {

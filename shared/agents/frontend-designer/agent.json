@@ -3,7 +3,7 @@
   "name": "前端程序员 Frontend Designer",
   "schema_version": 1,
   "role": "frontend_designer",
-  "runner": "zhipu-glm",
+  "runner": "codex",
   "tier": "standard",
   "context_mode": "explicit",
   "queueAgent": true,

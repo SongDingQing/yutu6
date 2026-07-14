@@ -19,7 +19,7 @@ Extended handoff contract for document/file return requests.
 Changes:
 
 - Codex handoff can now mark `deliver_document` when the user asks for a document/file/report to be sent back.
-- Hermes should use `/Users/yutu/.hermes/codex-handoff/latest-status.json` as the durable latest Codex completion status.
+- Hermes should use `$HOME/.hermes/codex-handoff/latest-status.json` as the durable latest Codex completion status.
 - Document artifacts supported for return: `.md`, `.txt`, `.pdf`, `.docx`, `.xlsx`, `.pptx`.
 
 Added scheduled Codex handoff contract.
@@ -36,18 +36,18 @@ Migration hardening for new Codex accounts.
 
 Changes:
 
-- Added the Simulaid pixel-art asset skill to the Codex capability manifest.
-- Clarified that future agents should treat Simulaid game art as a Codex-owned pipeline when that local skill exists.
+- Added support for project-pack asset skills in the Codex capability manifest.
+- Clarified that project-specific art pipelines are loaded only when that project pack is installed.
 - Handoff file now distinguishes Codex CLI handoff from interactive Codex Desktop connector abilities.
 - Clarified that auto-returned artifacts should be generated inside the project path so Hermes can find and attach them.
 
-Added Simulaid image-worker delegation contract.
+Added an optional project image-worker delegation contract.
 
 Changes:
 
-- Added `codex-subagent-simulaid-image-worker` as a session-limited role for Simulaid art generation and post-processing.
+- Documented session-limited image helpers without making them durable system roles.
 - Documented that live sub-agent IDs are not durable across accounts; prompts, style rules, filenames, and output paths are the persistent contract.
-- Updated the Simulaid pixel-art skill so future substantial image generation is delegated to an image worker while Codex keeps Unity integration and verification.
+- Project packs may delegate substantial image generation while their supervisor keeps integration and verification.
 
 ## 2026-04-29
 

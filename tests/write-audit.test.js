@@ -3,7 +3,7 @@
 
 // 拍板⑤:特权 runner 写路径白名单-告警模式。
 // 固化四条行为:允许区内不告警;区外文件 → privileged.write.outside 事件 + 回执告警且【不失败】;
-// Starlaid/星桥命中 → 硬失败(红线不放宽);YUTU6_WRITE_AUDIT=0 → 无动作。
+// 任意合法项目名一视同仁;YUTU6_WRITE_AUDIT=0 → 无动作。
 // 基线脏保护:只核【changed_files 声明 ∩ git status 实际改动/新增】,任务前就脏但未声明的文件不误报。
 
 const assert = require('assert');
@@ -102,15 +102,20 @@ function testUntrackedDirPrefixHit() {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 
-// 5) Starlaid/星桥命中 → 硬失败(既有红线不放宽)
-function testStarlaidHardFail() {
+// 5) 项目名称不进入底层策略；项目目录仍按通用允许路径规则审计
+function testProjectNamesUseGenericPolicy() {
   const root = makeGitRoot();
   try {
-    const res1 = withCleanEnv(() => WriteAudit.auditChangedFiles(['Starlaid/x.js'], ALLOWED, { workspaceRoot: root }));
-    assert.strictEqual(res1.ok, false, 'Starlaid 必须硬失败');
-    assert(/Starlaid|星桥|排除/.test(res1.reason || ''), res1.reason);
-    const res2 = withCleanEnv(() => WriteAudit.auditChangedFiles(['projects/星桥/a.md'], ALLOWED, { workspaceRoot: root }));
-    assert.strictEqual(res2.ok, false, '星桥 必须硬失败');
+    fs.mkdirSync(path.join(root, 'projects', 'demo-app'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'projects', 'demo-app', 'README.md'), '# demo\n');
+    const res = withCleanEnv(() => WriteAudit.auditChangedFiles(
+      ['projects/demo-app/README.md'],
+      ['projects/demo-app/'],
+      { workspaceRoot: root },
+    ));
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.warn, false, '合法项目目录应由 allowedWritePaths 通用放行');
+    assert.deepStrictEqual(res.audited, ['projects/demo-app/README.md']);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -122,8 +127,8 @@ function testEnvSwitch() {
     assert.strictEqual(WriteAudit.writeAuditEnabledFromEnv(), true, '默认开');
     process.env.YUTU6_WRITE_AUDIT = '0';
     assert.strictEqual(WriteAudit.writeAuditEnabledFromEnv(), false, '=0 关');
-    const res = WriteAudit.auditChangedFiles(['secrets/key.txt', 'Starlaid/x.js'], ALLOWED, { workspaceRoot: '/nonexistent' });
-    assert.strictEqual(res.ok, true, '关闭时无动作(连 Starlaid 检查也交还既有 done-gate 红线)');
+    const res = WriteAudit.auditChangedFiles(['secrets/key.txt', 'projects/demo-app/x.js'], ALLOWED, { workspaceRoot: '/nonexistent' });
+    assert.strictEqual(res.ok, true, '关闭时无动作');
     assert.strictEqual(res.enabled, false);
     assert.strictEqual(res.skipped, 'disabled');
     assert.deepStrictEqual(res.outside, []);
@@ -359,7 +364,7 @@ function main() {
   testOutsideAllowedWarnsButOk();
   testBaselineDirtyNotFlagged();
   testUntrackedDirPrefixHit();
-  testStarlaidHardFail();
+  testProjectNamesUseGenericPolicy();
   testEnvSwitch();
   testDeclaredOnlyFallback();
   testSkipConditions();

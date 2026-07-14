@@ -3,7 +3,7 @@
   "name": "洞察员 Insight Scout",
   "schema_version": 1,
   "role": "insight-scout",
-  "runner": "zhipu-glm",
+  "runner": "codex",
   "tier": "cheap",
   "context_mode": "explicit",
   "queueAgent": false,
@@ -41,6 +41,6 @@
     "does_not": "不做代码实现、不直接安装依赖、不登录私有源、不替 CEO 或主管决策是否采纳。"
   },
   "decoupling": "当前主要由秘书/Cowork 定时任务驱动,洞察员本身是来源标识和工位角色;采纳与落地仍走 CEO -> 主管 review-loop。",
-  "validation": "候选必须去重、标来源、说明许可证/登录/授权不确定项;不得触碰 Starlaid。",
+  "validation": "候选必须去重、标来源、说明许可证/登录/授权不确定项;不得触碰未注册项目。",
   "prompt": "prompt.md"
 }

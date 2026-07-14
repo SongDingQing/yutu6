@@ -4,7 +4,7 @@
 
 File:
 
-`/Users/yutu/.codex/modules/multi-agent-collaboration-contract/agent-manifest.json`
+`$HOME/.codex/modules/multi-agent-collaboration-contract/agent-manifest.json`
 
 Purpose:
 
@@ -16,19 +16,19 @@ Purpose:
 
 Codex registry:
 
-`/Users/yutu/.codex/modules/registry.json`
+`$HOME/.codex/modules/registry.json`
 
 Lookup script:
 
-`/Users/yutu/.codex/modules/scripts/module_lookup.py "<query>"`
+`$HOME/.codex/modules/scripts/module_lookup.py "<query>"`
 
 Hermes entry skill:
 
-`/Users/yutu/.hermes/skills/autonomous-ai-agents/multi-agent-collaboration-contract/SKILL.md`
+`$HOME/.hermes/skills/autonomous-ai-agents/multi-agent-collaboration-contract/SKILL.md`
 
 Codex entry skill:
 
-`/Users/yutu/.codex/skills/multi-agent-collaboration-contract/SKILL.md`
+`$HOME/.codex/skills/multi-agent-collaboration-contract/SKILL.md`
 
 ## Feishu Confirmation Cards
 
@@ -52,10 +52,7 @@ Input examples:
 - `给姐姐发邮件`
 - `把结果发给我`
 
-Resolved recipients:
-
-- `主人` / `我` / `我的邮箱`: `songchengzuo@hotmail.com`
-- `姐姐`: `scc12251988@hotmail.com`
+Recipient aliases are resolved only from an optional local private contacts module. No address is bundled with the generic distribution.
 
 Output:
 
@@ -77,7 +74,7 @@ Required output:
 - Codex run summary
 - test/build result when available
 - APK/file attachment if requested and produced
-- durable latest status at `/Users/yutu/.hermes/codex-handoff/latest-status.json`
+- durable latest status at `$HOME/.hermes/codex-handoff/latest-status.json`
 
 Document/file return:
 
@@ -93,7 +90,7 @@ Release request:
 - command: `node projects/控制台/secretary-tools.js it-release-request --part <manual|major|minor|fix> --message "..." --path <file>`
 - queue: `projects/控制台/artifacts/queues/it_engineer`
 - required fields: version part, update summary, explicit path list
-- output: `VERSION.json`, commit subject beginning with `v<manual.major.minor.fix>`, Gitee push result, concise release summary
+- output: `VERSION.json`, commit subject beginning with `v<manual.major.minor.fix>`, configured-origin push result, concise release summary
 
 Rollback request:
 
@@ -101,7 +98,7 @@ Rollback request:
 - queue: `projects/控制台/artifacts/queues/it_engineer`
 - required fields: target version or commit, repair reason
 - output before confirmation: rollback dry-run plan only
-- output after owner confirmation: revert-based four-part version commit and Gitee push result
+- output after owner confirmation: revert-based four-part version commit and configured-origin push result
 
 Version display:
 
@@ -140,6 +137,6 @@ Optional fields:
 
 Persistent files:
 
-- `/Users/yutu/.hermes/cron/jobs.json`
-- `/Users/yutu/.hermes/scripts/codex-handoff`
-- `/Users/yutu/.hermes/codex-handoff/scheduled-runs`
+- `$HOME/.hermes/cron/jobs.json`
+- `$HOME/.hermes/scripts/codex-handoff`
+- `$HOME/.hermes/codex-handoff/scheduled-runs`

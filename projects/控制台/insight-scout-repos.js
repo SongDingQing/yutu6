@@ -18,7 +18,7 @@ const TOPICS = [
   { id: 'llm-gateway', label: 'LLM 网关 / 成本质量路由 / 可观测' },
   { id: 'gui-grounding', label: 'GUI grounding / computer-use / a11y' },
   { id: 'pixel-assets-ui', label: '像素素材生成 / 控制台优秀网页设计' },
-  { id: 'unity-simulaid-methods', label: 'Unity/团结工作流方法论(Simulaid 仅作泛化方法,不触碰项目)' },
+  { id: 'game-engine-workflows', label: '游戏引擎与内容生产工作流方法论' },
 ];
 
 function nowIso() {
@@ -258,7 +258,7 @@ function makeTask(slot, opts = {}) {
     `你是洞察员 insight-scout 的每 4 小时自动借鉴扫描任务。slot=${slot.key}, 北京时间窗口起点=${slot.startAt}, 主题=${topic.label}。`,
     '',
     '必须遵守:',
-    '- Starlaid/星桥 全程排除,不要读取、分析、派生或推荐 Starlaid 相关内容。',
+    '- 只研究通用方法和当前已登记项目;不要读取、分析或推荐未授权项目内容。',
     '- 不登录、不处理 OAuth/扫码/2FA/token,不回显密钥。',
     '- 不安装依赖、不改运行代码;洞察员只产出借鉴分析和公告板候选。',
     '',
@@ -312,7 +312,7 @@ function makeTask(slot, opts = {}) {
         topicLabel: topic.label,
         source: 'insight-scout-repos',
       },
-      bounds: '洞察员定时研究; Starlaid/星桥 一律排除; 密钥不回显; 不登录不授权; 不安装依赖不改运行代码; 只写 board/insights 与公告板候选。',
+      bounds: '洞察员定时研究; 未登记或未授权项目不处理; 密钥不回显; 不登录不授权; 不安装依赖不改运行代码; 只写 board/insights 与公告板候选。',
       inputs: [
         'board/insights/seen-repos.json',
         'board/insights/borrowed-libs.md',
@@ -386,11 +386,6 @@ function normalizeInsightOutput(output) {
   return raw;
 }
 
-function containsExcludedProject(text) {
-  const s = String(text || '');
-  return /(?:Starlaid|星桥)/i.test(s) && !/(?:排除|不涉及|无关|不处理)/.test(s);
-}
-
 function normalizeRepoUrl(url) {
   const s = String(url || '').trim();
   if (!/^https:\/\/github\.com\/[^/\s]+\/[^/\s#?]+/i.test(s)) return '';
@@ -459,7 +454,6 @@ function normalizeCard(card, defaults = {}) {
   const source = '洞察员';
   const goal = String(card.goal || `${title}${desc ? '\n\n' + desc : ''}`).trim();
   const baseId = safeId(card.id || `insight-${crypto.createHash('sha1').update([defaults.slot || '', title, goal].join('\n')).digest('hex').slice(0, 10)}`);
-  if (containsExcludedProject([title, desc, goal, project].join('\n'))) return null;
   return {
     id: baseId,
     title,
@@ -472,7 +466,7 @@ function normalizeCard(card, defaults = {}) {
       flowId: target === 'ceo' ? 'project-route' : 'agent-once',
       projectId: project,
       goal,
-      bounds: '只处理本洞察员公告板候选; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 是否采纳由 CEO/主管决定。',
+      bounds: '只处理本洞察员公告板候选; 未登记或未授权项目不处理; 密钥不回显; 登录/授权交主人手动; 是否采纳由 CEO/主管决定。',
       acceptance: '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
       useOrchestrator: target === 'ceo',
       autoApproveHuman: true,
@@ -522,7 +516,6 @@ function applyInsightScoutOutput(opts = {}) {
   const seenReposFile = path.join(workspaceRoot, 'board', 'insights', 'seen-repos.json');
   const bulletinFile = path.join(artifactsRoot, 'bulletin', 'cards.json');
   const analysis = String(output.analysis_markdown || output.analysisMarkdown || '').trim();
-  if (containsExcludedProject(analysis)) return { ok: false, reason: 'analysis contains excluded Starlaid reference' };
   const header = [
     `## ${new Date().toISOString().slice(0, 10)} · 自动洞察(${slot || 'manual'}${topic ? ` · ${topic}` : ''})`,
     '',
@@ -593,7 +586,6 @@ module.exports = {
     normalizeCard,
     appendBulletinCards,
     updateSeenRepos,
-    containsExcludedProject,
     looseInsightScoutBlock,
     githubUrlsFromText,
     readJsonWithCorruptBackup,

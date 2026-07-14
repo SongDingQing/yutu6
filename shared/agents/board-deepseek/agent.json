@@ -3,7 +3,7 @@
   "name": "董事 DeepSeek(new-api)",
   "schema_version": 1,
   "role": "board_deepseek",
-  "runner": "new-api",
+  "runner": "deepseek",
   "tier": "strong",
   "context_mode": "explicit",
   "read_paths": ["玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
@@ -15,7 +15,7 @@
   },
   "boundary_statement": {
     "does": "只对重要架构任务做 DeepSeek 视角挑刺和风险识别。",
-    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 未注册项目。"
   },
   "decoupling": "只做架构评议和挑刺,不直接改文件、不派队列。",
   "validation": "单轮评审必须区分可执行建议与硬阻断;合理改动应默认可执行,禁止把普通建议当否决。",

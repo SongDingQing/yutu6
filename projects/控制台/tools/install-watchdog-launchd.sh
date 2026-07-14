@@ -5,8 +5,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="${WATCHDOG_LAUNCHD_LABEL:-com.yutu6.watchdog}"
 UID_VALUE="$(id -u)"
 DOMAIN="gui/${UID_VALUE}"
-NODE_BIN="${NODE_BIN:-/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node}"
-PEEKABOO_BIN="${PEEKABOO_BIN:-/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo}"
+NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
+[[ -n "${NODE_BIN}" && -x "${NODE_BIN}" ]] || { echo "node executable not found" >&2; exit 1; }
+PEEKABOO_BIN="${PEEKABOO_BIN:-$(command -v peekaboo || true)}"
+PEEKABOO_BIN="${PEEKABOO_BIN:-/usr/bin/false}"
+PATH_VALUE="$(dirname "${NODE_BIN}"):$(dirname "${PEEKABOO_BIN}"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 ARTIFACTS="${ROOT}/artifacts"
 PLIST_DST="${ARTIFACTS}/${LABEL}.plist"
 LOG_DIR="${ARTIFACTS}/watchdog"
@@ -37,7 +40,7 @@ cat > "${PLIST_DST}" <<PLIST
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<string>${PATH_VALUE}</string>
 		<key>YUTU6_NODE_BIN</key>
 		<string>${NODE_BIN}</string>
 		<key>CONSOLE_NODE_BIN</key>
@@ -48,12 +51,6 @@ cat > "${PLIST_DST}" <<PLIST
 		<string>${PEEKABOO_BIN}</string>
 		<key>CONSOLE_PEEKABOO_IMAGE_BIN</key>
 		<string>${PEEKABOO_BIN}</string>
-		<key>HTTP_PROXY</key>
-		<string>http://127.0.0.1:10808</string>
-		<key>HTTPS_PROXY</key>
-		<string>http://127.0.0.1:10808</string>
-		<key>ALL_PROXY</key>
-		<string>http://127.0.0.1:10808</string>
 		<key>WATCHDOG_INTERVAL_MS</key>
 		<string>${WATCHDOG_INTERVAL_MS:-30000}</string>
 		<key>WATCHDOG_WORKER_STALE_MS</key>

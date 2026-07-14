@@ -1,6 +1,6 @@
 {
   "id": "board-opus48",
-  "name": "董事 Codex/GPT-5.5(单轮最终放行)",
+  "name": "董事 Codex(单轮最终放行)",
   "schema_version": 1,
   "role": "board_opus48",
   "runner": "codex",
@@ -33,8 +33,8 @@
     ]
   },
   "boundary_statement": {
-    "does": "做唯一 Codex/GPT-5.5 视角的架构/性能/并发事前评审,并在单轮末尾判断是否存在硬阻断或误判风险。",
-    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+    "does": "做 Codex 视角的架构/性能/并发事前评审,并在单轮末尾判断是否存在硬阻断或误判风险。",
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或未授权项目。"
   },
   "decoupling": "只做事前评审和最终风险裁决,不直接改文件、不派队列。",
   "validation": "单轮必须明确 hard_block 与 misjudgment_risk;只有 true 才触发主人拍板卡。",

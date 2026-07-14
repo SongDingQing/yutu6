@@ -1,6 +1,6 @@
 ---
 name: instruction-expansion-router
-description: Use before any non-trivial coding, debugging, refactoring, deployment, release, build, test, game-development, UI/assets/content, agent-control-plane, Hermes/Yutu, YuanXiao, Zongzi, Simulaid, Starlaid, or project-planning request where the user gives a terse, spoken, screenshot-backed, queue-like, cross-agent, or ambiguous command. Routes to the correct project-specific command expander and produces a concise 指令补齐稿 before implementation. Default for new or unrecognized projects.
+description: Use before non-trivial coding, debugging, deployment, UI, agent-control-plane, or project-planning requests when the user gives a terse, spoken, screenshot-backed, queue-like, cross-agent, or ambiguous command. Routes to an installed project pack when available and otherwise produces one concise generic 指令补齐稿.
 metadata:
   short-description: Route and expand terse project commands
 ---
@@ -18,12 +18,9 @@ Do not turn this into a giant all-project manual. It should route, normalize, an
 ## Routing Order
 
 1. If the user explicitly names a skill, load that skill first.
-2. If the request matches Simulaid / 模拟纪元 / `/Users/yutu/Simulaid`, load `simulaid-command-expander` and emit only `Simulaid 指令补齐稿：`.
-3. If the request matches YuanXiao / 元宵 / 汤圆 / ChangE / 嫦娥 / Yutu / 玉兔 / Hermes / Legend / 传奇 / control-plane queues, load `yuanxiao-command-expander` and emit only `元宵指令补齐稿：`.
-4. If the request matches Zongzi / 粽子 / 粽子 Codex / 粽子管理控制台, load `zongzi-command-expander` and emit only `粽子指令补齐稿：`.
-5. If the request matches Starlaid / 星桥 / `/Users/yutu/Projects/Starlaid/Starlaid`, use `starlaid-unity-maintenance`, `starlaid-game-development`, and `starlaid-test-maintenance` as needed, then emit `Starlaid 指令补齐稿：`.
-6. If the request uses a cross-project wrapper such as `玉猿`, `玉豚`, `玉凤`, `玉鼠`, `玉衡`, `玉虎`, `玉鸡`, `金鸡`, `玉龙`, `玉灵`, `玉玲珑`, `玉凰`, or `黄龙`, read `/Users/yutu/.codex/skills/project-routes/INDEX.md`, choose the project route, then apply that route's supported wrapper.
-7. If no known project route matches, emit `全局指令补齐稿：` with the generic template below.
+2. If an installed project ability pack owns the request, load that pack's command expander and emit its one visible project block.
+3. If a cross-project wrapper is requested, read the installed `project-routes/INDEX.md` and matching project route. No route means stop instead of borrowing another project's commands.
+4. If no installed project route matches, emit `全局指令补齐稿：` with the generic template below.
 
 ## Compatibility Contract
 
@@ -32,7 +29,7 @@ This router must cooperate with existing command expander skills rather than com
 Priority order:
 
 1. Explicit user-named skill or agent.
-2. Project-specific command expander, such as `simulaid-command-expander`, `yuanxiao-command-expander`, `zongzi-command-expander`, or a future `<project>-command-expander`.
+2. Installed project-specific command expander.
 3. Cross-project wrapper route selected through `project-routes/INDEX.md`.
 4. This router's generic `全局指令补齐稿` fallback.
 

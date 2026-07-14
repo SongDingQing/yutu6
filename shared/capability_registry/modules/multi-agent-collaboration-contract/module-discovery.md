@@ -4,9 +4,9 @@
 
 Future Codex sessions should:
 
-1. Read `/Users/yutu6/.codex/skills/module-registry/SKILL.md` when the task mentions persistent local integrations.
-2. Read `/Users/yutu6/玉兔6工作区/shared/capability_registry/registry.json`.
-3. Open the matched module under `/Users/yutu6/玉兔6工作区/shared/capability_registry/modules/<module-id>/INDEX.md`.
+1. Read `~/.codex/skills/module-registry/SKILL.md` when the task mentions persistent local integrations.
+2. Read `$YUTU6_ROOT/shared/capability_registry/registry.json`.
+3. Open the matched module under `$YUTU6_ROOT/shared/capability_registry/modules/<module-id>/INDEX.md`.
 4. Read only the module files needed for the task.
 
 For multi-agent coordination, open this module first when the user mentions:
@@ -22,7 +22,7 @@ For multi-agent coordination, open this module first when the user mentions:
 
 Hermes should use:
 
-`/Users/yutu/.hermes/skills/autonomous-ai-agents/multi-agent-collaboration-contract/SKILL.md`
+`$HOME/.hermes/skills/autonomous-ai-agents/multi-agent-collaboration-contract/SKILL.md`
 
 That skill points Hermes to:
 
@@ -42,7 +42,7 @@ Hermes should consult it before deciding:
 
 Future agents should be given:
 
-- `/Users/yutu6/玉兔6工作区/shared/capability_registry/registry.json`
+- `$YUTU6_ROOT/shared/capability_registry/registry.json`
 - this module directory
 - `agent-manifest.json`
 

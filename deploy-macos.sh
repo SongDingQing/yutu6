@@ -15,6 +15,8 @@ TARGET_KIND=""
 NODE_BIN=""
 NODE_PLANNED=0
 STAGING_DIR=""
+START_CONSOLE=1
+OPEN_BROWSER=1
 
 usage() {
   cat <<'EOF'
@@ -28,6 +30,8 @@ usage() {
   --repo REPO     克隆来源（默认: GitHub SSH 仓库）
   --ref REF       克隆分支或标签（默认: main）
   --dry-run       只做预检并显示计划，不写文件、不安装软件
+  --no-start      只部署文件，不启动本地控制台
+  --no-open       启动控制台，但不自动打开浏览器
   -h, --help      显示帮助
 
 安全约束:
@@ -69,6 +73,15 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --no-start)
+      START_CONSOLE=0
+      OPEN_BROWSER=0
+      shift
+      ;;
+    --no-open)
+      OPEN_BROWSER=0
       shift
       ;;
     -h|--help)
@@ -215,6 +228,57 @@ clone_workspace() {
   trap - EXIT HUP INT TERM
 }
 
+console_probe() {
+  local url="$1"
+  "$NODE_BIN" -e '
+const url = process.argv[1];
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 1800);
+fetch(url + "/api/setup/status", { signal: controller.signal })
+  .then(r => { clearTimeout(timer); process.exit(r.ok ? 0 : 1); })
+  .catch(() => { clearTimeout(timer); process.exit(1); });
+' "$url" >/dev/null 2>&1
+}
+
+start_console() {
+  local private_dir log_file pid_file port url pid ready=0
+  private_dir="${YUTU6_CONFIG_DIR:-$HOME/.config/yutu6}"
+  mkdir -p -- "$private_dir"
+  chmod 700 "$private_dir"
+  log_file="$private_dir/console.log"
+  pid_file="$private_dir/console.pid"
+  port="$("$NODE_BIN" -e 'const c=require(process.argv[1]);process.stdout.write(String(c.port||41218))' "$TARGET/projects/控制台/config.json")"
+  url="http://127.0.0.1:$port"
+
+  if console_probe "$url"; then
+    info "控制台已在运行: $url"
+  else
+    info "正在启动本地控制台"
+    nohup env PORT="$port" YUTU6_CONFIG_DIR="$private_dir" \
+      "$NODE_BIN" "$TARGET/projects/控制台/server.js" >>"$log_file" 2>&1 &
+    pid=$!
+    printf '%s\n' "$pid" > "$pid_file"
+    chmod 600 "$pid_file" "$log_file" 2>/dev/null || true
+    for _ in {1..45}; do
+      if console_probe "$url"; then ready=1; break; fi
+      if ! kill -0 "$pid" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    if (( ready == 0 )); then
+      if kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null || true; fi
+      die "控制台未在 45 秒内就绪；请查看 $log_file"
+    fi
+    info "控制台已就绪: $url"
+  fi
+
+  if (( OPEN_BROWSER )) && command -v open >/dev/null 2>&1; then
+    open "$url/setup" >/dev/null 2>&1 || true
+    info "已打开首次配置向导"
+  else
+    info "首次配置向导: $url/setup"
+  fi
+}
+
 inspect_target
 ensure_node
 
@@ -231,6 +295,9 @@ if (( DRY_RUN )); then
   if (( NODE_PLANNED == 0 )); then
     "$NODE_BIN" --check "$SCRIPT_DIR/projects/控制台/server.js" >/dev/null 2>&1 || \
       info "[dry-run] 当前脚本不在完整工作区内，部署后再做 server.js 语法检查"
+  fi
+  if (( START_CONSOLE )); then
+    info "[dry-run] 部署后将启动本地控制台并打开首次配置向导"
   fi
   info "dry-run 完成：没有写文件、安装软件或修改 Git 配置"
   exit 0
@@ -249,5 +316,9 @@ git -C "$TARGET" config --local core.hooksPath .githooks
 "$NODE_BIN" --check "$TARGET/projects/控制台/server.js" >/dev/null
 
 info "部署完成；仓库工作树保持干净，本地 Git hooks 已启用"
-printf '[yutu6-deploy] 启动控制台: cd %q && bash %q\n' \
-  "$TARGET" "projects/控制台/start.sh"
+if (( START_CONSOLE )); then
+  start_console
+else
+  printf '[yutu6-deploy] 启动控制台: cd %q && bash %q\n' \
+    "$TARGET" "projects/控制台/start.sh"
+fi

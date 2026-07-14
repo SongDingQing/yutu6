@@ -23,7 +23,8 @@ DEFAULT_API_BASE = "https://api.meowa.ai"
 DEFAULT_API_KEY_ENV = "MEOWART_API_KEY"
 DEFAULT_DEV_KEY_ENV = "MEOWART_DEV_KEY"
 UNIFIED_SECRETS_ENV = "YUTU6_SECRETS_ENV"
-UNIFIED_SECRETS_PATH = Path.home() / ".config" / "yutu6-secrets" / "secrets.env"
+UNIFIED_SECRETS_PATH = Path.home() / ".config" / "yutu6" / "providers.env"
+LEGACY_SECRETS_PATH = Path.home() / ".config" / "yutu6-secrets" / "secrets.env"
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image-preview"
 DEFAULT_WORK_DIR = str(Path(__file__).resolve().parent / ".meow_art")
 DEFAULT_TIMEOUT = 240
@@ -141,6 +142,13 @@ def _read_env_file_value(path: Path, key: str) -> str:
 def _unified_secrets_path() -> Path:
     configured = os.environ.get(UNIFIED_SECRETS_ENV, "").strip()
     return Path(configured).expanduser() if configured else UNIFIED_SECRETS_PATH
+
+
+def _read_unified_secret_value(key: str) -> str:
+    value = _read_env_file_value(_unified_secrets_path(), key)
+    if value or os.environ.get(UNIFIED_SECRETS_ENV, "").strip():
+        return value
+    return _read_env_file_value(LEGACY_SECRETS_PATH, key)
 
 
 def _bootstrap_log(message: str) -> None:
@@ -331,7 +339,7 @@ def _download_bootstrap_runner(
 def _exec_bootstrap_runner(runner_path: Path, argv: list[str], source: str) -> None:
     env = os.environ.copy()
     if not env.get(DEFAULT_API_KEY_ENV, "").strip():
-        unified_api_key = _read_env_file_value(_unified_secrets_path(), DEFAULT_API_KEY_ENV)
+        unified_api_key = _read_unified_secret_value(DEFAULT_API_KEY_ENV)
         if unified_api_key:
             env[DEFAULT_API_KEY_ENV] = unified_api_key
     env[BOOTSTRAP_SKIP_ENV] = "1"
@@ -3888,6 +3896,7 @@ def _parse_json_arg(raw: str, *, name: str) -> dict[str, Any]:
 def _read_dotenv_value(key: str) -> str:
     candidate_paths = [
         _unified_secrets_path(),
+        LEGACY_SECRETS_PATH,
         Path.cwd() / ".env",
         Path(__file__).resolve().parent / ".env",
         Path(__file__).resolve().parent.parent / ".env",

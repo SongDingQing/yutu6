@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "owner_agent": "it-engineer",
-  "version": "0.0.13.11",
-  "updated_at": "2026-07-04T08:20:00.000Z",
+  "version": "0.0.14.0",
+  "updated_at": "2026-07-14T08:37:00.000Z",
   "last_change": {
-    "releaseImpact": "fix",
-    "part": "fix",
-    "part_label": "UI及bug修复",
-    "summary": "元宵任务中枢数据源:新增玉兔6→嫦娥任务快照推送(push-yuanxiao-tasks-snapshot.js,launchd每5分钟,只读扫队列),配合嫦娥snapshot模式让手机端看到真实任务板",
-    "at": "2026-07-04T08:20:00.000Z"
+    "releaseImpact": "minor",
+    "part": "minor",
+    "part_label": "小功能增加/改动",
+    "summary": "发布通用玉兔6：新增首次初始化向导、模型连通检测、通用系统部门、项目部门生成与一键部署门禁",
+    "at": "2026-07-14T08:37:00.000Z"
   },
   "remote": {
-    "name": "gitee",
-    "web_url": "https://gitee.com/songdingqing/yutu6",
-    "push_url": "git@gitee.com:songdingqing/yutu6.git"
+    "name": "origin",
+    "web_url": "https://github.com/SongDingQing/yutu6",
+    "push_url": "git@github.com:SongDingQing/yutu6.git"
   },
   "parts": {
     "manual": "手动",

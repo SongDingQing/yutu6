@@ -38,6 +38,33 @@
 	  .empty { color:var(--mut); font-size:13px; padding:8px 0; }
 	  .empty.err { color:#ffd0d0; border:1px dashed rgba(255,107,107,.46); border-radius:8px; background:rgba(78,15,15,.28); padding:10px 12px; }
 	  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:6px; }
+  .gateway { grid-column:1/-1; }
+  .gateway-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+  .gateway-block { min-width:0; border:1px solid var(--line); border-radius:8px; background:#12151b; padding:11px 12px; }
+  .gateway-block h3 { margin:0 0 8px; font-size:12px; color:#c3cad7; }
+  .gateway-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:8px; }
+  .metric { min-width:0; border:1px solid rgba(154,163,178,.18); border-radius:8px; padding:8px; background:#0d1016; }
+  .metric b { display:block; font-size:16px; color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .metric span { display:block; color:var(--mut); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .schema-list, .gateway-list, .call-list { display:grid; gap:7px; }
+  .schema-list { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); }
+  .schema-field, .pill { min-width:0; border:1px solid rgba(110,168,254,.22); border-radius:6px; padding:4px 7px; background:#0d1420; color:#dbeafe; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gateway-row { min-width:0; border-top:1px solid rgba(154,163,178,.16); padding:8px 0; }
+  .gateway-row:first-child { border-top:none; }
+  .gateway-row .row { padding:0 0 3px; border-top:none; }
+  .gateway-row .mut { margin-top:2px; }
+  .gateway-status { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+  .gateway-status .pill.ok { color:#bbf7d0; border-color:rgba(74,222,128,.35); background:#0d1d14; }
+  .gateway-status .pill.warn { color:#fde68a; border-color:rgba(251,191,36,.4); background:#201907; }
+  .gateway-status .pill.err { color:#fecaca; border-color:rgba(255,107,107,.45); background:#240d0d; }
+  .call-list { max-height:330px; overflow:auto; padding-right:4px; }
+  .call-item { min-width:0; border:1px solid rgba(154,163,178,.16); border-radius:8px; padding:8px; background:#0d1016; }
+  .call-item .row { padding:0 0 5px; border-top:none; }
+  .call-item button { padding:4px 9px; border-radius:6px; font-size:12px; }
+  .detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; }
+  .detail-grid .metric { background:#101722; }
+  .gateway-note { margin-top:9px; color:var(--mut); font-size:12px; overflow-wrap:anywhere; }
+  .chain-step { display:inline-block; max-width:100%; margin:3px 5px 3px 0; padding:3px 6px; border:1px solid rgba(251,191,36,.28); border-radius:6px; color:#fde68a; background:#1f1707; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
 	  @media(max-width:560px){ header .links { width:100%; margin-left:0; justify-content:flex-start; } main { padding:14px 12px; grid-template-columns:1fr; } .card { padding:12px; } }
 </style>
 </head>
@@ -49,12 +76,22 @@
   <button type="button" onclick="load()" title="刷新控制室概览" aria-label="刷新控制室概览">刷新</button>
   <span class="links"><a href="/api-gateway">API 网关</a><a href="/workspace">← 工作区</a></span>
 </header>
-<main id="main" aria-live="polite" aria-busy="true"></main>
+<main id="main" role="region" aria-label="控制室主区" aria-live="polite" aria-busy="true"></main>
 
 <script>
-const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function card(title, inner){ return `<section class="card" role="region" aria-label="${esc(title)}"><h2>${title}</h2>${inner}</section>`; }
-function emptyState(text){ const value=String(text||'暂无'); return `<div class="empty" role="status" title="${esc(value)}" aria-label="${esc(value)}">${esc(value)}</div>`; }
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const GATEWAY_SCHEMA_FIELDS = [
+  'model',
+  'tokens_in',
+  'tokens_out',
+  'cost',
+  'latency_ms',
+  'status',
+  'session_id',
+  '角色·任务标签'
+];
+function card(title, inner, className){ return `<section class="card ${esc(className||'')}" role="region" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${inner}</section>`; }
+function emptyState(text, tone){ const value=String(text||'暂无'); return `<div class="empty ${tone==='err'?'err':''}" role="${tone==='err'?'alert':'status'}" title="${esc(value)}" aria-label="${esc(value)}">${esc(value)}</div>`; }
 function rows(arr, label, fn){ return arr.length ? `<div class="row-list" role="list" aria-label="${esc(label)}">${arr.map(fn).join('')}</div>` : emptyState(label+'暂无数据'); }
 function listItem(label, inner){ return `<div class="rowitem" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">${inner}</div>`; }
 function eventClass(type){
@@ -63,22 +100,65 @@ function eventClass(type){
   if(/^edge/.test(type)) return 'flow';
   return 'run';
 }
+function fmtInt(n){
+  n=Number(n||0);
+  if(n>=1000000000) return (n/1000000000).toFixed(1)+'B';
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=1000) return (n/1000).toFixed(1)+'K';
+  return String(Math.round(n));
+}
+function fmtFull(n){ return Number(n||0).toLocaleString('en-US'); }
+function fmtUsd(n){ const v=Number(n||0); return '$'+v.toFixed(v>=1?2:4); }
+function fmtMs(n){
+  const v=Number(n||0);
+  if(!v) return 'unknown';
+  const ms=v<1000 ? Math.round(v*1000) : Math.round(v);
+  return fmtFull(ms)+' ms';
+}
+function fmtTime(ts){
+  const n=Number(ts||0);
+  if(!n) return 'unknown';
+  return new Date(n*1000).toLocaleString('zh-CN',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function isBuyoutModel(model){ return /glm[-_.\s]*5[._-]?2/i.test(String(model||'')); }
+function statusText(row){ return String(row&&row.status||row&&row.type||'observed'); }
+function sessionText(row){ return String(row&&row.session_id||row&&row.trace_id||row&&row.rootTaskId||row&&row.root_task_id||'unknown/unmapped'); }
+function roleTagText(row){ return String(row&&row.agent_id||row&&row.queue_agent||row&&row.queueAgent||row&&row.role||'unknown/unmapped'); }
+function costText(row, model){
+  if(isBuyoutModel(model||row&&row.model)) return '买断额度 · $0';
+  if(row && row.estimated_cost_usd != null) return 'estimated '+fmtUsd(row.estimated_cost_usd);
+  return 'unknown';
+}
+function metric(label, value){
+  const text=`${label}: ${value}`;
+  return `<div class="metric" role="listitem" title="${esc(text)}" aria-label="${esc(text)}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
+}
+function sourcePill(label, ok, detail){
+  const tone=ok?'ok':(detail?'err':'warn');
+  const text=`${label}: ${ok?'ok':(detail||'unavailable')}`;
+  return `<span class="pill ${tone}" role="listitem" title="${esc(text)}" aria-label="${esc(text)}">${esc(label)} · ${esc(ok?'ok':(detail?'error':'empty'))}</span>`;
+}
+async function fetchJson(url){
+  const resp=await fetch(url);
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok) throw new Error(data.error||resp.status);
+  return data;
+}
+async function loadGatewayData(){
+  const [newApi,llmUsage]=await Promise.allSettled([
+    fetchJson('/api/newapi/usage?days=7&limit=80'),
+    fetchJson('/api/llm-usage/overview?days=7')
+  ]);
+  return {
+    newApi: newApi.status==='fulfilled'?newApi.value:null,
+    llmUsage: llmUsage.status==='fulfilled'?llmUsage.value:null,
+    newApiError: newApi.status==='rejected' ? String(newApi.reason&&newApi.reason.message||newApi.reason) : '',
+    llmUsageError: llmUsage.status==='rejected' ? String(llmUsage.reason&&llmUsage.reason.message||llmUsage.reason) : ''
+  };
+}
 
-async function load(){
-  const main=document.getElementById('main');
-  const ts=document.getElementById('ts');
-  if(main) main.setAttribute('aria-busy','true');
-  let d;
-  try { d = await (await fetch('/api/cr/overview')).json(); }
-  catch(e){
-    const detail='控制室概览读取失败: '+(e&&e.message||e||'unknown');
-    if(ts){ ts.textContent='读取失败'; ts.title=detail; ts.setAttribute('role','alert'); ts.setAttribute('aria-label',detail); }
-    if(main){ main.innerHTML = `<div class="empty err" role="alert" title="${esc(detail)}" aria-label="${esc(detail)}">${esc(detail)}</div>`; main.setAttribute('aria-busy','false'); }
-    return;
-  }
-  const tsText = '更新 ' + new Date(d.generatedAt).toLocaleString('zh-CN');
-  if(ts){ ts.textContent=tsText; ts.title='控制室更新时间: '+tsText; ts.setAttribute('role','status'); ts.setAttribute('aria-label','控制室更新时间: '+tsText); }
-
+function renderControlOverview(d){
+  if(!d || d.error) return card('控制室基础概览', emptyState('控制室概览读取失败: '+(d&&d.error||'unknown'),'err'));
   const agents = card('系统级智能体 ('+d.agents.length+')', rows(d.agents, '系统级智能体列表', a => {
     const reads=(a.reads||[]).join(' , ')||'—';
     const label=`${a.name} · ${a.runner} · ${a.context_mode} · 角色 ${a.role} · 看 ${reads}`;
@@ -112,8 +192,210 @@ async function load(){
     }).join('')}</div>`
     : emptyState('暂无事件: 引擎在 Mac 接真 CLI 跑起来后会在这里实时显示')
   }</section>`;
+  return agents + runners + roles + flows + events;
+}
 
-  if(main){ main.innerHTML = agents + runners + roles + flows + events; main.setAttribute('aria-busy','false'); }
+function renderGatewaySchema(data){
+  const schemaFields=((data.llmUsage&&data.llmUsage.schema&&data.llmUsage.schema.fields)||[]).filter(x => /^(model|session_id|trace_id|status|input_tokens|output_tokens|total_tokens|estimated_cost_usd|duration_ms|agent_id|queue_agent|tags)$/.test(x));
+  const fields=GATEWAY_SCHEMA_FIELDS.concat(schemaFields.filter(x => !GATEWAY_SCHEMA_FIELDS.includes(x))).slice(0,16);
+  return `<div class="gateway-block" role="region" aria-label="LLM 网关本地日志 schema">
+    <h3>本地日志 schema</h3>
+    <div class="schema-list" role="list" aria-label="LLM 网关可观测字段">${fields.map(f => `<span class="schema-field" role="listitem" title="${esc('字段 '+f)}" aria-label="${esc('字段 '+f)}">${esc(f)}</span>`).join('')}</div>
+    <div class="gateway-note">费用口径: estimated 为 quota 折算估算; GLM-5.2 买断额度显示买断/$0; 缺字段显示 unknown。</div>
+  </div>`;
+}
+
+function renderGatewayModelRows(data){
+  const usage=data.newApi&&data.newApi.ok&&data.newApi.usage||{};
+  const rows=(usage.byModel||[]).slice(0,8);
+  if(!rows.length) return emptyState(data.newApiError||data.newApi&&data.newApi.error||'模型聚合暂无数据', data.newApiError||data.newApi&&data.newApi.error?'err':'');
+  return `<div class="gateway-list" role="list" aria-label="按模型聚合的 LLM 网关用量">${rows.map(row => {
+    const cost=costText(row,row.model);
+    const label=`模型 ${row.model||'unknown'} · tokens_in ${fmtFull(row.prompt_tokens)} · tokens_out ${fmtFull(row.completion_tokens)} · 花费 ${cost} · 延迟 ${fmtMs(row.avg_use_time)} · 状态 observed`;
+    return `<div class="gateway-row" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">
+      <div class="row"><span class="name">${esc(row.model||'unknown')}</span><span class="tag">${esc(cost)}</span></div>
+      <div class="mut">tokens_in ${esc(fmtFull(row.prompt_tokens))} · tokens_out ${esc(fmtFull(row.completion_tokens))} · calls ${esc(fmtFull(row.calls))} · latency ${esc(fmtMs(row.avg_use_time))}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function collectAgentRows(data){
+  const out=[];
+  const models=(data.llmUsage&&data.llmUsage.ok&&data.llmUsage.models)||[];
+  models.forEach(model => {
+    const modelName=model.label||model.id||'model';
+    ((model.currentUsage&&model.currentUsage.byAgent)||[]).forEach(agent => {
+      out.push({
+        agent: agent.agent||'unknown',
+        model: modelName,
+        calls: agent.calls,
+        input: agent.input_tokens,
+        output: agent.output_tokens,
+        total: agent.total_tokens,
+        cost: model.billingMode==='paid_buyout'?'买断额度':'unknown',
+        latency: 'unknown',
+        status: 'ledger'
+      });
+    });
+    (model.agents||[]).forEach(agent => {
+      const id=agent.label||agent.id||'unknown';
+      if(out.some(row => row.agent===id && row.model===modelName)) return;
+      out.push({
+        agent: id,
+        model: modelName,
+        calls: null,
+        input: null,
+        output: null,
+        total: null,
+        cost: model.billingMode==='paid_buyout'?'买断额度':'unknown',
+        latency: 'unknown',
+        status: 'mapped_only'
+      });
+    });
+  });
+  const totals=data.newApi&&data.newApi.ok&&data.newApi.usage&&data.newApi.usage.totals;
+  if(totals && Number(totals.total_tokens||0)>0){
+    out.unshift({
+      agent: 'unknown/unmapped',
+      model: 'new-api logs',
+      calls: totals.calls,
+      input: totals.prompt_tokens,
+      output: totals.completion_tokens,
+      total: totals.total_tokens,
+      cost: 'estimated/mixed',
+      latency: fmtMs(totals.avg_use_time),
+      status: 'no role tag in new-api rows'
+    });
+  }
+  return out.slice(0,10);
+}
+function renderGatewayAgentRows(data){
+  const rows=collectAgentRows(data);
+  if(!rows.length) return emptyState('角色/员工聚合暂无数据: llm-usage 与 new-api 均不可用', 'err');
+  return `<div class="gateway-list" role="list" aria-label="按角色或员工聚合的 LLM 网关用量">${rows.map(row => {
+    const tokenText=row.total==null?'unknown':fmtFull(row.total);
+    const label=`角色员工 ${row.agent} · 模型 ${row.model} · tokens ${tokenText} · 花费 ${row.cost} · 延迟 ${row.latency} · 状态 ${row.status}`;
+    return `<div class="gateway-row" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">
+      <div class="row"><span class="name">${esc(row.agent)}</span><span class="tag">${esc(row.status)}</span></div>
+      <div class="mut">${esc(row.model)} · tokens ${esc(tokenText)} · cost ${esc(row.cost)} · latency ${esc(row.latency)}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function sessionKey(row){ return row&&row.session_id||row&&row.trace_id||row&&row.rootTaskId||row&&row.root_task_id||''; }
+function renderSessionChains(data){
+  const recent=(data.newApi&&data.newApi.ok&&data.newApi.usage&&data.newApi.usage.recent)||[];
+  const groups=new Map();
+  recent.forEach(row => {
+    const key=sessionKey(row);
+    if(!key) return;
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(row);
+  });
+  const chains=[...groups.entries()].slice(0,6);
+  if(!chains.length) return emptyState('未发现可证明的 session_id / trace_id / rootTaskId; 当前 recent rows 显示为 unknown/unmapped, 不伪造任务链。');
+  return `<div class="gateway-list" role="list" aria-label="按 session_id 串联的 LLM 调用链路">${chains.map(([key,rows]) => {
+    const totals=rows.reduce((acc,row)=>{ acc.tokens+=Number(row.total_tokens||0); acc.cost+=Number(row.estimated_cost_usd||0); acc.latency+=Number(row.use_time||0); return acc; },{tokens:0,cost:0,latency:0});
+    const label=`session ${key} · ${rows.length} 步 · tokens ${fmtFull(totals.tokens)} · 花费 ${totals.cost?fmtUsd(totals.cost):'unknown'} · 延迟 ${fmtMs(totals.latency/Math.max(rows.length,1))}`;
+    const steps=rows.slice(0,8).map(row => `<span class="chain-step" title="${esc((row.model||'unknown')+' · '+fmtFull(row.total_tokens)+' tokens · '+costText(row,row.model)+' · '+fmtMs(row.use_time))}" aria-label="${esc('链路步骤 '+(row.model||'unknown')+' · '+fmtFull(row.total_tokens)+' tokens · '+costText(row,row.model)+' · '+fmtMs(row.use_time))}">${esc(row.model||'unknown')}</span>`).join('');
+    return `<div class="gateway-row" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">
+      <div class="row"><span class="name">${esc(key)}</span><span class="tag">${rows.length} step</span></div>
+      <div>${steps}</div>
+      <div class="mut">tokens ${esc(fmtFull(totals.tokens))} · cost ${esc(totals.cost?('estimated '+fmtUsd(totals.cost)):'unknown')} · latency ${esc(fmtMs(totals.latency/Math.max(rows.length,1)))}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderRecentCalls(data){
+  const recent=(data.newApi&&data.newApi.ok&&data.newApi.usage&&data.newApi.usage.recent)||[];
+  if(!recent.length) return emptyState(data.newApiError||data.newApi&&data.newApi.error||'最近调用暂无数据', data.newApiError||data.newApi&&data.newApi.error?'err':'');
+  return `<div class="call-list" role="list" aria-label="LLM 网关最近调用列表">${recent.slice(0,20).map(row => {
+    const label=`最近调用 · ${row.model||'unknown'} · ${fmtTime(row.created_at)} · tokens_in ${fmtFull(row.prompt_tokens)} · tokens_out ${fmtFull(row.completion_tokens)} · 花费 ${costText(row,row.model)} · 延迟 ${fmtMs(row.use_time)} · session ${sessionText(row)} · 角色 ${roleTagText(row)}`;
+    return `<div class="call-item" role="listitem" title="${esc(label)}" aria-label="${esc(label)}">
+      <div class="row"><span class="name">${esc(row.model||'unknown')}</span><button type="button" data-gateway-detail="${esc(row.id)}" title="${esc('懒加载调用详情 · '+(row.model||'unknown'))}" aria-label="${esc('懒加载调用详情 · '+(row.model||'unknown'))}">查看</button></div>
+      <div class="mut">${esc(fmtTime(row.created_at))} · tokens_in ${esc(fmtFull(row.prompt_tokens))} · tokens_out ${esc(fmtFull(row.completion_tokens))} · ${esc(costText(row,row.model))} · ${esc(fmtMs(row.use_time))} · ${esc(sessionText(row))}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderGatewayObservability(data){
+  const usage=data.newApi&&data.newApi.ok&&data.newApi.usage||{};
+  const totals=usage.totals||{};
+  const sourceLabel=(data.newApi&&data.newApi.source)||'new-api';
+  const llmSource=(data.llmUsage&&data.llmUsage.ok)?'llm-usage':'llm-usage';
+  const sourceHtml=`<div class="gateway-status" role="list" aria-label="LLM 网关可观测数据源状态">
+    ${sourcePill(sourceLabel, !!(data.newApi&&data.newApi.ok), data.newApiError||data.newApi&&data.newApi.error||'')}
+    ${sourcePill(llmSource, !!(data.llmUsage&&data.llmUsage.ok), data.llmUsageError||data.llmUsage&&data.llmUsage.error||'')}
+    <span class="pill warn" role="listitem" title="详情只在点击单行后懒加载" aria-label="详情接口按需懒加载">detail lazy</span>
+  </div>`;
+  const metricHtml=`<div class="gateway-metrics" role="list" aria-label="LLM 网关七天总览指标">
+    ${metric('calls', totals.calls!=null?fmtFull(totals.calls):'unknown')}
+    ${metric('tokens_in', totals.prompt_tokens!=null?fmtFull(totals.prompt_tokens):'unknown')}
+    ${metric('tokens_out', totals.completion_tokens!=null?fmtFull(totals.completion_tokens):'unknown')}
+    ${metric('cost', totals.estimated_cost_usd!=null?'estimated '+fmtUsd(totals.estimated_cost_usd):'unknown')}
+    ${metric('latency_ms', totals.avg_use_time?fmtMs(totals.avg_use_time):'unknown')}
+    ${metric('status', data.newApi&&data.newApi.ok?'observed':'degraded')}
+  </div>`;
+  return `<section class="card gateway" role="region" aria-label="LLM 网关可观测面板">
+    <h2>LLM 网关可观测</h2>
+    ${sourceHtml}
+    ${metricHtml}
+    <div class="gateway-grid">
+      ${renderGatewaySchema(data)}
+      <div class="gateway-block" role="region" aria-label="按模型聚合"><h3>按模型</h3>${renderGatewayModelRows(data)}</div>
+      <div class="gateway-block" role="region" aria-label="按角色或员工聚合"><h3>按角色/员工</h3>${renderGatewayAgentRows(data)}</div>
+      <div class="gateway-block" role="region" aria-label="session 链路下钻"><h3>session 链路</h3>${renderSessionChains(data)}</div>
+      <div class="gateway-block" role="region" aria-label="最近调用懒加载详情"><h3>最近调用</h3>${renderRecentCalls(data)}</div>
+      <div class="gateway-block" id="gatewayDetail" role="region" aria-live="polite" aria-busy="false" aria-label="调用详情白名单字段"><h3>详情</h3>${emptyState('点击最近调用后按需读取; 只展示模型、tokens、cost、latency_ms、status、session_id、角色·任务标签。')}</div>
+    </div>
+  </section>`;
+}
+
+function bindGatewayActions(){
+  document.querySelectorAll('[data-gateway-detail]').forEach(btn => {
+    btn.addEventListener('click', () => loadGatewayDetail(btn.dataset.gatewayDetail, btn));
+  });
+}
+async function loadGatewayDetail(id, trigger){
+  const panel=document.getElementById('gatewayDetail');
+  if(!panel || !id) return;
+  panel.setAttribute('aria-busy','true');
+  panel.innerHTML='<h3>详情</h3>'+emptyState('详情读取中');
+  try{
+    const data=await fetchJson('/api/newapi/logs/'+encodeURIComponent(id));
+    const d=data.detail||{};
+    const fields=[
+      ['model', d.model||'unknown'],
+      ['tokens_in', fmtFull(d.prompt_tokens)],
+      ['tokens_out', fmtFull(d.completion_tokens)],
+      ['cost', costText(d,d.model)],
+      ['latency_ms', fmtMs(d.use_time)],
+      ['status', statusText(d)],
+      ['session_id', sessionText(d)],
+      ['角色·任务标签', roleTagText(d)]
+    ];
+    panel.innerHTML=`<h3>详情</h3><div class="detail-grid" role="list" aria-label="调用详情白名单字段">${fields.map(([k,v])=>metric(k,v)).join('')}</div><div class="gateway-note">详情源已隐藏正文; 控制室仅呈现本面板白名单字段。</div>`;
+  }catch(e){
+    panel.innerHTML='<h3>详情</h3>'+emptyState('详情读取失败: '+(e&&e.message||e||'unknown'),'err');
+  }finally{
+    panel.setAttribute('aria-busy','false');
+    if(trigger) trigger.focus();
+  }
+}
+
+async function load(){
+  const main=document.getElementById('main');
+  const ts=document.getElementById('ts');
+  if(main) main.setAttribute('aria-busy','true');
+  const [overviewResult,gatewayResult]=await Promise.allSettled([
+    fetchJson('/api/cr/overview'),
+    loadGatewayData()
+  ]);
+  const d=overviewResult.status==='fulfilled'?overviewResult.value:{error:String(overviewResult.reason&&overviewResult.reason.message||overviewResult.reason||'unknown')};
+  const gateway=gatewayResult.status==='fulfilled'?gatewayResult.value:{newApi:null,llmUsage:null,newApiError:String(gatewayResult.reason&&gatewayResult.reason.message||gatewayResult.reason||'unknown'),llmUsageError:String(gatewayResult.reason&&gatewayResult.reason.message||gatewayResult.reason||'unknown')};
+  const tsText = '更新 ' + new Date(d.generatedAt||Date.now()).toLocaleString('zh-CN');
+  if(ts){ ts.textContent=tsText; ts.title='控制室更新时间: '+tsText; ts.setAttribute('role','status'); ts.setAttribute('aria-label','控制室更新时间: '+tsText); }
+  if(main){ main.innerHTML = renderGatewayObservability(gateway) + renderControlOverview(d); main.setAttribute('aria-busy','false'); bindGatewayActions(); }
 }
 load();
 setInterval(load, 8000);

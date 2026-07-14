@@ -78,7 +78,7 @@ bash projects/控制台/tools/install-daily-governance-hardening-launchd.sh --un
 node projects/控制台/tools/daily-governance-hardening.js --json
 ```
 
-到点由 `tools/daily-governance-hardening.js` 向队列投递两条任务:`governance`(监管/复盘:复盘当天问题+维修、经验沉淀到 `memory/`)与 `quality_ops`(质量运营/硬化:跑 smoke 测试 + 资源检查 + 可回退硬化建议)。**不重复**:用北京日期拼确定性 id(`gov-review-YYYYMMDD` / `qops-harden-YYYYMMDD`),投递前扫描该 agent 全部状态目录,命中即跳过,即使休眠唤醒多次触发也只入队一次。**时区**:launchd `StartCalendarInterval` 走本机本地时区;若本机改为 UTC,需把 `DGH_HOUR=21` 或改 plist 的 `Hour`。运行记录落 `artifacts/daily-governance-hardening/run-YYYYMMDD.jsonl`。Starlaid 一律排除。
+到点由 `tools/daily-governance-hardening.js` 向队列投递两条任务:`governance`(监管/复盘:复盘当天问题+维修、经验沉淀到 `memory/`)与 `quality_ops`(质量运营/硬化:跑 smoke 测试 + 资源检查 + 可回退硬化建议)。**不重复**:用北京日期拼确定性 id(`gov-review-YYYYMMDD` / `qops-harden-YYYYMMDD`),投递前扫描该 agent 全部状态目录,命中即跳过,即使休眠唤醒多次触发也只入队一次。**时区**:launchd `StartCalendarInterval` 走本机本地时区;若本机改为 UTC,需把 `DGH_HOUR=21` 或改 plist 的 `Hour`。运行记录落 `artifacts/daily-governance-hardening/run-YYYYMMDD.jsonl`。只处理已登记且被当前任务授权的项目。
 
 ## 主要 runner
 | runner | 实际执行 | 备注 |

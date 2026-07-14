@@ -4,11 +4,11 @@ This module is the durable shared map for Hermes/Yutu, Codex, and future local a
 
 ## Current Yutu6 Locations
 
-- Active workspace root: `/Users/yutu6/玉兔6工作区`
-- Active capability registry: `/Users/yutu6/玉兔6工作区/shared/capability_registry/registry.json`
-- Active module root: `/Users/yutu6/玉兔6工作区/shared/capability_registry/modules/`
-- Active control-plane project: `/Users/yutu6/玉兔6工作区/projects/控制台`
-- Historical `/Users/yutu/...` and `/Users/yutu/.codex/modules/...` paths in older reference notes are legacy migration context only. Do not use them as current write or lookup targets on 玉兔6.
+- Workspace root: the current Git worktree root (`git rev-parse --show-toplevel`).
+- Capability registry: `shared/capability_registry/registry.json`.
+- Module root: `shared/capability_registry/modules/`.
+- Control-plane project: `projects/控制台/`.
+- Private provider configuration: `${YUTU6_CONFIG_DIR:-~/.config/yutu6}`; never commit its contents.
 
 It defines:
 
@@ -41,7 +41,7 @@ It defines:
 
 ## Related Modules
 
-- `/Users/yutu6/玉兔6工作区/shared/capability_registry/modules/hermes-yutu-voice-bridge`
+- `shared/capability_registry/modules/hermes-yutu-voice-bridge`
 
 ## Safety
 

@@ -1,9 +1,9 @@
 {
   "id": "board-claude",
-  "name": "董事 Claude(暂用 Opus-4.8)",
+  "name": "董事 Claude Fable 5",
   "schema_version": 1,
   "role": "board_claude",
-  "runner": "claude-opus-4-8",
+  "runner": "claude-fable-5",
   "tier": "strong",
   "context_mode": "explicit",
   "read_paths": [
@@ -30,11 +30,11 @@
     ]
   },
   "boundary_statement": {
-    "does": "做 Claude(暂用 Opus-4.8)视角的架构/性能/并发事前评审,与其他董事并行提交结构化意见。",
-    "does_not": "不做最终放行裁决(归 board_opus48);不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+    "does": "做 Claude Fable 5 视角的架构/性能/并发事前评审,与其他董事并行提交结构化意见。",
+    "does_not": "不做最终放行裁决(归 board_opus48);不改文件、不派队列、不做实现、不处理密钥/登录/授权或 未注册项目。"
   },
   "decoupling": "只做事前评审意见输出,不直接改文件、不派队列;最终裁决席位仍在 board_opus48。",
   "validation": "意见必须含 risk_level/can_execute/issues/suggestions/summary;普通建议不否决。",
   "prompt": "prompt.md",
-  "note": "2026-07-03 老板拍板补充的董事席位,暂用 Opus-4.8 模型;后续可换。"
+  "note": "可选董事席;未配置 Claude CLI 时按缺席处理,不阻断通用发行版初始化。"
 }

@@ -51,6 +51,6 @@
     "does_not": "不执行项目任务、不修复系统、不直接写 knowledge/kb.sqlite、不把密钥或流水账写进记忆。"
   },
   "decoupling": "记忆官是 queueAgent(codex 消费 queues/memory-officer);可被任务完成/会话结束自动触发,也可定时跑整合。提炼=写记忆;检索=按相关性返回记忆供注入。",
-  "validation": "记忆需提炼非流水账;冲突时更新而非堆叠;过时标注/删除;密钥/身份信息绝不写入;Starlaid 排除。",
+  "validation": "记忆需提炼非流水账;冲突时更新而非堆叠;过时标注/删除;密钥/身份信息绝不写入;未授权项目不记录。",
   "prompt": "prompt.md"
 }

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>玉兔6 · 初始化</title>
+<style>
+  :root{color-scheme:dark;--bg:#0c1016;--panel:#121924;--line:#2a3546;--text:#edf3fb;--muted:#93a2b7;--blue:#6ea8fe;--green:#42d392;--red:#ff6b78;--amber:#f2c45d}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0}
+  button,input,select,textarea{font:inherit}button{cursor:pointer}.shell{width:min(1080px,calc(100% - 32px));margin:0 auto;padding:28px 0 48px}
+  header{display:flex;align-items:center;gap:16px;padding-bottom:22px;border-bottom:1px solid var(--line)}h1{font-size:22px;margin:0}.subtitle{color:var(--muted)}.spacer{flex:1}.badge{padding:4px 9px;border:1px solid var(--line);border-radius:6px;color:var(--muted);font-size:12px}.badge.ready{border-color:#277b58;color:#8ce9be}
+  .tabs{display:flex;gap:4px;margin:22px 0;border-bottom:1px solid var(--line)}.tab{border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);padding:11px 16px}.tab.active{color:var(--text);border-color:var(--blue)}
+  .pane{display:none}.pane.active{display:block}.section-head{display:flex;align-items:end;gap:12px;margin:24px 0 14px}.section-head h2{font-size:18px;margin:0}.section-head p{margin:0;color:var(--muted)}
+  .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;border:1px solid var(--line);background:var(--line)}.metric{background:var(--panel);padding:18px}.metric b{display:block;font-size:22px;margin-top:4px}.metric span{color:var(--muted);font-size:12px}
+  .provider-list{border-top:1px solid var(--line)}.provider{display:grid;grid-template-columns:minmax(180px,1fr) minmax(360px,2fr) auto;gap:18px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}.provider h3{font-size:15px;margin:0 0 3px}.provider-meta{color:var(--muted);font-size:12px}.status{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12px}.status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--red)}.status.ok{color:#98eac1}.status.ok::before{background:var(--green)}
+  .fields{display:grid;grid-template-columns:1.2fr .8fr;gap:8px}.fields .wide{grid-column:1/-1}label{display:grid;gap:5px;color:var(--muted);font-size:12px}input{width:100%;height:40px;border:1px solid var(--line);border-radius:6px;background:#0f1520;color:var(--text);padding:0 11px;outline:none}input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(110,168,254,.13)}
+  .action{min-width:108px;height:40px;border:1px solid #4778b8;border-radius:6px;background:#173052;color:#dceaff;font-weight:700;padding:0 14px}.action:hover{background:#20416e}.action.secondary{border-color:var(--line);background:#171e29;color:var(--text)}.action:disabled{opacity:.45;cursor:not-allowed}.result{min-height:20px;margin-top:6px;color:var(--muted);font-size:12px}.result.err{color:#ff9aa4}.result.ok{color:#8ce9be}
+  .project-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:760px}.project-form .wide{grid-column:1/-1}.project-list{margin-top:22px;border-top:1px solid var(--line)}.project-row{display:flex;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}.project-row b{min-width:160px}.project-row span{color:var(--muted)}
+  .finish{max-width:720px;padding:22px 0}.check{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.check i{width:18px;height:18px;border:1px solid var(--line);border-radius:50%;font-style:normal;text-align:center;line-height:16px;color:var(--red)}.check.ok i{border-color:#277b58;color:var(--green)}.finish .action{margin-top:22px;height:44px}
+  .notice{margin:18px 0;padding:12px 14px;border-left:3px solid var(--amber);background:#171812;color:#e9dfbd}.hidden{display:none!important}
+  @media(max-width:760px){.shell{width:min(100% - 20px,1080px);padding-top:18px}.subtitle{display:none}.tabs{overflow:auto}.tab{white-space:nowrap}.summary{grid-template-columns:1fr}.provider{grid-template-columns:1fr;gap:10px}.fields,.project-form{grid-template-columns:1fr}.fields .wide,.project-form .wide{grid-column:auto}.provider>.action{width:100%}.project-row{align-items:flex-start;flex-direction:column;gap:2px}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <h1>玉兔6 初始化</h1>
+    <span class="subtitle">本机模型与项目部门</span>
+    <span class="spacer"></span>
+    <span id="overall" class="badge">检测中</span>
+  </header>
+
+  <nav class="tabs" aria-label="初始化步骤">
+    <button class="tab active" data-tab="environment">1 环境</button>
+    <button class="tab" data-tab="models">2 模型</button>
+    <button class="tab" data-tab="projects">3 项目部门</button>
+    <button class="tab" data-tab="finish">4 完成</button>
+  </nav>
+
+  <section class="pane active" id="pane-environment">
+    <div class="section-head"><h2>运行前置</h2><p>配置只保存在当前 Mac</p></div>
+    <div class="summary">
+      <div class="metric"><span>控制台</span><b id="healthState">检测中</b></div>
+      <div class="metric"><span>执行模型</span><b id="executorState">未检测</b></div>
+      <div class="metric"><span>API 模型</span><b id="apiState">0</b></div>
+    </div>
+    <div class="notice">先检测一个可执行 CLI，再至少连接一个 API 模型。API 密钥保存后不会重新显示。</div>
+    <button class="action" id="toModels">开始配置</button>
+  </section>
+
+  <section class="pane" id="pane-models">
+    <div class="section-head"><h2>模型连接</h2><p>检测成功后自动保存</p></div>
+    <div id="providers" class="provider-list"></div>
+  </section>
+
+  <section class="pane" id="pane-projects">
+    <div class="section-head"><h2>新建项目部门</h2><p>每个项目拥有独立主管队列</p></div>
+    <form id="projectForm" class="project-form">
+      <label>项目 ID<input id="projectId" required maxlength="64" placeholder="例如 website"></label>
+      <label>项目名称<input id="projectName" required maxlength="100" placeholder="例如 官网改版"></label>
+      <label class="wide">目标说明<input id="projectDescription" maxlength="500" placeholder="这个部门要完成什么"></label>
+      <div class="wide"><button class="action" type="submit">创建部门</button><div id="projectResult" class="result" role="status"></div></div>
+    </form>
+    <div id="projectList" class="project-list"></div>
+  </section>
+
+  <section class="pane" id="pane-finish">
+    <div class="section-head"><h2>完成初始化</h2><p>通过门禁后进入工作区</p></div>
+    <div class="finish">
+      <div id="executorCheck" class="check"><i>×</i><span>至少一个执行 CLI 已登录</span></div>
+      <div id="apiCheck" class="check"><i>×</i><span>至少一个 API 模型已连通</span></div>
+      <div id="projectCheck" class="check"><i>·</i><span>项目部门可稍后继续添加</span></div>
+      <button id="finishBtn" class="action" disabled>进入工作区</button>
+      <div id="finishResult" class="result" role="status"></div>
+    </div>
+  </section>
+</main>
+<script>
+'use strict';
+const $=(s)=>document.querySelector(s);
+let setup=null;
+const messages={
+  cli_not_found:'未找到 CLI',not_logged_in:'尚未登录',cli_timeout:'CLI 检测超时',authentication_failed:'密钥认证失败',
+  endpoint_or_model_not_found:'端点或模型不可用',rate_limited:'接口限流,请稍后重试',provider_unavailable:'服务暂不可用',
+  probe_timeout:'连接超时',connection_failed:'无法连接接口',base_url_required:'请填写接口地址',model_required:'请填写模型名',
+  api_key_required:'请填写 API key',base_url_must_use_https_or_localhost:'仅允许 HTTPS 或本机 HTTP 地址',executor_required:'请先检测执行 CLI',
+  api_provider_required:'请至少连接一个 API 模型'
+};
+function textMessage(code){return messages[code]||String(code||'操作失败').replaceAll('_',' ')}
+function activate(name){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
+  document.querySelectorAll('.pane').forEach(el=>el.classList.toggle('active',el.id===`pane-${name}`));
+  history.replaceState(null,'',`#${name}`);
+  if(name==='projects') loadProjects();
+}
+document.querySelectorAll('.tab').forEach(el=>el.onclick=()=>activate(el.dataset.tab));
+$('#toModels').onclick=()=>activate('models');
+
+async function api(url,body){
+  const response=await fetch(url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+  const data=await response.json().catch(()=>({ok:false,code:`http_${response.status}`}));
+  if(!response.ok) data.ok=false;
+  return data;
+}
+function providerCard(p){
+  const configured=p.tested;
+  if(p.kind==='cli') return `<div class="provider" data-provider="${p.id}">
+    <div><h3>${p.label}</h3><span class="status ${configured?'ok':''}">${configured?'已通过':'未检测'}</span><div class="provider-meta">本机登录态 · 不读取密码</div></div>
+    <div><div class="provider-meta">${escapeHtml(p.loginHint||'请先在终端完成官方 CLI 登录')}</div><div class="result" role="status"></div></div>
+    <button class="action secondary probe-cli" type="button">检测登录</button>
+  </div>`;
+  return `<div class="provider" data-provider="${p.id}">
+    <div><h3>${p.label}</h3><span class="status ${configured?'ok':''}">${configured?'已保存':'未保存'}</span><div class="provider-meta">${p.protocol==='anthropic'?'Anthropic 兼容':'OpenAI 兼容'}</div></div>
+    <div class="fields">
+      <label class="wide">API key<input class="api-key" type="password" autocomplete="new-password" placeholder="${configured?'已保存,留空可重新检测':'仅在本机提交'}"></label>
+      <label>Base URL<input class="base-url" value="${escapeHtml(p.baseUrl||'')}"></label>
+      <label>模型<input class="model" value="${escapeHtml(p.model||'')}"></label>
+      <div class="wide result" role="status"></div>
+    </div>
+    <button class="action save-provider" type="button">检测并保存</button>
+  </div>`;
+}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function bindProviders(){
+  document.querySelectorAll('.probe-cli').forEach(btn=>btn.onclick=()=>configure(btn.closest('.provider'),true));
+  document.querySelectorAll('.save-provider').forEach(btn=>btn.onclick=()=>configure(btn.closest('.provider'),false));
+}
+async function configure(row,isCli){
+  const button=row.querySelector('button');const result=row.querySelector('.result');const id=row.dataset.provider;
+  button.disabled=true;result.className='result';result.textContent='检测中…';
+  const body=isCli?{}:{apiKey:row.querySelector('.api-key').value,baseUrl:row.querySelector('.base-url').value,model:row.querySelector('.model').value};
+  try{
+    const data=await api(`/api/setup/providers/${encodeURIComponent(id)}`,body);
+    result.className=`result ${data.ok?'ok':'err'}`;result.textContent=data.ok?`连接成功 · ${data.latencyMs||0} ms`:textMessage(data.code);
+    if(data.ok&&!isCli) row.querySelector('.api-key').value='';
+    await refresh();
+  }catch(err){result.className='result err';result.textContent='控制台连接失败'}finally{button.disabled=false}
+}
+async function refresh(){
+  setup=await api('/api/setup/status');
+  $('#providers').innerHTML=setup.providers.map(providerCard).join('');bindProviders();
+  const req=setup.requirements||{};const apiCount=setup.providers.filter(p=>p.kind==='api'&&p.tested).length;
+  $('#healthState').textContent='正常';$('#executorState').textContent=req.executorReady?'已就绪':'未就绪';$('#apiState').textContent=String(apiCount);
+  $('#executorCheck').classList.toggle('ok',!!req.executorReady);$('#executorCheck i').textContent=req.executorReady?'✓':'×';
+  $('#apiCheck').classList.toggle('ok',!!req.apiReady);$('#apiCheck i').textContent=req.apiReady?'✓':'×';
+  $('#finishBtn').disabled=!req.ready;$('#overall').textContent=setup.completed?'已完成':req.ready?'可完成':'待配置';$('#overall').classList.toggle('ready',!!setup.completed||!!req.ready);
+}
+async function loadProjects(){
+  try{
+    const data=await api('/api/projects');const rows=data.projects||[];
+    $('#projectList').innerHTML=rows.length?rows.map(p=>`<div class="project-row"><b>${escapeHtml(p.name)}</b><span>${escapeHtml(p.projectId)} · supervisor-${escapeHtml(p.projectId)}</span></div>`).join(''):'<div class="project-row"><span>尚未创建项目部门</span></div>';
+  }catch(_){$('#projectList').innerHTML='<div class="project-row"><span>项目列表暂不可用</span></div>'}
+}
+$('#projectForm').onsubmit=async(event)=>{
+  event.preventDefault();const out=$('#projectResult');out.className='result';out.textContent='创建中…';
+  const data=await api('/api/projects',{projectId:$('#projectId').value,name:$('#projectName').value,description:$('#projectDescription').value});
+  out.className=`result ${data.ok?'ok':'err'}`;out.textContent=data.ok?(data.created?'项目部门已创建':'项目部门已存在,未重复写入'):textMessage(data.code||data.error);
+  if(data.ok){event.target.reset();await loadProjects()}
+};
+$('#finishBtn').onclick=async()=>{
+  const out=$('#finishResult');out.className='result';out.textContent='正在完成…';
+  const data=await api('/api/setup/complete',{});
+  if(data.ok){location.href='/workspace';return}
+  out.className='result err';out.textContent=textMessage(data.code);
+};
+refresh().then(()=>activate((location.hash||'#environment').slice(1))).catch(()=>{$('#overall').textContent='控制台不可用'});
+</script>
+</body>
+</html>

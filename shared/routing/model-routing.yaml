@@ -6,14 +6,14 @@ updated_at: 2026-07-03
 
 # ── 统一出口与三路兜底链(订阅 → API → 本地 Ollama)──────────────
 providers:
-  subscription:                 # 吃性价比,优先
-    claude: { via: claude-cli,  models: [claude-code] }   # 2026-07-03 复活:秘书前门 + 维修主管
+  subscription:                 # 本机 CLI 登录态
+    claude: { via: claude-cli,  models: [claude-fable-5] }
     codex:  { via: codex-cli,   models: [gpt-5-codex] }
   api:                          # 稳、可预测,兜底第二层
     openai:    { env: OPENAI_API_KEY,    models: [gpt-5, gpt-5-mini] }
-    deepseek:  { via: new-api,           models: [deepseek-chat, deepseek-reasoner] }
-    zhipu:     { via: new-api,           models: [glm-5.2, glm-5] }
-    kimi:      { env: MOONSHOT_API_KEY,  models: [kimi-k2.7-code, kimi-k2.7-code-highspeed, kimi-k2.6] }
+    deepseek:  { env: DEEPSEEK_API_KEY,  models: [deepseek-chat, deepseek-reasoner] }
+    zhipu:     { env: ZHIPU_API_KEY,      models: [glm-5, glm-5.2] }
+    minimax:   { env: MINIMAX_API_KEY,    models: [MiniMax-M3] }
   local:                        # 离线 / 降本,最后兜底(5090 / mini)
     ollama: { host_env: OLLAMA_HOST, default: "http://localhost:11434", models: [qwen2.5, nomic-embed-text] }
 
@@ -25,17 +25,17 @@ failover:
 
 # ── 分层 / 分角色选模型(判断层强模型,执行层快省模型)────────────
 roles:
-  secretary:                    # 秘书:前门补全与路由,不直接执行项目细节(2026-07-03 由 Claude Code 接管;codex/GLM 兜底)
+  secretary:                    # 秘书:通用发行版默认 Codex;Claude/API 可选
     tier: strong
-    prefer: [subscription.claude, subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, subscription.claude, api.zhipu.glm-5]
     context_mode: last_only
   orchestrator:                 # 总管:拆项目、压缩趋势、消歧 —— 强模型
     tier: strong
-    prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5]
     context_mode: accumulate    # 仅总管级可全量
   supervisor:                   # 主管:单项目规划 / 审产物 —— 强模型
     tier: strong
-    prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5]
     context_mode: explicit
   reasoning_architect:          # 复杂架构 / 风险 / 复盘仲裁 —— 按协作契约优先 Codex
     tier: strong
@@ -43,26 +43,26 @@ roles:
     context_mode: explicit
   worker_code:                  # 后端程序员 / 写码 / 构建 / 测试 —— Codex 主力,GLM 仅作后续可验证候选
     tier: exec
-    prefer: [subscription.codex, api.zhipu.glm-5.2, api.openai.gpt-5]
+    prefer: [subscription.codex, api.zhipu.glm-5, api.openai.gpt-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: reject_or_harness }
     context_mode: explicit
-  worker_narrow:                # 外包员工 / 轻量 / 省钱 / 离线 —— Haiku 或本地
+  worker_narrow:                # 外包员工 / 轻量任务;默认 Codex,API 可在安装后作为候选
     tier: cheap
-    prefer: [api.zhipu.glm-5.2, local.ollama.qwen2.5, subscription.codex]
+    prefer: [subscription.codex, api.zhipu.glm-5, api.minimax.MiniMax-M3, local.ollama.qwen2.5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: auto_harness }
     context_mode: last_only
   insight-scout:                # 洞察员:定时优秀案例/开源项目扫描来源标识
     tier: cheap
-    prefer: [api.zhipu.glm-5.2, subscription.codex]
+    prefer: [subscription.codex, api.zhipu.glm-5, api.minimax.MiniMax-M3]
     context_mode: explicit
   quality_ops:                  # 质量运营工程师(§16 硬化)—— 读事件日志找重复确定性动作
     tier: standard
-    prefer: [api.zhipu.glm-5.2, subscription.codex]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: auto_harness }
     context_mode: explicit      # 只看事件日志/ledger,不看项目细节
   governance:                   # 监管人员(§17 复盘防复发)—— 读误区库 + attempt 计数
     tier: strong
-    prefer: [subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     context_mode: explicit
   board_deepseek:               # 董事会 DeepSeek:重要架构挑刺
     tier: strong
@@ -70,7 +70,7 @@ roles:
     context_mode: explicit
   board_glm52:                  # 董事会 GLM-5.2:低成本主力挑刺
     tier: standard
-    prefer: [api.zhipu.glm-5.2]
+    prefer: [api.zhipu.glm-5]
     context_mode: explicit
   board_gpt55:                  # 兼容旧别名:不再作为活跃董事;GPT-5.5 视角并入 board_opus48
     tier: strong
@@ -78,40 +78,40 @@ roles:
     context_mode: explicit
     deprecated: true
     alias_of: board_opus48
-  board_claude:                 # 董事会 Claude:2026-07-03 补充成员,暂用 Opus-4.8
+  board_claude:                 # 可选 Claude Fable 5 董事
     tier: strong
-    prefer: [subscription.claude.opus-4-8, subscription.codex]
+    prefer: [subscription.claude.claude-fable-5, subscription.codex]
     context_mode: explicit
-  board_opus48:                 # 历史兼容槽位:最终误判风险裁决,现为唯一 Codex/GPT-5.5 董事
+  board_opus48:                 # 历史兼容槽位:最终误判风险裁决,由 Codex 承担
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
   ui_optimizer:                 # 系统级 UI 自我优化师 —— Peekaboo 看页面,Codex 挑错并修
     tier: strong
-    prefer: [subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     rollout: { default_percent: 100, env_override: UI_OPTIMIZER_CODEX_ROLLOUT_PERCENT, rollback_env: UI_OPTIMIZER_CODEX_ENABLED=0, rollback_prefer: [subscription.codex] }
     context_mode: explicit      # 只看 UI 页面/截图/挑错报告,不碰业务
   frontend_designer:            # 控制台专属前端程序员 —— workspace.html/UI 定位与改造方案
     tier: standard
-    prefer: [api.zhipu.glm-5.2, subscription.codex]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: auto_harness }
     context_mode: explicit
   hr_manager:                   # HR 主管 —— agent 招聘/入职/边界审核把关
     tier: strong
-    prefer: [subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     context_mode: explicit
   hr_specialist:                # HR 专员 —— 按批准规格执行模板/注册/smoke
     tier: standard
-    prefer: [api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: auto_harness }
     context_mode: explicit
   repair:                       # 维修员 —— 特权 Codex 救火/服务修复
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
-  repair-lead:                  # 维修主管 —— Claude Code 特权 runner 根因分析/分级/派工/复核(2026-07-03 接回;codex 兜底)
+  repair-lead:                  # 维修主管 —— 通用发行版默认 Codex 特权;Claude 可选
     tier: strong
-    prefer: [subscription.claude, subscription.codex]
+    prefer: [subscription.codex, subscription.claude]
     execution: { requires_tool_capable_for_delivery: true, privileged_channel: true, delegates_to: repair, high_risk_requires_owner_confirmation: true }
     context_mode: explicit
   gui_desktop_control:          # 桌面控制:Codex 特权 runner 调 Peekaboo 截图/点击/视觉验收执行
@@ -120,11 +120,11 @@ roles:
     context_mode: explicit
   memory_officer:               # 记忆官 —— 任务完成后提炼长期记忆
     tier: standard
-    prefer: [subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     context_mode: explicit
-  it_engineer:                  # IT 工程师 —— 四段版本号 / Gitee push / 安全回滚 —— GLM-5.2 主力,Codex secondary
+  it_engineer:                  # IT 工程师 —— 四段版本号 / Git origin push / 安全回滚
     tier: strong
-    prefer: [api.zhipu.glm-5.2, subscription.codex]
+    prefer: [subscription.codex, api.zhipu.glm-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: auto_harness, high_risk_requires_owner_confirmation: true }
     context_mode: explicit
   embedding:                    # 知识库向量(§15)—— 本地 768 维

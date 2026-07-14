@@ -1,49 +1,10 @@
 {
-  "schema_version": "2026-06-23.office-reference-manifest.v1",
+  "schema_version": "2026-07-14.office-reference-manifest.v2",
   "source_of_truth": "memory/办公室生图设计规范.md",
   "status": "pending_owner_approval",
   "active_reference_id": null,
   "latest_reference_id": "office-style-reference-v3-pending-spec",
   "references": [
-    {
-      "id": "office-style-reference-v1-pending",
-      "kind": "style_reference_sheet",
-      "file": "projects/控制台/artifacts/office-assets/style-reference/office-style-reference-v1-pending.png",
-      "generated_by": "codex-imagegen",
-      "generated_at": "2026-06-23T20:20:00+08:00",
-      "ownerApproved": false,
-      "approval_note": "Superseded by v2 pending draft after owner feedback about workstation scale, head size, programmer monitor direction, and chairman office grid.",
-      "covers": [
-        "chairman",
-        "secretary",
-        "supervisor",
-        "worker",
-        "tile.carpet.1x1",
-        "tile.workstation.2x2",
-        "wall.partition",
-        "props"
-      ]
-    },
-    {
-      "id": "office-style-reference-v2-pending",
-      "kind": "style_reference_sheet",
-      "file": "projects/控制台/artifacts/office-assets/style-reference/office-style-reference-v2-pending.png",
-      "generated_by": "codex-imagegen",
-      "generated_at": "2026-06-23T20:41:00+08:00",
-      "ownerApproved": false,
-      "approval_note": "Pending owner visual approval. Corrects v1: 2x2 workstations, smaller heads, corrected programmer monitor orientation, matched desk-chair scale, 5x5 chairman office with 2x3 main station.",
-      "covers": [
-        "chairman.office.5x5",
-        "chairman.main_station.2x3",
-        "secretary",
-        "supervisor",
-        "worker",
-        "tile.carpet.1x1",
-        "tile.workstation.2x2",
-        "wall.partition",
-        "props"
-      ]
-    },
     {
       "id": "office-style-reference-v3-pending-spec",
       "kind": "style_reference_spec",
@@ -53,8 +14,7 @@
       "generated_at": null,
       "ownerApproved": false,
       "generationAllowed": false,
-      "approval_note": "V3 is a spec-only correction pass. Do not call imagegen or Meowa until the owner approves this brief.",
-      "supersedes": "office-style-reference-v2-pending",
+      "approval_note": "The generic distribution ships a specification, not unapproved local reference artwork. Generate and approve a local reference before production assets.",
       "required_corrections": [
         "normal desks are true 2x2 complete-footprint workstations, not 1x1 desks scaled up",
         "no missing tile corners or clipped edges, so office components can be stitched on the grid",

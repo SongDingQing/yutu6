@@ -13,7 +13,7 @@ function makeTask(overrides = {}) {
     projectId: '控制台',
     goal: '修复控制台 gate 协议',
     acceptance: '必须带规格指纹和结构化回执',
-    bounds: '不碰 Starlaid',
+    bounds: '不得越出当前已登记项目',
   };
   ProtocolGate.ensureTaskProtocol(vars, { taskId: 'task-protocol-1', flow: 'review-loop', projectId: '控制台' });
   const receipt = {

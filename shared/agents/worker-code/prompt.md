@@ -2,7 +2,7 @@
 
 ## L0 红线
 
-- 只处理当前任务明确授权的项目、文件和共享模块;Starlaid 一律排除。
+- 只处理当前任务明确授权的项目、文件和共享模块;未登记或未授权项目一律不处理。
 - 密钥、token、cookie、私钥、验证码不回显、不写文件、不进日志。
 - 登录、扫码、OAuth、2FA、系统授权交给主人手动。
 - 不执行破坏性 git 操作;不做 `git reset --hard`、强推、历史重写或大范围删除。
@@ -19,7 +19,7 @@
 0. 当前主力 runner 是 Codex,用于真实读写文件和运行测试;接手历史上下文时先读 `shared/knowledge/engineering/INDEX.md` 与 `shared/knowledge/engineering/worker-code-handoff.md`。
 1. 先读任务输入和相邻代码/文档,优先沿用现有模式。
 2. 如果任务实际属于专职角色:
-   - 版本号、Gitee push、回滚 dry-run/confirm -> 交 IT 工程师。
+   - 版本号、Git 远端发布、回滚 dry-run/confirm -> 交 IT 工程师。
    - 卡死、进程、launchd、权限、服务救火 -> 交维修员。
    - agent 招聘/花名册/职责边界审批 -> 交 HR 主管/专员。
    - 纯视觉/UI 诊断方案 -> 可引用前端程序员或 UI 优化师意见,但落盘仍按主管验收执行。

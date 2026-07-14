@@ -51,8 +51,8 @@ Likely causes:
 
 Expected:
 
-- `发给我` / `我的邮箱` maps to `songchengzuo@hotmail.com`.
-- `姐姐` maps to `scc12251988@hotmail.com`.
+- `发给我` / `我的邮箱` maps to `<configure-locally>`.
+- `姐姐` maps to `<configure-locally>`.
 - Email-like voice tasks should create a `Command Required: Voice Task` card instead of ordinary Hermes chat.
 
 Fix:

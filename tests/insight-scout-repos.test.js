@@ -39,7 +39,7 @@ function main() {
     assert.strictEqual(listed.queued[0].task.structuredAcceptance, false);
     assert.match(listed.queued[0].task.goal, /insight_scout/);
     assert.match(listed.queued[0].task.goal, /最终只输出一个 `json` 代码块/);
-    assert.match(listed.queued[0].task.bounds, /Starlaid.*排除|Starlaid.*一律排除/);
+    assert.match(listed.queued[0].task.bounds, /未登记或未授权项目不处理/);
     assert.deepStrictEqual(listed.queued[0].task.resourceDomains, {
       read: ['insights'],
       write: ['insights'],

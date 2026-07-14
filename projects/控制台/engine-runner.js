@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+require('./setup-service').loadPrivateEnv();
 
 const ROOT = __dirname;
 const WORKDIR = path.resolve(ROOT, '../..');
@@ -29,7 +30,7 @@ const { loadAgents } = require('../../shared/engine/agents');
 const Q = require('../../shared/engine/queue');
 const QueueAutoMerge = require('./queue-automerge');
 const BoardReview = require('./board-review');
-const { hasActiveStarlaidReference, isStarlaidProjectId, keywordProjectId } = require('./project-guard');
+const { hasActiveUnregisteredProjectReference, isUnregisteredProjectId, keywordProjectId, registeredProjectFromText } = require('./project-guard');
 const RuntimePaths = require('./runtime-paths');
 const VersionProgressHook = require('./version-progress-hook');
 const HardeningHooks = require('./hardening-hooks');
@@ -221,7 +222,15 @@ function capturePeekabooScreenshot({ file, runner }) {
 }
 
 function screenshotRef(capture) {
-  return capture && capture.path ? rel(capture.path) : null;
+  return capture && capture.ok && capture.path ? rel(capture.path) : null;
+}
+
+function screenshotFailure(capture) {
+  if (!capture || capture.ok) return null;
+  return {
+    path: capture.path ? rel(capture.path) : null,
+    reason: sanitizeReason(capture.reason || 'unknown'),
+  };
 }
 
 function actionKind(text) {
@@ -271,10 +280,16 @@ function withVerifyEvidence(out, record) {
       reason: record.reason,
       beforeScreenshot: record.beforeScreenshot,
       afterScreenshot: record.afterScreenshot,
+      beforeScreenshotFailure: record.beforeScreenshotFailure || null,
+      afterScreenshotFailure: record.afterScreenshotFailure || null,
       correction: record.correction || null,
       result: out && out.evidence || null,
     },
   };
+}
+
+function cloneActionRecord(record) {
+  return JSON.parse(JSON.stringify(record || null));
 }
 
 function healGoal(ctx, record) {
@@ -297,12 +312,24 @@ function emitActionEvent(eventlog, type, record, extra) {
     action: record.action,
     beforeScreenshot: record.beforeScreenshot,
     afterScreenshot: record.afterScreenshot,
+    beforeScreenshotFailure: record.beforeScreenshotFailure || null,
+    afterScreenshotFailure: record.afterScreenshotFailure || null,
     landed: record.landed,
     method: record.method,
     reason: record.reason,
     projectId: record.projectId || null,
   }, extra || {});
   eventlog.emit(type, payload);
+}
+
+function verifiedResult(out, record, opts, extra) {
+  const result = Object.assign({}, out || {}, withVerifyEvidence(out, record), extra || {});
+  emitActionEvent(opts.eventlog, 'action.evidence', record, {
+    correction: record.correction || null,
+    finalLanded: !!record.landed,
+    evidence: result.evidence || null,
+  });
+  return result;
 }
 
 function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
@@ -326,18 +353,20 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   const record = Object.assign({}, base, {
     beforeScreenshot: screenshotRef(before),
     afterScreenshot: screenshotRef(after),
+    beforeScreenshotFailure: screenshotFailure(before),
+    afterScreenshotFailure: screenshotFailure(after),
     landed: verdict.landed,
     method: verdict.method,
     reason: verdict.reason,
     correction: null,
   });
   emitActionEvent(opts.eventlog, 'action.verify', record);
-  if (verdict.landed) return Object.assign({}, firstOut, withVerifyEvidence(firstOut, record));
+  if (verdict.landed) return verifiedResult(firstOut, record, opts);
 
   if (!ACTION_VERIFY_HEAL_ENABLED) {
     record.correction = { type: 'report', attempted: false, reason: 'self-heal disabled' };
     emitActionEvent(opts.eventlog, 'action.heal', record, { correction: record.correction });
-    return Object.assign({}, withVerifyEvidence(firstOut, record), {
+    return verifiedResult(firstOut, record, opts, {
       fail: `computer-use action did not land: ${record.reason}`,
     });
   }
@@ -350,7 +379,7 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
       reason: 'screenshot verification unavailable; manual authorization or Peekaboo health check required',
     };
     emitActionEvent(opts.eventlog, 'action.heal', record, { correction: record.correction });
-    return Object.assign({}, withVerifyEvidence(firstOut, record), {
+    return verifiedResult(firstOut, record, opts, {
       fail: `computer-use action could not be verified: ${record.reason}`,
     });
   }
@@ -362,12 +391,13 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   };
   const healCtx = Object.assign({}, ctx, {
     goal: healGoal(ctx, record),
-    previous_computer_use_action_verify: record,
+    previous_computer_use_action_verify: cloneActionRecord(record),
   });
   const healOut = baseRunner(node, healCtx, `${attempt}-heal`) || {};
   const healedAfter = capturePeekabooScreenshot({ file: path.join(verifyDir, 'after-heal.png'), runner });
   const healVerdict = verdictFromScreenshots(after && after.ok ? after : before, healedAfter, healOut);
   correction.afterScreenshot = screenshotRef(healedAfter);
+  correction.afterScreenshotFailure = screenshotFailure(healedAfter);
   correction.landed = healVerdict.landed;
   correction.method = healVerdict.method;
   correction.result = healOut.evidence || null;
@@ -378,8 +408,8 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   record.reason = healVerdict.reason;
   emitActionEvent(opts.eventlog, 'action.heal', record, { correction });
 
-  if (healVerdict.landed) return Object.assign({}, healOut, withVerifyEvidence(healOut, record));
-  return Object.assign({}, withVerifyEvidence(healOut, record), {
+  if (healVerdict.landed) return verifiedResult(healOut, record, opts);
+  return verifiedResult(healOut, record, opts, {
     fail: `computer-use action did not land after self-heal: ${healVerdict.reason}`,
   });
 }
@@ -535,7 +565,7 @@ function makeCtx(spec) {
     });
   return {
     goal: withAttachmentPrompt(spec.goal || spec.message || '', spec.attachments),
-    bounds: spec.bounds || '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+    bounds: spec.bounds || '只处理本任务; 未登记项目必须先创建项目部门; 不得跨项目操作; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
     inputs: mergeInputs(spec.inputs, spec.attachments),
     attachments: Array.isArray(spec.attachments) ? spec.attachments : [],
     acceptance,
@@ -687,7 +717,7 @@ function sweepTaskStoreRunning(taskstore, eventlog) {
 function listProjects() {
   try {
     return fs.readdirSync(PROJECTS_DIR)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(PROJECTS_DIR, name)).isDirectory(); }
         catch (_) { return false; }
@@ -701,7 +731,7 @@ function listProjects() {
 function normalizeProjectId(projectId) {
   const projects = listProjects();
   const raw = String(projectId || '').trim();
-  if (!raw || /starlaid/i.test(raw)) return null;
+  if (!raw || isUnregisteredProjectId(raw)) return null;
   if (projects.includes(raw)) return raw;
   const lower = raw.toLowerCase();
   return projects.find(p => p.toLowerCase() === lower) || null;
@@ -712,6 +742,8 @@ function defaultProjectId() {
 }
 
 function normalizeKeywordProjectId(text) {
+  const registered = registeredProjectFromText(text, listProjects());
+  if (registered) return registered;
   const candidate = keywordProjectId(text);
   return candidate ? (normalizeProjectId(candidate) || candidate) : null;
 }
@@ -720,16 +752,16 @@ function inferProjectId(spec, planText, planProjectId) {
   const source = spec || {};
   const sourceText = [source.goal, source.message, source.originalGoal]
     .filter(Boolean).join('\n');
-  if (isStarlaidProjectId(source.projectId)) return null;
+  if (isUnregisteredProjectId(source.projectId)) return null;
   const explicit = normalizeProjectId(source.projectId);
   if (explicit) return explicit;
-  if (hasActiveStarlaidReference(sourceText)) return null;
+  if (hasActiveUnregisteredProjectReference(sourceText)) return null;
   const sourceKeyword = normalizeKeywordProjectId(sourceText);
   if (sourceKeyword) return sourceKeyword;
-  if (isStarlaidProjectId(planProjectId)) return null;
+  if (isUnregisteredProjectId(planProjectId)) return null;
   const planned = normalizeProjectId(planProjectId);
   if (planned) return planned;
-  if (hasActiveStarlaidReference(planText)) return null;
+  if (hasActiveUnregisteredProjectReference(planText)) return null;
   const planKeyword = normalizeKeywordProjectId(planText);
   if (planKeyword) return planKeyword;
   return defaultProjectId();
@@ -820,9 +852,9 @@ function boardImportanceForSimpleTask(spec, goalText) {
 function isSimpleTask(spec) {
   const source = spec && typeof spec === 'object' ? spec : {};
   const fail = (reason, extra) => Object.assign({ simple: false, reason }, extra || {});
-  // a) projectId 必须显式给定且能规范化(Starlaid/未知项目一律不算)。
+  // a) projectId 必须显式给定且能规范化(未登记/未知项目一律不算)。
   if (!source.projectId) return fail('no_explicit_project');
-  if (isStarlaidProjectId(source.projectId)) return fail('starlaid_project');
+  if (isUnregisteredProjectId(source.projectId)) return fail('unregistered_project');
   const projectId = normalizeProjectId(source.projectId);
   if (!projectId) return fail('unknown_project');
   // d) 显式要求 CEO 拆解 / 董事会评议的任务不短路。
@@ -832,7 +864,7 @@ function isSimpleTask(spec) {
   if (isConsoleRestartExecutionRequest(source, '')) return fail('console_restart_request');
   // e) 维修/救火类不直通。
   if (isRepairOrFirefightSpec(source)) return fail('repair_or_firefight');
-  // b) 老板正文非空、<600 字符、无跨项目信号、不提及其他项目、不主动涉 Starlaid。
+  // b) 老板正文非空、<600 字符、无跨项目信号、不提及其他项目、不主动操作未登记项目。
   const goalText = simpleTaskGoalText(source);
   if (!goalText) return fail('empty_goal');
   if (goalText.length >= SIMPLE_TASK_MAX_GOAL_CHARS) return fail('goal_too_long', { goalChars: goalText.length });
@@ -840,7 +872,7 @@ function isSimpleTask(spec) {
   if (CROSS_PROJECT_SIGNAL_RE.test(crossText)) return fail('cross_project_signal');
   const otherProjects = mentionedProjects(crossText).filter(p => p !== projectId);
   if (otherProjects.length) return fail('mentions_other_project', { otherProjects });
-  if (hasActiveStarlaidReference(crossText)) return fail('starlaid_reference');
+  if (hasActiveUnregisteredProjectReference(crossText)) return fail('unregistered_project_reference');
   // c) 不命中董事会重要域(structured 优先 + 文本兜底)。
   const important = boardImportanceForSimpleTask(source, goalText);
   if (important) return fail(`board_important:${important.reason || 'unknown'}`);
@@ -892,8 +924,8 @@ function explicitDirectQueueForGoal(spec) {
 
 function hasNegatedDirectRoute(text, roleRe) {
   const s = String(text || '')
-    .replace(/(?:starlaid|星桥)\s*(?:项目|范围|全程|一律|硬)?\s*(?:排除|不涉及|无关|跳过|不处理)/gi, '')
-    .replace(/(?:排除|不涉及|无关|跳过|不处理)\s*(?:starlaid|星桥)/gi, '');
+    .replace(/(?:未注册项目|未登记项目)\s*(?:范围|全程|一律|硬)?\s*(?:排除|不涉及|无关|跳过|不处理)/gi, '')
+    .replace(/(?:排除|不涉及|无关|跳过|不处理)\s*(?:未注册项目|未登记项目)/gi, '');
   const role = `(?:${roleRe})`;
   const before = new RegExp(`(?:不要|不用|无需|别|不必|禁止|避免|不要交给|别交给|不要让|别让|不交给|不派给|排除)\\s*.{0,16}${role}`, 'i');
   const after = new RegExp(`${role}\\s*.{0,16}(?:不用|无需|不参与|不接|不做|不处理|排除|跳过|不要接|别接)`, 'i');
@@ -949,7 +981,7 @@ function directQueueForGoal(spec, planText) {
   const text = [spec.goal, spec.message, spec.originalGoal]
     .filter(Boolean).join('\n').toLowerCase();
   if (!hasNegatedDirectRoute(text, 'it\\s*工程师|it_engineer|it-engineer|版本工程师')
-    && /(it\s*工程师|gitee|码云|版本管理|版本发布|远端同步|仓库同步|四段版本号)/i.test(text)
+    && /(it\s*工程师|git(?:hub|lab)?|gitee|码云|版本管理|版本发布|远端同步|仓库同步|四段版本号)/i.test(text)
     && /(commit|push|pull|release|rollback|revert|reset|回滚|发布|提交|上传|下载|同步|拉取|推送)/i.test(text)) {
     return { agent: 'it_engineer', role: 'it_engineer', flowId: 'agent-once' };
   }
@@ -1137,7 +1169,7 @@ function routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planTe
     autoSource: childRoot.rootAutoSource || null,
     scopedToProject: true,
     goal: supervisorGoal,
-    bounds: `只处理 projects/${projectId}/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。`,
+    bounds: `只处理 projects/${projectId}/ 与明确输入; 不得跨项目操作; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。`,
     inputs: [`projects/${projectId}/brief.md`].concat(mergeInputs(routeSpec.inputs, routeSpec.attachments)),
     attachments: Array.isArray(routeSpec.attachments) ? routeSpec.attachments : [],
     acceptance: DoneGate.buildStructuredAcceptanceTable({
@@ -1202,7 +1234,7 @@ async function runProjectRoute({ spec, taskId, eventlog, cliRunner, ctx }) {
   }
   const projectId = inferProjectId(spec, planText, ctx.orchestrator_projectId);
   if (!projectId) {
-    const reason = '检测到 Starlaid 排除范围或项目归属需要主人确认,CEO 已软暂停派单';
+    const reason = '项目尚未登记或无法安全确定归属,CEO 已软暂停派单';
     eventlog.emit('project.route.paused', { task: taskId, reason, projectId: null });
     eventlog.emit('node.await_human', { task: taskId, node: 'project-route', reason, projectId: null });
     return { ok: false, paused: true, reason };
@@ -1490,5 +1522,11 @@ module.exports = {
     isBoardRole,
     writeHandoffShadow,
     makeCtx,
+    screenshotRef,
+    screenshotFailure,
+    verdictFromScreenshots,
+    makeActionVerifyingRunner,
+    runVerifiedGuiAction,
+    runProjectRoute,
   },
 };

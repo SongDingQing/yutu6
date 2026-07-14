@@ -497,7 +497,7 @@ function main() {
   assert(ceoPrompt.includes('参考案例:'), 'CEO must cite related learning case');
   assert(ceoPrompt.includes('secretary -> CEO -> supervisor'), 'CEO must retain front-door task chain evidence');
 
-  for (const agent of ['board-deepseek', 'board-glm52', 'board-opus48', 'board-gpt55']) {
+  for (const agent of ['board-deepseek', 'board-glm52', 'board-opus48', 'board-claude']) {
     const prompt = read(`shared/agents/${agent}/prompt.md`);
     const meta = json(`shared/agents/${agent}/agent.json`);
     assert(prompt.includes('board/learning-cases/'), `${agent} prompt must reference learning cases`);

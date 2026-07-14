@@ -25,9 +25,9 @@
     "README.md"
   ],
   "primary_files": [
-    "/Users/yutu6/.codex/skills/self-reflection-optimizer/SKILL.md",
-    "/Users/yutu6/玉兔6工作区/projects/控制台/tools/self-reflection-trigger.js",
-    "/Users/yutu6/玉兔6工作区/board/learning-cases/self-reflection-optimizer-cases.md"
+    "knowledge/corpus/codex-skills/skills/self-reflection-optimizer/SKILL.md",
+    "projects/控制台/tools/self-reflection-trigger.js",
+    "board/learning-cases/self-reflection-optimizer-cases.md"
   ],
   "authorized_agents": [
     "secretary",
@@ -36,5 +36,5 @@
     "repair-lead",
     "repair"
   ],
-  "authorization_policy": "低风险高收益项可自动执行;争议、不确定利弊、影响现有功能/接口/队列/权限/成本的改动必须交给主人拍板。Starlaid/星桥排除。"
+  "authorization_policy": "低风险高收益项可自动执行;争议、不确定利弊、影响现有功能/接口/队列/权限/成本的改动必须交给主人拍板。项目任务必须先登记部门且不得隐式跨项目。"
 }

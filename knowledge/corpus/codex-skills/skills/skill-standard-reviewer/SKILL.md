@@ -45,7 +45,7 @@ Before considering a skill done, verify:
 - User preferences that should persist are written as rules, not anecdotes.
 - The skill does not rely on "as discussed above", current chat state, temporary agent IDs, or unstated files.
 - The skill avoids bloated background explanation and keeps detailed references in referenced files when needed.
-- The skill fits `/Users/yutu/.codex/skills/SKILL_ARCHITECTURE.md`: wrapper skills stay thin, engine skills stay focused, long-lived details live in modules/project docs, and Simulaid/Starlaid/Feishu ownership boundaries are not blurred.
+- The skill fits `knowledge/corpus/codex-skills/SKILL_ARCHITECTURE.md`: wrapper skills stay thin, engine skills stay focused, long-lived details live in modules/project docs, and system/project ownership boundaries are not blurred.
 
 ## Project Skill Requirements
 

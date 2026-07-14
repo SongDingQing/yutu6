@@ -1,4 +1,0 @@
-interface:
-  display_name: "玉豚"
-  short_description: "Starlaid/Simulaid game art generation workflow."
-  default_prompt: "Use $yutun to generate or repair Starlaid or Simulaid game art with the correct project-specific quality gates."

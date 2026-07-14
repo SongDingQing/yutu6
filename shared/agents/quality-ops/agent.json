@@ -3,7 +3,7 @@
   "name": "质量运营工程师(系统级 1)",
   "schema_version": 1,
   "role": "quality_ops",
-  "runner": "zhipu-glm",
+  "runner": "codex",
   "tier": "standard",
   "context_mode": "explicit",
   "system_wide_singleton": true,

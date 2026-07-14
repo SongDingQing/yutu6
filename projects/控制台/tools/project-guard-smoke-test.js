@@ -5,7 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { hasActiveStarlaidReference } = require('../project-guard');
+const { hasActiveUnregisteredProjectReference } = require('../project-guard');
 
 const ROOT = path.resolve(__dirname, '..');
 const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
@@ -43,7 +43,6 @@ function setupHarness() {
       quality_ops: { runner: 'mock' },
       board_deepseek: { runner: 'mock' },
       board_glm52: { runner: 'mock' },
-      board_gpt55: { runner: 'mock' },
       board_opus48: { runner: 'mock' },
     },
     runners: {
@@ -74,22 +73,16 @@ function runEngine(spec, name) {
 function main() {
   setupHarness();
 
-  assert.strictEqual(hasActiveStarlaidReference('边界: Starlaid 一律排除; 密钥不回显'), false);
-  assert.strictEqual(hasActiveStarlaidReference('CEO plan 红线复述: 如果涉及 Starlaid 就停止不处理'), false);
-  assert.strictEqual(hasActiveStarlaidReference('诊断: inferProjectId 显式 projectId 且非主动操作 Starlaid 时正常透传'), false);
-  assert.strictEqual(hasActiveStarlaidReference('CEO 拆解区分「硬失败(红线/Starlaid)」与「需澄清」'), false);
-  assert.strictEqual(hasActiveStarlaidReference('本任务派给主管时不得再触发「检测到 Starlaid 或无法安全确定项目归属」的 CEO 转交判死分支 buildSecretaryEnvelope()'), false);
-  assert.strictEqual(hasActiveStarlaidReference('诊断字段 rebuildStarlaidStatus() 只是函数名,Starlaid 全程排除'), false);
-  assert.strictEqual(hasActiveStarlaidReference('修复控制台 project-guard: buildStarlaidStatus() 只是函数名,不是 Starlaid 项目操作'), false);
-  assert.strictEqual(hasActiveStarlaidReference('Refactor buildStarlaidStatus() helper in console guard only'), false);
-  assert.strictEqual(hasActiveStarlaidReference('目标: 修复 Starlaid 项目的构建脚本'), true);
-  assert.strictEqual(hasActiveStarlaidReference('Goal: build Starlaid project scripts'), true);
-  assert.strictEqual(hasActiveStarlaidReference('Goal: rebuild Starlaid project assets'), true);
+  assert.strictEqual(hasActiveUnregisteredProjectReference('边界: 未登记项目一律排除; 密钥不回显'), false);
+  assert.strictEqual(hasActiveUnregisteredProjectReference('CEO plan 红线复述: 如果涉及 unknown project 就停止不处理'), false);
+  assert.strictEqual(hasActiveUnregisteredProjectReference('诊断: inferProjectId 会拒绝未注册项目'), false);
+  assert.strictEqual(hasActiveUnregisteredProjectReference('目标: 修复未登记项目的构建脚本'), true);
+  assert.strictEqual(hasActiveUnregisteredProjectReference('Goal: build unknown project scripts'), true);
 
   const redlineGoal = [
-    '修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。',
-    '边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。',
-    'CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。',
+    '修引擎项目归属判断,确保记忆集成、维修机制、Git 远端接入等系统级任务可路由。',
+    '边界:只处理 projects/控制台/ 与明确输入; 未登记项目一律排除; 密钥不回显; 登录/授权交主人手动。',
+    'CEO plan 红线复述: 如果涉及未注册项目,立即停止并不处理。',
   ].join('\n');
 
   const allowed = runEngine({
@@ -100,7 +93,7 @@ function main() {
     flowId: 'project-route',
     projectId: '控制台',
     goal: redlineGoal,
-    bounds: '只处理本任务; Starlaid 一律排除; 密钥不回显',
+    bounds: '只处理本任务; 未登记项目一律排除; 密钥不回显',
     acceptance: 'project guard smoke allowed',
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -113,7 +106,7 @@ function main() {
     queueId: 'guardBlocked',
     role: 'orchestrator',
     flowId: 'project-route',
-    goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试。',
+    goal: '目标: 修复未登记项目的构建脚本并运行测试。',
     bounds: '只处理本任务; 密钥不回显',
     acceptance: 'project guard smoke blocked',
     useOrchestrator: false,
@@ -128,7 +121,7 @@ function main() {
     role: 'orchestrator',
     flowId: 'project-route',
     projectId: '控制台',
-    goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试。',
+    goal: '目标: 修复未登记项目的构建脚本并运行测试。',
     bounds: '只处理本任务; 密钥不回显',
     acceptance: 'project guard smoke explicit projectId wins',
     useOrchestrator: false,

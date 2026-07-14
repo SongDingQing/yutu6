@@ -2,9 +2,9 @@
 """Lightweight filesystem lock helper for cross-project wrapper skills.
 
 Usage:
-  route_lock.py acquire simulaid.quark-upload --task "upload apk" --ttl 7200
-  route_lock.py status simulaid.quark-upload
-  route_lock.py release simulaid.quark-upload
+  route_lock.py acquire my-project.release --task "publish build" --ttl 7200
+  route_lock.py status my-project.release
+  route_lock.py release my-project.release
 """
 import argparse, json, os, shutil, sys, time
 from pathlib import Path

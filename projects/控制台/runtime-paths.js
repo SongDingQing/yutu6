@@ -2,8 +2,8 @@
 
 const fs = require('fs');
 
-const DEFAULT_NODE_BIN = '/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node';
-const DEFAULT_PEEKABOO_BIN = '/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/peekaboo';
+const DEFAULT_NODE_BIN = process.execPath;
+const DEFAULT_PEEKABOO_BIN = '';
 
 function existing(candidates) {
   for (const file of candidates) {
@@ -20,9 +20,10 @@ function nodeBin() {
   return existing([
     process.env.YUTU6_NODE_BIN,
     process.env.CONSOLE_NODE_BIN,
-    DEFAULT_NODE_BIN,
-    '/Users/yutu6/.local/bin/node',
     process.execPath,
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
+    '/usr/bin/node',
   ]) || process.execPath;
 }
 
@@ -31,8 +32,8 @@ function peekabooBin() {
     process.env.YUTU6_PEEKABOO_BIN,
     process.env.CONSOLE_PEEKABOO_BIN,
     process.env.CONSOLE_PEEKABOO_IMAGE_BIN,
-    DEFAULT_PEEKABOO_BIN,
-    '/Users/yutu6/.local/bin/peekaboo',
+    '/opt/homebrew/bin/peekaboo',
+    '/usr/local/bin/peekaboo',
   ]) || 'peekaboo';
 }
 

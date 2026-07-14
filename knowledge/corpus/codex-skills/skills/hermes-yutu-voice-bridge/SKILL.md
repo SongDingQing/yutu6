@@ -29,7 +29,7 @@ Rules:
 
 - Do not print secrets from `/Users/yutu/.hermes/.env`.
 - Address the user as `主人`.
-- If the Hermes/Yutu work affects YuanXiao/元宵/汤圆, ChangE/嫦娥, Legend/传奇, mobile control-plane behavior, reminders, queues, sessions, files, notifications, or the `.codex` skills/modules/helper scripts/workflow memory that govern those flows, invoke `yuanxiao-command-expander` first and produce `元宵指令补齐稿` before implementation.
+- If a project-specific Hermes flow is requested, load that project's installed command expander first. Without a registered project pack, use the generic task envelope and do not infer private project behavior.
 - For Codex-triggered Yutu/Hermes Feishu reminders, call `/Users/yutu/.codex/modules/hermes-yutu-voice-bridge/scripts/send_yutu_reminder.py --context "<short context>" "<result>"`; it automatically applies the persistent `主人，前情提要：...` prefix. Use the raw text rule only if this helper is unavailable.
 - Normal Yutu voice speed is `voice_speed_multiplier: 1.0`; do not raise it again unless the user explicitly asks for faster speech.
 - Prefer these module docs before broad `rg` searches across `/Users/yutu/.hermes/hermes-agent`.

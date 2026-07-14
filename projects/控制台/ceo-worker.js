@@ -11,13 +11,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+require('./setup-service').loadPrivateEnv();
 
 const Q = require('../../shared/engine/queue');
 const EventLog = require('../../shared/engine/eventlog');
 const SecretaryTools = require('./secretary-tools');
 const QueueAutoMerge = require('./queue-automerge');
 const BoardReview = require('./board-review');
-const { hasActiveStarlaidReference, isStarlaidProjectId, keywordProjectId } = require('./project-guard');
+const { hasActiveUnregisteredProjectReference, isUnregisteredProjectId, keywordProjectId, registeredProjectFromText } = require('./project-guard');
 const Runtime = require('./engine-runtime');
 const ResourceLocks = require('./resource-locks');
 const QuotaDegrade = require('./quota-degrade');
@@ -49,7 +50,7 @@ const CFG = (() => {
   catch (_) { return {}; }
 })();
 const DEFAULT_ROLE_MAP = {
-  secretary: 'claude',
+  secretary: 'codex',
   orchestrator: 'codex',
   supervisor: 'codex',
   reasoning_architect: 'codex',
@@ -62,13 +63,13 @@ const DEFAULT_ROLE_MAP = {
   it_engineer: 'zhipu-glm',
   hr_manager: 'codex',
   hr_specialist: 'zhipu-glm',
-  'repair-lead': 'claude-code',
+  'repair-lead': 'codex-privileged',
   repair: 'codex-privileged',
   gui_desktop_control: 'peekaboo',
   frontend_designer: 'zhipu-glm',
   board_glm52: 'zhipu-glm',
-  board_deepseek: 'new-api',
-  board_claude: 'claude-opus-4-8',
+  board_deepseek: 'deepseek',
+  board_claude: 'claude-fable-5',
   board_opus48: 'codex',
 };
 const ENGINE_MAX_CONCURRENCY = Math.max(1, parseInt(process.env.ENGINE_MAX_CONCURRENCY || '3', 10) || 3);
@@ -123,7 +124,7 @@ const QUOTA_DEGRADE_ENABLED = process.env.QUOTA_DEGRADE_ENABLED !== '0';
 const QUOTA_DEGRADE_DRAIN_MS = Math.max(0, parseInt(process.env.QUOTA_DEGRADE_DRAIN_MS || '1800', 10) || 0);
 const QUOTA_DEGRADE_LOCK_WAIT_MS = Math.max(100, parseInt(process.env.QUOTA_DEGRADE_LOCK_WAIT_MS || '5000', 10) || 5000);
 
-const DEFAULT_BOUNDS = '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
+const DEFAULT_BOUNDS = '只处理本任务; 未登记项目必须先创建项目部门; 不得跨项目操作; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
 const DEFAULT_ACCEPTANCE = '跑通 review-loop: 总管拆解、实现、评审、完成事件都写入 engine-events.jsonl; 如无需改文件请明确说明';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -1716,7 +1717,7 @@ function sanitizeFlow(flowId) {
 function listProjects() {
   try {
     return fs.readdirSync(PROJECTS_DIR)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(PROJECTS_DIR, name)).isDirectory(); }
         catch (_) { return false; }
@@ -1731,7 +1732,7 @@ function normalizeProjectId(projectId) {
   const projects = listProjects();
   const raw = String(projectId || '').trim();
   if (!raw) return null;
-  if (/starlaid/i.test(raw)) return null;
+  if (isUnregisteredProjectId(raw)) return null;
   const exact = projects.find(p => p === raw);
   if (exact) return exact;
   const lower = raw.toLowerCase();
@@ -1743,6 +1744,8 @@ function defaultProjectId() {
 }
 
 function normalizeKeywordProjectId(text) {
+  const registered = registeredProjectFromText(text, listProjects());
+  if (registered) return registered;
   const candidate = keywordProjectId(text);
   return candidate ? (normalizeProjectId(candidate) || candidate) : null;
 }
@@ -1750,10 +1753,10 @@ function normalizeKeywordProjectId(text) {
 function inferProjectId(payload) {
   const rawText = [payload && payload.goal, payload && payload.message, payload && payload.task]
     .filter(Boolean).join('\n');
-  if (isStarlaidProjectId(payload && payload.projectId)) return null;
+  if (isUnregisteredProjectId(payload && payload.projectId)) return null;
   const explicit = normalizeProjectId(payload && payload.projectId);
   if (explicit) return explicit;
-  if (hasActiveStarlaidReference(rawText)) return null;
+  if (hasActiveUnregisteredProjectReference(rawText)) return null;
   const keyword = normalizeKeywordProjectId(rawText);
   if (keyword) return keyword;
   return defaultProjectId();
@@ -1824,7 +1827,7 @@ function makeSpec(entry) {
   const shouldResumeTask = !!existingTaskId && !!(latest.recovered_at || latest.recovered_reason || latest.lease_stale_at || latest.resumed_at || payload.resumeTask);
   const taskId = shouldResumeTask ? existingTaskId : `cr-${Date.now()}-${entry.id}`;
   const rawGoal = payload.goal || payload.message || payload.task || latest.task || '';
-  const projectId = isStarlaidProjectId(payload.projectId)
+  const projectId = isUnregisteredProjectId(payload.projectId)
     ? null
     : (normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload));
   const projectMode = AGENT === 'ceo' && payload.projectMode !== false;
@@ -1866,7 +1869,7 @@ function makeSpec(entry) {
 function resourceLockTaskForQueuedEntry(entry) {
   const payload = payloadFrom(entry);
   const rawGoal = payload.goal || payload.message || payload.task || entry.task || '';
-  const projectId = isStarlaidProjectId(payload.projectId)
+  const projectId = isUnregisteredProjectId(payload.projectId)
     ? null
     : (normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload));
   const scoped = /^supervisor-/.test(AGENT);
@@ -3593,7 +3596,7 @@ function openAutoRepairTicket(spec, entry, reason, result) {
       problem: `队列任务失败,系统自动开维修工单。失败原因:${sanitizeReason(reason)}`,
       evidence,
       expectation: '维修主管读取工单后先判断根因、需求传递遗漏与架构风险;能安全修则修并验证,需要执行时分派 Codex 维修员;高危/不可逆操作停止并请求主人确认;完成后写回工单并通知主人。',
-      redlines: '高危/不可逆操作必须先给主人确认\n密钥/token/cookie/私钥不回显、不写日志\nStarlaid 排除\n不破现有功能; 能验证就写验证结果',
+      redlines: '高危/不可逆操作必须先给主人确认\n密钥/token/cookie/私钥不回显、不写日志\n不得跨项目操作\n不破现有功能; 能验证就写验证结果',
     });
   } catch (e) {
     eventlog.emit('repair.ticket.create_failed', { queueAgent: AGENT, queueId: entry.id, task: spec && spec.taskId || null, reason: sanitizeReason(e.message), fingerprint });
@@ -3611,7 +3614,7 @@ function openAutoRepairTicket(spec, entry, reason, result) {
       '如需维修员执行,使用 secretary-tools queue-enqueue --agent repair --goal "...",并在复核后再结案。',
       `最后运行: node projects/控制台/secretary-tools.js repair-ticket-complete --id ${created.ticket.id} --result "<根因/处理/验证/架构判断/知识沉淀候选>"`,
     ].join('\n'),
-    bounds: '维修主管特权工单; 高危/不可逆操作先给主人确认; Starlaid 排除; 密钥不回显。',
+    bounds: '维修主管特权工单; 高危/不可逆操作先给主人确认; 不得跨项目操作; 密钥不回显。',
     acceptance: '主管完成链路核查、严重度分级、必要派工、复核和结案; 工单 status 变 done; 尝试飞书通知主人。',
     useOrchestrator: false,
     autoApproveHuman: false,
@@ -3891,7 +3894,7 @@ function isRetryableEngineFailure(reason, result) {
   const quota = classifyQuotaExhaustion(reason, result);
   if (quota.isQuotaExhausted) return false;
   const text = String(reason || '');
-  if (/awaiting_human|needs[-_ ]?human|主人确认|软暂停|project\.route\.paused|Starlaid 排除范围/i.test(text)) return false;
+  if (/awaiting_human|needs[-_ ]?human|主人确认|软暂停|project\.route\.paused|项目尚未登记/i.test(text)) return false;
   return /node_failed|运行超时|timeout|ETIMEDOUT|被信号|退出码|spawn .*失败|failed without reason/i.test(text)
     || !!(result && result.signal)
     || !!(result && (result.code === 1 || result.code === 3));
@@ -3932,7 +3935,7 @@ function buildSecretaryEnvelope(payload, latest) {
   const raw = taskTextForSecretary(payload, latest);
   const projectId = inferProjectId(payload);
   if (!projectId) {
-    return { blocked: true, reason: '检测到 Starlaid 排除范围或项目归属需要主人确认,秘书已软暂停转交' };
+    return { blocked: true, reason: '项目尚未登记或无法安全确定归属,秘书已软暂停转交' };
   }
   const context = SecretaryTools.buildContextText();
   const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
@@ -3951,7 +3954,7 @@ function buildSecretaryEnvelope(payload, latest) {
     `目标:${raw}`,
     `项目:${projectId}`,
     attachmentBlock,
-    '边界:只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
+    '边界:只处理本任务; 未登记项目必须先创建项目部门; 不得跨项目操作; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
     '可用动作:必要时先用 secretary-tools 搜索/查能力/看队列/加公告板;非维修任务一律转 CEO 决策,由 CEO 再派主管/员工或专职队列。',
     '验收:秘书已基于 board 背景补全并转交 CEO;CEO 写入项目 brief,派到对应项目主管或专职队列;事件日志可追踪;项目主管完成后更新 status 与 rollup。',
     '',

@@ -1,55 +1,11 @@
-# Project Expansion Profiles
+# 项目补齐配置
 
-This reference gives the global router a compact fallback map. Keep long project details in the actual project skills, modules, and route docs.
+通用发行版只内置控制平面补齐规则。项目能力包安装后，才可以在这里登记项目专属 expander。
 
-## Simulaid
+## Agent / Control Plane
 
-Canonical expander: `simulaid-command-expander`.
+补齐消息来源与去向、队列/会话、角色边界、确认流程、通知副作用、持久化、密钥边界和失败恢复。
 
-Use for Simulaid runtime, UI, balance, content, assets, tests, builds, releases, bug fixes, architecture review, and named wrappers. The visible block should be `Simulaid 指令补齐稿：`.
+## 未知项目
 
-## YuanXiao / Yutu / Hermes / ChangE / Legend
-
-Canonical expander: `yuanxiao-command-expander`.
-
-Use for YuanXiao Android control plane, ChangE self-update, Yutu/Hermes queues, Feishu cards, voice, notifications, task handoff, local modules, helper scripts, and workflow memory. The visible block should be `元宵指令补齐稿：`.
-
-## Zongzi
-
-Canonical expander: `zongzi-command-expander`.
-
-Use for Zongzi assistant, Zongzi Codex, Zongzi web/control plane, server-side user data, Codex interface reuse, deployment, and admin workflows. The visible block should be `粽子指令补齐稿：`.
-
-## Starlaid
-
-Canonical operating skills: `starlaid-unity-maintenance`, `starlaid-game-development`, `starlaid-test-maintenance`, and `starlaid-image-generation`.
-
-Until a dedicated `starlaid-command-expander` exists, the global router may emit `Starlaid 指令补齐稿：` directly. Include automation-factory gameplay intent, Unity/Tuanjie ownership, data/save compatibility, route/logistics/power/combat/disaster impact, tests, and build/deployment risk.
-
-## Unknown Game Project
-
-Emit `全局指令补齐稿：` and add a game-development lens:
-
-- target project/root;
-- gameplay goal;
-- architecture/system ownership;
-- data/save compatibility;
-- UI/platform constraints;
-- asset/style needs;
-- validation and regression plan.
-
-If project identity is unclear, ask one short question before editing.
-
-## Unknown Agent Project
-
-Emit `全局指令补齐稿：` and add an agent-control-plane lens:
-
-- message source and sink;
-- queue/session model;
-- confirmation or authorization flow;
-- notification and voice side effects;
-- persistence/logging;
-- secrets boundary;
-- failure recovery.
-
-If the action can trigger external communication or destructive automation, keep the confirmation boundary explicit.
+输出 `全局指令补齐稿`，包含目标、项目位置、范围、验收、风险和回滚。项目身份不明确时先询问，不得猜测或借用其他项目的路径。

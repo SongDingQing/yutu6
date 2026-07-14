@@ -10,6 +10,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process'); // [B-1 去同步阻塞] spawnSync 已全部移除
+const SetupService = require('./setup-service');
+SetupService.loadPrivateEnv();
 const EventLog = require('../../shared/engine/eventlog');
 const Q = require('../../shared/engine/queue');
 const QueueOrganizer = require('../../shared/engine/queue-organizer');
@@ -22,6 +24,7 @@ const VersionManager = require('./tools/version-manager');
 const RuntimePaths = require('./runtime-paths');
 const InsightScoutRepos = require('./insight-scout-repos');
 const DecisionToken = require('./decision-token');
+const ProjectDepartments = require('./project-departments');
 // [B-1 去同步阻塞] 异步 sqlite / JSONL 增量游标 / 目录签名 async 版(稳定性拍板)
 const AsyncUnblock = require('./async-unblock');
 
@@ -302,8 +305,8 @@ function handleVersion(res) {
       owner_agent: state.owner_agent || 'it-engineer',
       last_change: state.last_change || null,
       remote: {
-        name: state.remote && state.remote.name || 'gitee',
-        web_url: VersionManager.GITEE_WEB_URL,
+        name: state.remote && state.remote.name || VersionManager.DEFAULT_REMOTE_NAME,
+        web_url: state.remote && state.remote.web_url || VersionManager.GITHUB_WEB_URL || null,
       },
       parts: state.parts || VersionManager.PART_LABELS,
     });
@@ -378,6 +381,49 @@ function serveStatic(res, rel) {
   });
 }
 const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type':'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
+function setupOptions() {
+  return { workspaceRoot: WORKDIR, configDir: process.env.YUTU6_CONFIG_DIR };
+}
+function setupReady() {
+  return SetupService.status(setupOptions()).completed;
+}
+function handleSetupProvider(req, res, providerId) {
+  if (req.method !== 'POST') return json(res, 405, { ok: false, code: 'method_not_allowed' });
+  readJson(req, res, (body) => {
+    SetupService.configureProvider(providerId, body || {}, setupOptions())
+      .then((result) => json(res, result.ok ? 200 : 400, result))
+      .catch(() => json(res, 500, { ok: false, provider: providerId, code: 'probe_failed' }));
+  });
+}
+function handleProjects(req, res) {
+  if (req.method === 'GET') {
+    return json(res, 200, {
+      ok: true,
+      system: ProjectDepartments.readSystemDepartments({ workspaceRoot: WORKDIR }),
+      projects: ProjectDepartments.listProjectDepartments({ workspaceRoot: WORKDIR }),
+    });
+  }
+  if (req.method !== 'POST') return json(res, 405, { ok: false, code: 'method_not_allowed' });
+  readJson(req, res, (body) => {
+    try {
+      const result = ProjectDepartments.createProjectDepartment(body || {}, { workspaceRoot: WORKDIR });
+      if (result.created) {
+        try {
+          new EventLog(ENGINE_EVENTS).emit('project.department.created', {
+            projectId: result.project.projectId,
+            queueAgent: result.project.supervisor.queueAgent,
+            source: 'setup-api',
+          });
+        } catch (_) {}
+      }
+      return json(res, result.created ? 201 : 200, {
+        ok: true, created: result.created, idempotent: result.idempotent, project: result.project,
+      });
+    } catch (err) {
+      return json(res, 400, { ok: false, code: String(err && err.message || 'project_create_failed').slice(0, 120) });
+    }
+  });
+}
 function serveFile(res, fp) {
   fs.readFile(fp, (e, buf) => {
     if (e) { res.writeHead(404).end('not found'); return; }
@@ -671,7 +717,7 @@ function listProjects() {
   const dir = path.join(WORKDIR, 'projects');
   try {
     return fs.readdirSync(dir)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(dir, name)).isDirectory(); }
         catch (_) { return false; }
@@ -998,7 +1044,7 @@ function autoOptimizerTask(stamp, reason) {
       '',
       '硬门禁(只此一项可中止本轮):',
       '- 先运行 `node projects/控制台/tools/auto-optimizer-preflight.js --json`; 如果返回 idle=false,立即停止:只写跳过报告,不要截图、不要改文件、不要发飞书。',
-      '- 只处理 `projects/控制台/` 与控制台工作区页面; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。',
+      '- 只处理 `projects/控制台/` 与控制台工作区页面; 未注册项目排除; 密钥不回显; 登录/授权交主人手动。',
       '',
       '⚠️ 铁律(老板 2026-06-25 明确):',
       '- **绝不允许"本轮无需改动/没什么问题/一切正常"这类结论。** 任何真实 UI 永远有可改进处。说"没问题"= 没认真挑 = 失职。preflight 通过(idle=true)的本轮,必须真挑出问题并落地至少 1 处小改。',
@@ -1018,7 +1064,7 @@ function autoOptimizerTask(stamp, reason) {
       '{"implementation":{"done":true,"summary":"挑出哪些问题 + 本轮改了什么 + 洞察评估","changed_files":[]}}',
       '```',
     ].join('\n'),
-    bounds: '空闲自动优化; 有其他 queued/running 任务时停止不抢占(preflight); 只处理 projects/控制台/; 锁屏时以源码审查为准不停摆; Starlaid 排除; 密钥不回显; 登录/授权交主人手动。',
+    bounds: '空闲自动优化; 有其他 queued/running 任务时停止不抢占(preflight); 只处理 projects/控制台/; 锁屏时以源码审查为准不停摆; 未注册项目排除; 密钥不回显; 登录/授权交主人手动。',
     acceptance: 'preflight idle=true 时必须真挑错(≥3条,源码证据)并落地≥1处小改,严禁"无需改动"结论; 评估洞察员洞察并采纳有益UI项; 报告列全部问题+改动+洞察结论; 飞书progress卡附截图(锁屏无图可省图但仍要报告); 事件日志可追踪。',
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -1223,7 +1269,7 @@ function scheduledPageReviewTask(agent, reviewId, reason, signature) {
       '',
       '空闲硬门:',
       '- 本评审是低优先级任务,不得抢业务队列;一旦预检发现除本评审双 agent 外存在 queued/running,立即停止。',
-      '- 只处理控制台页面评审;Starlaid 一律排除;密钥、token、cookie、验证码不回显、不写入截图说明或报告。',
+      '- 只处理控制台页面评审;未注册项目排除;密钥、token、cookie、验证码不回显、不写入截图说明或报告。',
       '',
       '截图/隐私/存储规则:',
       `- 截图和报告只写入 \`${paths.base}/\`;不要上传外部服务。`,
@@ -1241,7 +1287,7 @@ function scheduledPageReviewTask(agent, reviewId, reason, signature) {
       '{"implementation":{"done":true,"summary":"本轮评审产出/或跳过原因","changed_files":["' + paths.report + '","' + paths.issues + '"],"logic_chain":{"summary":"...","current_status":"done","actions":["完成页面评审"],"evidence":[{"kind":"file","path":"' + paths.report + '","summary":"评审报告"}],"tests":[],"conclusion":"..."}}}',
       '```',
     ].join('\n'),
-    bounds: '低优先级定时页面评审;仅空闲时运行;只处理 projects/控制台/ 页面评审;Starlaid 排除;密钥不回显;登录/授权交主人手动。',
+    bounds: '低优先级定时页面评审;仅空闲时运行;只处理 projects/控制台/ 页面评审;未注册项目排除;密钥不回显;登录/授权交主人手动。',
     acceptance: `预检空闲后才评审;报告落 ${paths.report}; issue 候选落 ${paths.issues} 并打 review/interaction 或 review/architecture;不直接派修。`,
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -1751,7 +1797,7 @@ function handleEngineRun(res, body) {
     flowId,
     role: body.role || 'orchestrator',
     goal,
-    bounds: body.bounds || '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+    bounds: body.bounds || '只处理本任务; 未注册项目排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
     inputs: Array.isArray(prepared.task.inputs) ? prepared.task.inputs : [],
     attachments: prepared.attachments,
     acceptance: body.acceptance || '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图',
@@ -1802,7 +1848,7 @@ function defaultBulletinCards() {
         flowId: 'project-route',
         projectId: '控制台',
         goal: '调研并部署 LocateAnything-3B，形成可被控制台/Peekaboo 调用的视觉定位服务；先确认 NVIDIA 非商用许可与本机用途边界，不要擅自接入生产。',
-        bounds: '只处理控制台视觉定位增强；Starlaid 一律排除；密钥不回显；外部下载或授权需要说明。',
+        bounds: '只处理控制台视觉定位增强；未注册项目排除；密钥不回显；外部下载或授权需要说明。',
         acceptance: '给出部署路径、调用方式、许可证风险说明；如已接通，提供一次截图定位冒烟结果。',
         useOrchestrator: true,
         autoApproveHuman: true
@@ -1821,7 +1867,7 @@ function defaultBulletinCards() {
         flowId: 'project-route',
         projectId: '控制台',
         goal: '完成 Peekaboo 基线测试：校准 agent key 走 new-api，跑一轮截图与点击冒烟，并把截图产物展示到控制台工作区界面。',
-        bounds: '只动控制台与 Peekaboo 本地配置；Starlaid 一律排除；密钥不回显；不删除已有产物。',
+        bounds: '只动控制台与 Peekaboo 本地配置；未注册项目排除；密钥不回显；不删除已有产物。',
         acceptance: 'Peekaboo 截图和点击测试都有记录；工作区能看到相关产物入口或状态。',
         useOrchestrator: true,
         autoApproveHuman: true
@@ -1936,7 +1982,7 @@ function normalizeBulletinPayload(body, target, project, title, desc) {
   if (project && !payload.projectId) payload.projectId = project;
   if (payload.useOrchestrator == null) payload.useOrchestrator = target === 'ceo';
   if (payload.autoApproveHuman == null) payload.autoApproveHuman = true;
-  if (!payload.bounds) payload.bounds = '只处理本公告板任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
+  if (!payload.bounds) payload.bounds = '只处理本公告板任务; 未注册项目排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
   if (!payload.acceptance) payload.acceptance = '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图';
   return payload;
 }
@@ -3923,7 +3969,7 @@ async function handleNewApiOverview(res) {
 const handler = (req, res) => {
   const u = new URL(req.url, `http://${HOST}`);
   if (req.method === 'GET' && u.pathname === '/') {
-    res.writeHead(302, { Location: '/workspace' });
+    res.writeHead(302, { Location: setupReady() ? '/workspace' : '/setup' });
     return res.end();
   }
   if (req.method === 'GET' && u.pathname === '/api/health') {
@@ -3934,6 +3980,18 @@ const handler = (req, res) => {
       ts: new Date().toISOString(),
     });
   }
+  if (req.method === 'GET' && u.pathname === '/setup') return serveStatic(res, 'setup.html');
+  if (req.method === 'GET' && u.pathname === '/api/setup/status') return json(res, 200, SetupService.status(setupOptions()));
+  const setupProviderMatch = u.pathname.match(/^\/api\/setup\/providers\/([a-z0-9_-]+)$/);
+  if (setupProviderMatch) return handleSetupProvider(req, res, setupProviderMatch[1]);
+  if (u.pathname === '/api/setup/complete') {
+    if (req.method !== 'POST') return json(res, 405, { ok: false, code: 'method_not_allowed' });
+    return readJson(req, res, () => {
+      const result = SetupService.completeSetup(setupOptions());
+      json(res, result.ok ? 200 : 409, result);
+    });
+  }
+  if (u.pathname === '/api/projects') return handleProjects(req, res);
   if (req.method === 'GET' && u.pathname === '/api/version') return handleVersion(res);
   if (req.method === 'GET' && u.pathname === '/api/version/history') return handleVersionHistory(res, u);
   if (req.method === 'GET' && u.pathname === '/api/servers/status') return handleServersStatus(res);
@@ -4015,6 +4073,10 @@ const handler = (req, res) => {
   }
   if (req.method === 'GET' && u.pathname === '/api/vision/locate/health')
     return json(res, 200, { ok:true, state: LocateAnything.health() });
+  if (req.method === 'GET' && ['/control-room', '/workspace', '/api-gateway', '/public/workspace.html'].includes(u.pathname) && !setupReady()) {
+    res.writeHead(302, { Location: '/setup' });
+    return res.end();
+  }
   if (req.method === 'GET' && u.pathname === '/control-room') return serveStatic(res, 'control-room.html');
   if (req.method === 'GET' && u.pathname === '/workspace') return serveStatic(res, 'workspace.html');
   if (req.method === 'GET' && u.pathname === '/office-experiment') return serveStatic(res, 'office-experiment.html');

@@ -60,7 +60,7 @@ Persistent spoken notification format:
 
 - Any Codex-triggered Yutu/Hermes spoken message or Feishu reminder must begin with `主人，前情提要：...`.
 - Include one short context sentence before the result so the user can still understand the message even if the first few audio syllables are missed.
-- Example: `主人，前情提要：刚刚在处理 Simulaid 构建。玉龙 v0.28.34：模拟纪元已发送。`
+- Example: `主人，前情提要：刚刚在处理项目构建。版本包已经生成并记录路径。`
 
 Spoken punctuation pauses:
 
@@ -136,8 +136,8 @@ On approve:
 - Plugin replays confirmed task into Hermes as a Feishu request.
 - Hermes should not ask for confirmation again.
 - Saved contacts are injected for email-like tasks:
-  - `主人` / `发给我` / `我的邮箱` -> `songchengzuo@hotmail.com`
-  - `姐姐` -> `scc12251988@hotmail.com`
+  - `主人` / `发给我` / `我的邮箱` -> `<configure-locally>`
+  - `姐姐` -> `<configure-locally>`
 - If details are missing, Hermes should ask one concise follow-up.
 
 On cancel:

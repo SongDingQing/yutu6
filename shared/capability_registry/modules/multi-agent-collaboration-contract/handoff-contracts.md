@@ -79,10 +79,7 @@ Use when the user asks by voice or Feishu to:
 - collect information and email it
 - send to saved contacts
 
-Known contacts:
-
-- `主人`, `我`, `发给我`, `我的邮箱`: `songchengzuo@hotmail.com`
-- `姐姐`, `我姐姐`: `scc12251988@hotmail.com`
+Contact aliases must be resolved from an optional local private contacts module. The generic distribution contains no recipient addresses; if an alias is unresolved, ask the user for the address before sending.
 
 User confirmation:
 
@@ -118,7 +115,7 @@ Do not bypass Hermes for Feishu card workflows unless the user explicitly asks.
 Use when a Yutu6 workspace change needs:
 
 - four-part version commit
-- Gitee push
+- configured Git origin push
 - release audit
 - revert-based rollback after a page is completely unrecoverable
 
@@ -133,19 +130,19 @@ Rollback entry:
 - Repair may request rollback only when the page is completely unrecoverable.
 - Repair runs `node projects/控制台/secretary-tools.js it-rollback-request --target <version-or-commit> --reason "..."`
 - IT Engineer must run `version-manager.js rollback --target <version-or-commit> --dry-run` first.
-- Actual rollback requires explicit owner confirmation and must use `git revert --no-commit` through the script, followed by a new four-part version commit and Gitee push.
+- Actual rollback requires explicit owner confirmation and must use `git revert --no-commit` through the script, followed by a new four-part version commit and configured-origin push.
 
 Do not:
 
 - rewrite Git history
 - force-push
 - print secrets or credentials
-- route Starlaid work through this lane
+- route unregistered project work through this lane
 
 Hermes modification rules:
 
 - Prefer plugin/config/sidecar changes over invasive gateway rewrites.
-- Use `/Users/yutu/.codex/modules/hermes-yutu-voice-bridge/file-map.md` before editing.
+- Use `shared/capability_registry/modules/hermes-yutu-voice-bridge/file-map.md` before editing.
 - Never print or store `.env`, tokens, keys, session data, Feishu websocket URL, access key, or ticket values.
 - Validate Python, JSON, and YAML after edits.
 - Restart only the relevant LaunchAgent and inspect logs.

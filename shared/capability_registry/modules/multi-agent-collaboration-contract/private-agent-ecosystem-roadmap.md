@@ -195,7 +195,7 @@ If user help is truly required, Codex must:
 
 The current sidecar project keeps the detailed rule at:
 
-`/Users/yutu/agent-control-center/ASSISTANCE_PROTOCOL.md`
+`$HOME/agent-control-center/ASSISTANCE_PROTOCOL.md`
 
 ### Active Codex Session Contact Anti-Footgun
 
@@ -298,9 +298,9 @@ The registry should define:
 
 The existing module registry is the seed:
 
-- `/Users/yutu/.codex/modules/INDEX.md`
-- `/Users/yutu/.codex/modules/multi-agent-collaboration-contract/`
-- `/Users/yutu/.codex/modules/hermes-yutu-voice-bridge/`
+- `$HOME/.codex/modules/INDEX.md`
+- `$HOME/.codex/modules/multi-agent-collaboration-contract/`
+- `$HOME/.codex/modules/hermes-yutu-voice-bridge/`
 
 Future route examples:
 
@@ -520,12 +520,11 @@ Every game task should become a structured spec:
 - rollback plan
 - report format
 
-For Simulaid:
+For an installed project department:
 
-- read `/Users/yutu/Simulaid/MODULE_INDEX.md`
-- read `/Users/yutu/Simulaid/CODE_INDEX.md`
-- read `/Users/yutu/Simulaid/DESIGN.md`
-- use `/Users/yutu/.codex/skills/simulaid-pixel-art-assets/SKILL.md` for art assets
+- read `projects/<projectId>/department.json`
+- read the project pack's route and capability index
+- use only the project's registered asset, build, and release skills
 
 ## Immediate Task Backlog
 

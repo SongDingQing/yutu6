@@ -5,7 +5,7 @@
  * 首版 = 告警模式:特权 runner 完成的任务在 done-gate 收口处用 git status --porcelain 实际比对
  * (不信自报 changed_files):落在 execution.allowedWritePaths 允许区之外 → 事件
  * privileged.write.outside {runner,files} + 完成回执附 write_audit 告警字段,但不打回不阻断。
- * Starlaid/星桥路径命中 = 仍然硬失败(既有红线不放宽)。
+ * 项目边界不按项目名称硬编码；由 execution.allowedWritePaths 与工作区边界统一约束。
  *
  * 基线脏问题:任务前工作树可能本就脏(其他任务/主人手改),不能把 git status 全量当本任务写入。
  * 实现为【只核 changed_files 声明的文件 ∩ git status 实际有改动/新增文件】,基线脏但未声明的文件不误报。
@@ -19,7 +19,6 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const WRITE_AUDIT_ENV = 'YUTU6_WRITE_AUDIT';
-const STARLAID_RE = /Starlaid|星桥/i;
 const GIT_STATUS_TIMEOUT_MS = 15000;
 
 function writeAuditEnabledFromEnv(env) {
@@ -105,7 +104,6 @@ function isUnderAllowed(rel, allowedPaths) {
 /*
  * 核心:auditChangedFiles(changedFiles, allowedPaths, { workspaceRoot, gitStatus, runner, enabled })
  * 返回:
- *   { ok:false, reason, blocked:[...] }                      → Starlaid/星桥 命中(硬失败,红线)
  *   { ok:true, enabled:false, skipped:'disabled' }           → 开关关闭,无动作
  *   { ok:true, enabled:true, mode, audited, outside, warn }  → 告警模式结果(outside 非空只告警不打回)
  * mode: 'intersect'(声明 ∩ git status)| 'declared_only'(git 不可用降级,只核声明文件)
@@ -117,25 +115,12 @@ function auditChangedFiles(changedFiles, allowedPaths, opts = {}) {
   }
   const workspaceRoot = opts.workspaceRoot || process.cwd();
   const declared = [];
-  const blocked = [];
   const outsideWorkspace = [];
   for (const file of Array.isArray(changedFiles) ? changedFiles : []) {
     const norm = normalizeRelPath(file, workspaceRoot);
     if (!norm) continue;
-    if (STARLAID_RE.test(norm.raw)) { blocked.push(norm.raw); continue; }
     if (norm.outsideWorkspace) { outsideWorkspace.push(norm.raw); continue; }
     if (!declared.includes(norm.rel)) declared.push(norm.rel);
-  }
-  if (blocked.length) {
-    return {
-      ok: false,
-      enabled: true,
-      reason: `特权写审计: changed_files 命中排除范围(Starlaid/星桥): ${blocked.slice(0, 3).join(', ')}`,
-      blocked,
-      outside: [],
-      audited: [],
-      warn: false,
-    };
   }
   const gitFiles = gitStatusFiles(Object.assign({ workspaceRoot }, opts));
   const mode = gitFiles === null ? 'declared_only' : 'intersect';

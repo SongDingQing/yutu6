@@ -25,11 +25,12 @@ function setupRepo() {
   git(root, ['init', '-q']);
   git(root, ['config', 'user.email', 't@t']);
   git(root, ['config', 'user.name', 't']);
+  git(root, ['remote', 'add', 'origin', 'git@github.com:example/yutu6.git']);
   commitVersion(root, '0.0.0.1', 'v0.0.0.1 接入版本管理');
   commitVersion(root, '0.0.0.2', '链路图改真实图片 → 0.0.0.2');
   commitVersion(root, '0.0.1.0', 'v0.0.1.0(minor): 稳定性批次');
   commitVersion(root, '0.0.1.0', '0.0.1.0 补一次提交(同版本)'); // 同版本两次提交 → 去重
-  commitVersion(root, '0.1.0.0', 'v0.1.0.0(major): 月球森林部门');
+  commitVersion(root, '0.1.0.0', 'v0.1.0.0(major): 通用系统部门');
   return root;
 }
 
@@ -48,9 +49,9 @@ function testHistoryParsing() {
     // 描述清洗:去掉版本号前后缀
     const top = h[0];
     assert(!/0\.1\.0\.0/.test(top.desc), '描述应清掉版本号: ' + top.desc);
-    assert(/月球森林部门/.test(top.desc), '描述应保留正文: ' + top.desc);
-    // commitUrl 指向发布远端(2026-07-05 起为 github)
-    assert(/github\.com/.test(top.commitUrl), 'commitUrl 应指向 github');
+    assert(/通用系统部门/.test(top.desc), '描述应保留正文: ' + top.desc);
+    // commitUrl 从当前 origin 派生,不依赖内置账号。
+    assert.strictEqual(top.commitUrl.startsWith('https://github.com/example/yutu6/commit/'), true, 'commitUrl 应从 origin 派生');
     // 时间字段存在且可解析
     assert(top.at && !isNaN(new Date(top.at).getTime()), 'at 应为可解析时间');
   } finally {

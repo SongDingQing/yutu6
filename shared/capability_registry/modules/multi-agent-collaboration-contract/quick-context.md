@@ -4,10 +4,10 @@ This module turns the local module directory into a persistent collaboration lay
 
 玉兔6 current authority:
 
-- Workspace root: `/Users/yutu6/玉兔6工作区`
-- Capability registry: `/Users/yutu6/玉兔6工作区/shared/capability_registry/registry.json`
-- Module root: `/Users/yutu6/玉兔6工作区/shared/capability_registry/modules/`
-- Older `/Users/yutu/...` paths in this module are migration-era references unless a current file also exists under `/Users/yutu6/...`.
+- Workspace root: current Git worktree root.
+- Capability registry: `shared/capability_registry/registry.json`.
+- Module root: `shared/capability_registry/modules/`.
+- Runtime secrets and provider settings: `${YUTU6_CONFIG_DIR:-~/.config/yutu6}` only.
 
 Hermes/Yutu should use it before deciding whether to:
 
@@ -23,13 +23,8 @@ Current agents:
 
 - `hermes-yutu`: voice, Feishu conversation, confirmation cards, Brave Search, task routing, user-facing assistant behavior.
 - `codex`: local code editing, tests, builds, repo review, Unity/project changes, Gmail sending through Codex app connector when available.
-- `it-engineer`: Yutu6 workspace four-part versioning, Gitee commit/push, and safe revert-based rollback coordination.
+- `it-engineer`: Yutu6 workspace four-part versioning, current Git origin commit/push, and safe revert-based rollback coordination.
 - `user`: final authority for confirmation, permissions, recipients, and local project intent.
-
-Current confirmed contacts:
-
-- 主人 / 发给我 / 我的邮箱: `songchengzuo@hotmail.com`
-- 姐姐: `scc12251988@hotmail.com`
 
 Key linked module:
 

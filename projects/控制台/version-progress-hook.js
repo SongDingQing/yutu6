@@ -430,16 +430,21 @@ function isSelfTriggered(task, event = {}) {
     || vars.version_hook_self_trigger === true;
 }
 
-function versionStateWithPatch(prev, patch) {
+function versionStateWithPatch(prev, patch, root) {
+  let remote = { name: VersionManager.DEFAULT_REMOTE_NAME, web_url: null, push_url: null };
+  try {
+    const status = VersionManager.status({ root });
+    remote = {
+      name: status.remote.name,
+      web_url: status.remote.web_url || null,
+      push_url: status.remote.url || null,
+    };
+  } catch (_) {}
   return Object.assign({}, prev, patch, {
     schema_version: 1,
     owner_agent: 'it-engineer',
     updated_at: nowIso(),
-    remote: {
-      name: 'gitee',
-      web_url: VersionManager.GITEE_WEB_URL,
-      push_url: VersionManager.GITEE_SSH_URL,
-    },
+    remote,
     parts: Object.assign({}, VersionManager.PART_LABELS),
   });
 }
@@ -448,9 +453,9 @@ function publishPlan(releaseImpact, nextVersion, task) {
   return {
     ok: true,
     mode: 'deferred_it_engineer',
-    remote: 'gitee',
-    web_url: VersionManager.GITEE_WEB_URL,
-    reason: 'hook writes VERSION.json atomically; IT engineer remains owner of the actual Gitee push lane',
+    remote: VersionManager.DEFAULT_REMOTE_NAME,
+    web_url: null,
+    reason: 'hook writes VERSION.json atomically; IT engineer remains owner of the configured Git remote push lane',
     version: nextVersion,
     releaseImpact,
     taskId: task && task.id || null,
@@ -509,7 +514,7 @@ function rollbackPublishFailure(root, opts, prev, entry) {
   return Object.assign({ ok: false }, entry);
 }
 
-// ===== P0-B:真完成 → 真 commit + 真 push gitee(只提交声明文件、过密钥扫描、绝不 git add -A)=====
+// ===== P0-B:真完成 → 真 commit + 真 push configured Git remote(只提交声明文件、过密钥扫描、绝不 git add -A)=====
 // 治根因诊断 §2 第三层"完成不落地":VERSION.json 与 git 脱钩(0.0.1.3 vs HEAD v0.0.0.3)。
 // 安全闸:① 只 add 声明的 changed_files + VERSION.json;② 提交前扫描暂存区密钥,命中即撤销拒提;
 // ③ 非 git 仓库(测试/非仓库)退回 deferred 计划,不做任何 git 动作。
@@ -544,7 +549,6 @@ function declaredChangedFiles(task, gate) {
     const file = f.trim();
     if (seen.has(file)) continue;
     seen.add(file);
-    if (/Starlaid|星桥/i.test(file)) continue; // 红线:排除范围不提交
     if (SECRET_PATH_RE.test(file)) continue;   // 红线:密钥路径不提交
     out.push(file);
   }
@@ -585,10 +589,10 @@ function secretScanStaged(root) {
   return null;
 }
 
-// 默认发布器:真完成后自动 commit 声明文件 + push gitee。失败语义:
+// 默认发布器:真完成后自动 commit 声明文件 + push configured Git remote。失败语义:
 // commit 前任何问题(add 失败/密钥命中/无改动/commit 失败)→ ok:false,交上层回滚版本号;
 // push 失败 → 不回滚(commit 已成、本地一致),ok:true + pushWarning,等下次/手动补推。
-function giteeCommitPushPublisher(ctx = {}) {
+function gitCommitPushPublisher(ctx = {}) {
   const root = ctx.root;
   if (!isGitRepo(root)) {
     return publishPlan(ctx.releaseImpact, ctx.nextVersion, ctx.task); // 非 git:退回 deferred(测试/非仓库)
@@ -734,12 +738,12 @@ function handleTrueDone(event = {}, opts = {}) {
         completion_hash: hash,
         at: nowIso(),
       },
-    });
+    }, root);
 
     writeJsonAtomic(file, next);
     const defaultPublish = publishPlan(releaseImpact, nextVersion, task);
-    // 无显式 publisher → 用默认 gitee 自动 commit+push 发布器(非 git 仓库会退回 deferred)
-    const publisher = typeof opts.publisher === 'function' ? opts.publisher : giteeCommitPushPublisher;
+    // 无显式 publisher → 用当前 origin 自动 commit+push 发布器(非 git 仓库会退回 deferred)
+    const publisher = typeof opts.publisher === 'function' ? opts.publisher : gitCommitPushPublisher;
     let publishResult = defaultPublish;
     try {
       publishResult = normalizePublishResult(publisher({
@@ -760,7 +764,7 @@ function handleTrueDone(event = {}, opts = {}) {
         hook: HOOK_ID,
         hook_framework: 'shared/engine/hook-registry',
         decision: 'rollback',
-        reason: 'gitee_publish_failed',
+        reason: 'git_publish_failed',
         error: e && e.message || String(e),
         taskId,
         projectId,
@@ -778,8 +782,8 @@ function handleTrueDone(event = {}, opts = {}) {
         evidenceRefs: trueCompletionVerdict.evidenceRefs,
         publishResult: {
           ok: false,
-          remote: 'gitee',
-          reason: 'gitee_publish_failed',
+          remote: VersionManager.DEFAULT_REMOTE_NAME,
+          reason: 'git_publish_failed',
           error: e && e.message || String(e),
         },
       };
@@ -792,7 +796,7 @@ function handleTrueDone(event = {}, opts = {}) {
         hook: HOOK_ID,
         hook_framework: 'shared/engine/hook-registry',
         decision: 'rollback',
-        reason: 'gitee_publish_failed',
+        reason: 'git_publish_failed',
         error: publishResult.error || publishResult.reason || 'publisher returned ok=false',
         taskId,
         projectId,
@@ -892,6 +896,7 @@ module.exports = {
   extractReleaseImpact,
   extractGranularity,
   handleTrueDone,
-  giteeCommitPushPublisher,
+  gitCommitPushPublisher,
+  giteeCommitPushPublisher: gitCommitPushPublisher,
   registerVersionProgressHook,
 };

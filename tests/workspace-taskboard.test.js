@@ -98,7 +98,7 @@ function main() {
   assert(workspaceHtml.includes('.chairman-suite{order:1}.office-boardroom{order:2') && workspaceHtml.includes('.office-common{order:3'), 'boardroom must be the second office row directly after chairman suite');
   assert(workspaceHtml.includes("if(boardSection) boardSection.style.display='flex';"), 'boardroom must remain visible instead of only rendering when board review is disabled');
   assert(workspaceHtml.includes("if(ob) ob.innerHTML=BOARD_DIRECTOR_IDS.map(officeActorHtml).join('');"), 'boardroom must always render the board directors');
-  assert(workspaceHtml.includes("frontend_designer:{label:'前端程序员',runner:'zhipu-glm'}"), 'office frontend agent metadata must show 前端程序员');
+  assert(workspaceHtml.includes("frontend_designer:{label:'前端程序员',runner:'codex'}"), 'office frontend agent metadata must show 前端程序员');
   assert(workspaceHtml.includes('label:`后端程序员 · ${p}`'), 'office worker_code project desks must show 后端程序员');
   assert(workspaceHtml.includes("label:'前端程序员',group:'project'"), 'console office must show the frontend programmer station');
   assert(workspaceHtml.includes("'后端程序员':'worker_code'"), 'office aliases must include the new backend programmer label');
@@ -158,7 +158,7 @@ function main() {
       },
     },
     normalizeRole: role => role,
-    unscopedRole: role => String(role || '').replace(/-(Simulaid|控制台|[^-]+)$/, ''),
+    unscopedRole: role => String(role || '').replace(/-(控制台|[^-]+)$/, ''),
   });
   assert.strictEqual(guardCtx.roleHasDifferentRunningQueue('repair', 'old-done-task'), true, 'historical done task must not override current repair running state');
   assert.strictEqual(guardCtx.roleHasDifferentRunningQueue('repair', 'current-repair-task'), false, 'current running task may still receive its own terminal event');
@@ -417,8 +417,8 @@ function main() {
     'system office must include frontend_designer station',
   );
   assert.deepStrictEqual(
-    Array.from(officeCtx.projectOfficeAgentIds('Simulaid')),
-    ['supervisor-Simulaid', 'worker_code-Simulaid', 'worker_narrow-Simulaid'],
+    Array.from(officeCtx.projectOfficeAgentIds('demo-app')),
+    ['supervisor-demo-app', 'worker_code-demo-app', 'worker_narrow-demo-app'],
     'non-console project office must not include frontend_designer',
   );
   assert.deepStrictEqual(
@@ -433,7 +433,7 @@ function main() {
   );
   const officeOrderCtx = runWorkspaceBlock('function projectOfficeOrder', 'function renderOffice');
   assert.strictEqual(officeOrderCtx.projectOfficeOrder('控制台'), 4, 'console project row must come after chairman, boardroom, and common rows');
-  assert.strictEqual(officeOrderCtx.projectOfficeOrder('Simulaid'), 5, 'other project rows must not jump ahead of the boardroom');
+  assert.strictEqual(officeOrderCtx.projectOfficeOrder('demo-app'), 5, 'other project rows must not jump ahead of the boardroom');
 
   console.log(JSON.stringify({ pass: true, suite: 'workspace-taskboard' }));
 }

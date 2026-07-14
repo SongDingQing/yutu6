@@ -25,7 +25,7 @@
  *   HR_REPORT_BOARD_DIR                            报告输出目录(默认 <workdir>/board)
  *   HR_REPORT_EVENTS_TAIL_BYTES                    事件日志尾部采样字节数(默认 16MB)
  *
- * 红线:只读事件日志与队列元数据,不回显密钥;Starlaid 一律排除(不读其目录)。
+ * 红线:只读事件日志与队列元数据,不回显密钥;不读取未登记项目目录。
  */
 
 const fs = require('fs');

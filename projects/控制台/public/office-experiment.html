@@ -665,16 +665,14 @@
 
   <script type="application/json" id="office-quality-ledger">
     {
-      "task_id": "cr-1782212223017-78f70089",
-      "previous_implementation_task_id": "cr-1782210015770-7774ef7e",
-      "root_task_id": "cr-1782212098137-2225ada3",
+      "schema_version": "generic-office-demo.v1",
+      "distribution": "generic-yutu6",
       "tile_library": [
         {
           "name": "thick-solid-carpet-isometric-v3",
           "public_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.png",
           "metrics_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-solid-carpet-isometric-v3.metrics.json",
           "raw_meowa_path": "projects/控制台/public/office-demo-assets/office-tile-library/thick-carpet-meowa-raw-9a65.png",
-          "meowa_job_id": "workflow-hd_isometric_gen-9a65b38886fc4b299aa55513",
           "main_color_hex": "#87929B",
           "top_face_exact_main_color_ratio_min": 1,
           "actual_top_face_exact_main_color_ratio": 1,
@@ -687,20 +685,17 @@
         {
           "name": "kdrama-chairman-ceo-v1",
           "asset": "projects/控制台/public/office-demo-assets/chairman/kdrama-chairman-ceo-v1.png",
-          "meowa_job_id": "fbddf979-2741-4d28-bdd6-597de6fa3023",
           "placement": "chairman animated 2x2 tile",
           "acceptance": "handsome refined Korean drama CEO style; newly generated this round"
         },
         {
           "name": "executive-desk-v1",
           "asset": "projects/控制台/public/office-demo-assets/chairman/executive-desk-v1.png",
-          "meowa_job_id": "c57fb1a9-d710-446a-99a6-048aeb404689",
           "placement": "same 2x2 chairman tile, foreground desk"
         },
         {
           "name": "secretary-arrival-v1",
           "asset": "projects/控制台/public/office-demo-assets/chairman-handoff/secretary-arrival-v1.webp",
-          "meowa_job_id": "6d54730e-934d-4793-bf32-036cf6a73baf",
           "placement": "secretary arrival / typing / mail flight sequence"
         }
       ],
@@ -724,18 +719,13 @@
         "executive_desk": 1
       },
       "quality_gate": {
-        "designer_self_check": "projects/控制台/artifacts/office-experiment-redo-20260623/quality-gate.md",
-        "quality_ops_check": "projects/控制台/artifacts/office-experiment-redo-20260623/quality-gate.md",
-        "animation_evidence_required": true,
-        "animation_evidence": [
-          "projects/控制台/artifacts/office-redesign-20260623/desktop-animation-evidence.json",
-          "projects/控制台/artifacts/office-redesign-20260623/mobile-animation-evidence.json"
+        "checks": [
+          "tile geometry and alpha",
+          "referenced assets exist",
+          "animation bindings exist",
+          "embedded content contains no secret material"
         ],
-        "visual_evidence": [
-          "projects/控制台/artifacts/office-redesign-20260623/thick-solid-carpet-isometric-v3-stitch-preview.png",
-          "projects/控制台/artifacts/office-redesign-20260623/office-experiment-peekaboo.png",
-          "projects/控制台/artifacts/office-redesign-20260623/opus48-visual-review.md"
-        ]
+        "local_visual_review_required_after_install": true
       }
     }
   </script>

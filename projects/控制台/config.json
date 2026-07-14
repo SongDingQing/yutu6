@@ -7,7 +7,7 @@
   "roleRouting": {
     "secretary": {
       "label": "秘书",
-      "runner": "claude"
+      "runner": "codex"
     },
     "orchestrator": {
       "label": "CEO(总指挥)",
@@ -30,16 +30,16 @@
       "runner": "codex"
     },
     "worker_narrow": {
-      "label": "外包员工 / GLM-5.2",
-      "runner": "zhipu-glm",
+      "label": "外包员工 / Codex",
+      "runner": "codex",
       "execution": {
         "delivery": "auto_tool_harness",
         "requiresWritableRunnerForImplement": true
       }
     },
     "quality_ops": {
-      "label": "质量运营/硬化 (GLM)",
-      "runner": "zhipu-glm",
+      "label": "质量运营/硬化 (Codex)",
+      "runner": "codex",
       "execution": {
         "delivery": "auto_tool_harness",
         "requiresWritableRunnerForImplement": true
@@ -50,8 +50,8 @@
       "runner": "codex"
     },
     "insight-scout": {
-      "label": "洞察员 / GLM-5.2",
-      "runner": "zhipu-glm",
+      "label": "洞察员 / Codex",
+      "runner": "codex",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
@@ -62,8 +62,8 @@
       "runner": "codex"
     },
     "it_engineer": {
-      "label": "IT 工程师 / GLM-5.2",
-      "runner": "zhipu-glm",
+      "label": "IT 工程师 / Codex",
+      "runner": "codex",
       "execution": {
         "delivery": "auto_tool_harness",
         "requiresWritableRunnerForImplement": true,
@@ -72,7 +72,7 @@
     },
     "repair-lead": {
       "label": "维修主管 / Codex 特权",
-      "runner": "claude-code",
+      "runner": "codex-privileged",
       "execution": {
         "canWriteFiles": true,
         "canRunCommands": true,
@@ -103,8 +103,8 @@
       }
     },
     "frontend_designer": {
-      "label": "前端程序员 / GLM-5.2",
-      "runner": "zhipu-glm",
+      "label": "前端程序员 / Codex",
+      "runner": "codex",
       "execution": {
         "delivery": "auto_tool_harness",
         "requiresWritableRunnerForImplement": true
@@ -115,8 +115,8 @@
       "runner": "codex"
     },
     "hr_specialist": {
-      "label": "HR专员 / GLM-5.2",
-      "runner": "zhipu-glm",
+      "label": "HR专员 / Codex",
+      "runner": "codex",
       "execution": {
         "delivery": "auto_tool_harness",
         "requiresWritableRunnerForImplement": true
@@ -124,7 +124,7 @@
     },
     "board_deepseek": {
       "label": "董事 · DeepSeek",
-      "runner": "new-api",
+      "runner": "deepseek",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
@@ -139,15 +139,15 @@
       }
     },
     "board_claude": {
-      "label": "董事 · Claude(暂用 Opus-4.8)",
-      "runner": "claude-opus-4-8",
+      "label": "董事 · Claude Fable 5(可选)",
+      "runner": "claude-fable-5",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
       }
     },
     "board_opus48": {
-      "label": "董事 · Codex/GPT-5.5",
+      "label": "董事 · Codex",
       "runner": "codex"
     }
   },
@@ -155,13 +155,13 @@
     "ownerRole": "it_engineer",
     "ownerAgent": "it-engineer",
     "ownerLabel": "IT 工程师",
-    "remoteName": "github",
-    "remoteWebUrl": "https://github.com/SongDingQing/yutu6",
-    "remotePushUrl": "git@github.com:SongDingQing/yutu6.git",
+    "remoteName": "origin",
+    "remoteWebUrl": null,
+    "remotePushUrl": null,
     "versionFile": "VERSION.json",
     "scope": [
-      "Gitee push",
-      "Gitee pull",
+      "Git 远端 push",
+      "Git 远端 pull",
       "安全回滚",
       "版本回滚",
       "远端同步",
@@ -179,7 +179,7 @@
       "rollbackDryRun": "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --dry-run",
       "rollbackConfirm": "node projects/控制台/tools/version-manager.js rollback --target <version-or-commit> --confirm --reason \"...\" --push"
     },
-    "decision": "已单设 IT 工程师负责版本管理/发布。维修员只在页面完全无法修复时通过 it-rollback-request 联系 IT 工程师;IT 工程师先 dry-run,主人确认后用安全 revert 生成新的四段版本 commit 并 push Gitee。"
+    "decision": "IT 工程师负责版本管理与发布。维修员只在页面完全无法修复时通过 it-rollback-request 联系 IT 工程师;IT 工程师先 dry-run,主人确认后用安全 revert 生成新的四段版本 commit 并推送当前配置的 Git 远端。"
   },
   "boardReviewControl": {
     "enabled": true,
@@ -327,7 +327,7 @@
         "role": "it_engineer",
         "scenes": [
           "四段版本号",
-          "Gitee release/push",
+          "Git 远端 release/push",
           "安全回滚 dry-run/主人确认后回滚"
         ],
         "reason": "IT 工程师主力改为 GLM-5.2;Codex 保留为 secondary/fallback,发布脚本和路径白名单作为确定性护栏。"
@@ -407,9 +407,9 @@
   },
   "runners": {
     "claude": {
-      "label": "Claude Code(秘书·前门)",
+      "label": "Claude Code(可选)",
       "cmd": [
-        "/Users/yutu6/.local/bin/claude",
+        "claude",
         "-p",
         "--dangerously-skip-permissions"
       ],
@@ -418,12 +418,12 @@
         "canWriteFiles": true,
         "canRunCommands": true
       },
-      "note": "2026-07-03 老板拍板:秘书(前门)由 Claude Code 接管(原 codex)。本机凭据不回显。"
+      "note": "可选 Claude Code runner;通用发行版默认由 Codex 承担秘书职责。凭据只读取本机 CLI 登录态。"
     },
     "claude-code": {
       "label": "Claude Code(维修主管·特权)",
       "cmd": [
-        "/Users/yutu6/.local/bin/claude",
+        "claude",
         "-p",
         "--dangerously-skip-permissions"
       ],
@@ -440,21 +440,18 @@
           "tests/",
           "templates/",
           "VERSION.json",
-          "交接给claude-code/",
           ".claude/"
         ]
       },
       "note": "2026-07-03 老板拍板:维修主管由 Claude Code 接回(原 codex-privileged 期间系 2026-06-30 Claude CLI 401 临时移交,认证已恢复)。高危/不可逆仍先给主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
     },
-    "claude-opus-4-8": {
-      "label": "Claude Opus-4.8(董事会)",
+    "claude-fable-5": {
+      "label": "Claude Fable 5(董事会·可选)",
       "cmd": [
-        "/Users/yutu6/.local/bin/claude",
+        "claude",
         "-p",
         "--model",
-        "claude-opus-4-8",
-        "--fallback-model",
-        "opus",
+        "claude-fable-5",
         "--dangerously-skip-permissions"
       ],
       "promptVia": "arg",
@@ -462,7 +459,7 @@
         "canWriteFiles": true,
         "canRunCommands": true
       },
-      "note": "2026-07-03 老板拍板:补充董事会成员,暂用 Opus-4.8。仅董事会评议(text_only),不承接实现任务。"
+      "note": "可选 Claude 董事席;未安装或未登录 Claude CLI 时按董事会缺席规则处理。仅评议,不承接实现任务。"
     },
     "codex": {
       "label": "Codex",
@@ -500,7 +497,6 @@
           "tests/",
           "templates/",
           "VERSION.json",
-          "交接给claude-code/",
           ".claude/"
         ]
       },
@@ -526,9 +522,6 @@
         "--skip-git-repo-check"
       ],
       "promptVia": "arg",
-      "env": {
-        "PEEKABOO_CONFIG_DIR": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/peekaboo-config"
-      },
       "note": "兼容 runner id:实际由 Codex 特权执行器接管桌面任务,在需要截图/点击时调用 Peekaboo CLI。已移除 Claude/Opus model 参数。",
       "execution": {
         "canWriteFiles": true,
@@ -538,13 +531,36 @@
       }
     },
     "new-api": {
-      "label": "DeepSeek(new-api)",
+      "label": "本机 new-api(兼容入口)",
       "kind": "openai_http",
       "cmd": [
         "__openai_http__"
       ],
       "baseUrl": "http://127.0.0.1:3000/v1",
-      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/internal-token.env",
+      "baseUrlEnv": "NEW_API_BASE_URL",
+      "tokenEnv": "NEW_API_TOKEN",
+      "modelEnv": "NEW_API_MODEL",
+      "model": "deepseek-chat",
+      "hidden": true,
+      "maxTokens": 4096,
+      "temperature": 0.25,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "systemPrompt": "你是玉兔6董事会 DeepSeek 评议董事。只做重要架构任务的严格挑刺和风险识别,不要回显任何密钥或本地 token。",
+      "note": "兼容既有本机 new-api;通用发行版默认使用各供应商直连 runner。"
+    },
+    "deepseek": {
+      "label": "DeepSeek(直连)",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "https://api.deepseek.com/v1",
+      "baseUrlEnv": "DEEPSEEK_BASE_URL",
+      "tokenEnv": "DEEPSEEK_API_KEY",
+      "modelEnv": "DEEPSEEK_MODEL",
       "model": "deepseek-chat",
       "maxTokens": 4096,
       "temperature": 0.25,
@@ -553,7 +569,7 @@
         "canRunCommands": false
       },
       "systemPrompt": "你是玉兔6董事会 DeepSeek 评议董事。只做重要架构任务的严格挑刺和风险识别,不要回显任何密钥或本地 token。",
-      "note": "董事会 DeepSeek 出口,走本机 new-api /v1。token 从本机 internal-token.env 读取,不写源码。"
+      "note": "配置由首次向导写入本机私有 providers.env;仓库不保存 key。"
     },
     "zhipu-glm": {
       "label": "GLM-5.2(通用)",
@@ -561,9 +577,11 @@
       "cmd": [
         "__openai_http__"
       ],
-      "baseUrl": "http://127.0.0.1:3000/v1",
-      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/internal-token.env",
-      "model": "glm-5.2",
+      "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "baseUrlEnv": "ZHIPU_BASE_URL",
+      "tokenEnv": "ZHIPU_API_KEY",
+      "modelEnv": "ZHIPU_MODEL",
+      "model": "glm-5",
       "maxTokens": 4096,
       "temperature": 0.35,
       "execution": {
@@ -572,26 +590,27 @@
         "toolHarnessRunner": "zhipu-glm-tools"
       },
       "systemPrompt": "你是玉兔6工作区的 GLM-5.2 通用助手。优先给出清晰、可执行、可验证的分析、编程方案、代码审查和任务拆解。不要回显任何密钥或本地 token。",
-      "note": "走本机 new-api /v1,上游为 GLM Coding Plan 专属端点。纯文本 runner:不能直接落盘/跑命令;implement 任务需要交付文件时由 cli-runner 自动升级到 zhipu-glm-tools。token 从本机 internal-token.env 读取,不写入源码。"
+      "note": "直连智谱 Coding Plan 专属端点。配置由首次向导写入本机私有 providers.env;实现任务仍由工具 harness 落盘。"
     },
-    "kimi-k2": {
-      "label": "Kimi K2.7 Code（暂停董事席）",
-      "kind": "openai_http",
+    "minimax": {
+      "label": "MiniMax(Anthropic 兼容)",
+      "kind": "anthropic_http",
       "cmd": [
-        "__openai_http__"
+        "__anthropic_http__"
       ],
-      "baseUrl": "https://api.moonshot.cn/v1",
-      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/kimi.env",
-      "tokenKey": "MOONSHOT_API_KEY",
-      "model": "kimi-k2.7-code",
+      "baseUrl": "https://api.minimaxi.com/anthropic",
+      "baseUrlEnv": "MINIMAX_BASE_URL",
+      "tokenEnv": "MINIMAX_API_KEY",
+      "modelEnv": "MINIMAX_MODEL",
+      "model": "MiniMax-M3",
       "maxTokens": 4096,
-      "temperature": 1,
+      "temperature": 0.3,
       "execution": {
         "canWriteFiles": false,
         "canRunCommands": false
       },
-      "systemPrompt": "你是玉兔6备用 Kimi K2.7 Code 评议模型。当前不参与活跃董事会;如被显式调用,只做代码/Agent 风险识别和遗漏检查;不要回显任何密钥或本地 token。",
-      "note": "Kimi/Moonshot OpenAI 兼容出口已暂停董事席,保留为备用 runner。token 从本机 artifacts/new-api/kimi.env 读取,不写源码。K2.7 Code 官方要求 temperature=1.0。"
+      "systemPrompt": "你是玉兔6的 MiniMax 通用评议模型。只输出分析与建议,不要声称已经改文件,不要回显任何密钥。",
+      "note": "配置由首次向导写入本机私有 providers.env;仓库不保存 key。"
     },
     "zhipu-glm-tools": {
       "label": "GLM-5.2 + Codex 工具执行",
@@ -619,14 +638,5 @@
       "note": "内置假回显,用来在没装 CLI 时验证网页↔服务闭环。"
     }
   },
-  "servers": [
-    {
-      "id": "srv-changie",
-      "label": "嫦娥",
-      "ip": "49.235.187.125",
-      "port": 443,
-      "accent": "#5ed6c4",
-      "note": "YuanXiao/ChangE relay"
-    }
-  ]
+  "servers": []
 }

@@ -107,7 +107,7 @@ function enqueueSupervisor(id, goal, resourceDomains) {
     projectId: '控制台',
     scopedToProject: true,
     goal,
-    bounds: 'concurrency smoke only; Starlaid excluded; no secrets',
+    bounds: 'concurrency smoke only; unregistered projects excluded; no secrets',
     acceptance: 'review-loop completes',
     resourceDomains,
     useOrchestrator: false,

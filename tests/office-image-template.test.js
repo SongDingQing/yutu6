@@ -26,7 +26,7 @@ function main() {
   assert.strictEqual(result.ok, true, result.errors.join('\n'));
   assert.strictEqual(templates.schema_version, '2026-06-23.office-image-template.v3');
   assert.strictEqual(templates.source_of_truth, 'memory/办公室生图设计规范.md');
-  assert.strictEqual(templates.starlaid_excluded, true);
+  assert.strictEqual(templates.project_scope_policy, 'system-office-only');
   assert(templates.shared_style.grid.minimum_visible_thickness_px >= 24, 'tile thickness contract must be explicit');
   assert.strictEqual(templates.shared_style.grid.integer_grid_required, true, 'V3 must require integer grid');
   assert.strictEqual(templates.shared_style.grid.complete_footprint_required, true, 'V3 must require complete footprints');
@@ -42,15 +42,20 @@ function main() {
   assert(meowaSkill.includes('office-image-template-check.js'), 'shared Meowa skill must mention the office template gate');
   assert(meowaContract.includes('Yutu6 Office Asset Gate'), 'capability registry must expose the office template gate');
 
-  const pendingImageRef = refs.references.find(ref => ref.file && ref.ownerApproved === false);
-  assert(pendingImageRef, 'there must be at least one pending image reference for owner review');
-  const pendingRef = path.join(ROOT, pendingImageRef.file);
-  assert(fs.existsSync(pendingRef), 'pending reference image must exist for owner review');
-  assert.strictEqual(pendingImageRef.ownerApproved, false, 'new reference must not be silently approved');
   assert.strictEqual(refs.active_reference_id, null, 'no active baseline before owner approval');
   assert.strictEqual(refs.latest_reference_id, 'office-style-reference-v3-pending-spec', 'latest pending reference must track V3 spec-only draft');
   const v3Spec = refs.references.find(ref => ref.id === 'office-style-reference-v3-pending-spec');
   assert(v3Spec && v3Spec.file === null && v3Spec.generationAllowed === false, 'V3 spec must not masquerade as a generated reference image');
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'office-image-template-'));
+  const pendingReference = path.join(tmp, 'pending.png');
+  fs.writeFileSync(pendingReference, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const pendingManifestFile = path.join(tmp, 'pending-reference-manifest.json');
+  writeJson(pendingManifestFile, {
+    schema_version: 'test',
+    active_reference_id: null,
+    references: [{ id: 'pending', file: pendingReference, ownerApproved: false }]
+  });
 
   const baseSpec = {
     taskId: 'unit-secretary-working',
@@ -59,8 +64,8 @@ function main() {
     assetClass: 'person',
     role: 'secretary',
     meowaCommand: 'pixel-gen-run',
-    referenceManifest: 'projects/控制台/templates/office-image/reference-manifest.json',
-    referenceImage: pendingImageRef.file,
+    referenceManifest: pendingManifestFile,
+    referenceImage: pendingReference,
     outputDir: 'projects/控制台/artifacts/office-assets/unit',
     requirement: 'Generate a seated secretary working sprite with both hands visibly typing at a keyboard.'
   };
@@ -73,15 +78,17 @@ function main() {
   assert.strictEqual(noRefResult.ok, false, 'missing reference must block generation');
   assert(noRefResult.errors.some(e => e.includes('referenceImage is required')), 'missing reference reason must be explicit');
 
-  const starlaidResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
-    taskId: 'Starlaid-leak',
-    requirement: 'Generate a Starlaid office sprite from this template for a different project.'
+  const crossProjectResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
+    taskId: 'cross-project-leak',
+    project: 'unregistered-project',
+    requirement: 'Generate an office sprite for a project that has not registered its own asset template.'
   }), templates);
-  assert.strictEqual(starlaidResult.ok, false, 'Starlaid must be rejected');
-  assert(starlaidResult.errors.some(e => e.includes('excluded project')), 'excluded project reason must be explicit');
+  assert.strictEqual(crossProjectResult.ok, false, 'system office templates must reject project-specific generation');
+  assert(crossProjectResult.errors.some(e => e.includes('project must be yutu6-control-console')), 'project scope reason must be explicit');
 
   const experimentalResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
-    referenceImage: 'projects/控制台/artifacts/office-assets/style-reference/office-style-reference-v2-pending.png',
+    referenceManifest: pendingManifestFile,
+    referenceImage: pendingReference,
     experimentMode: 'animation-smoke',
     notForProduction: true,
     outputDir: 'projects/控制台/artifacts/office-assets/experiments/unit-secretary-animation'
@@ -89,14 +96,14 @@ function main() {
   assert.strictEqual(experimentalResult.ok, true, experimentalResult.errors.join('\n'));
 
   const unsafeExperimentResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
-    referenceImage: 'projects/控制台/artifacts/office-assets/style-reference/office-style-reference-v2-pending.png',
+    referenceManifest: pendingManifestFile,
+    referenceImage: pendingReference,
     experimentMode: 'animation-smoke',
     notForProduction: true,
     outputDir: 'projects/控制台/public/office-demo-assets'
   }), templates);
   assert.strictEqual(unsafeExperimentResult.ok, false, 'experimental smoke must stay under artifacts/office-assets/experiments');
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'office-image-template-'));
   const approvedReference = path.join(tmp, 'approved.png');
   fs.writeFileSync(approvedReference, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   const manifestFile = path.join(tmp, 'reference-manifest.json');

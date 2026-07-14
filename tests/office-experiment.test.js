@@ -193,7 +193,6 @@ function main() {
   const tile = decodePng(tilePath);
   assert.strictEqual(tile.width, 192, 'thick carpet source tile width must follow design contract');
   assert.strictEqual(tile.height, 126, 'thick carpet source tile height must include visible thickness');
-  assert.strictEqual(metrics.source_meowa_job_id, 'workflow-hd_isometric_gen-9a65b38886fc4b299aa55513');
   assert.strictEqual(metrics.visible_thickness_px, 32);
   assert.strictEqual(metrics.side_faces_visible, true);
   assert.strictEqual(metrics.isometric_angle.ratio, 2);
@@ -202,14 +201,7 @@ function main() {
   assert.strictEqual(ratio.ratio, 1, 'top face carpet must be exact pure solid color');
   assert(ratio.sideOpaque >= 1000, `side faces must be visible, got ${ratio.sideOpaque}`);
   assert.strictEqual(metrics.top_face_exact_main_color_ratio, ratio.ratio);
-  [
-    'projects/控制台/public/office-demo-assets/office-floor-seamless-isometric.png',
-    'projects/控制台/public/office-demo-assets/chairman/experimental/tile-floor-meowa.png',
-    'projects/控制台/public/office-demo-assets/office-floor-carpet-tile-120x64.png',
-    'projects/控制台/public/office-demo-assets/office-tile-library/solid-carpet-isometric-v2.png',
-  ].forEach(oldPath => {
-    assert.notStrictEqual(sha256(tilePath), sha256(oldPath), `new tile must not match old failed asset: ${oldPath}`);
-  });
+  assert.strictEqual(sha256(tilePath), metrics.sha256, 'tile hash must match its distributable metrics');
 
   [
     '@keyframes chairmanBreathe',
@@ -234,9 +226,8 @@ function main() {
   const match = html.match(/<script\s+type="application\/json"\s+id="office-quality-ledger">\s*([\s\S]*?)\s*<\/script>/);
   assert(match, 'office quality ledger JSON must be embedded for review evidence');
   const ledger = JSON.parse(match[1]);
-  assert.strictEqual(ledger.task_id, 'cr-1782212223017-78f70089');
-  assert.strictEqual(ledger.previous_implementation_task_id, 'cr-1782210015770-7774ef7e');
-  assert.strictEqual(ledger.root_task_id, 'cr-1782212098137-2225ada3');
+  assert.strictEqual(ledger.schema_version, 'generic-office-demo.v1');
+  assert.strictEqual(ledger.distribution, 'generic-yutu6');
   assert.strictEqual(ledger.tile_library.length, 1, 'ledger must not list old failed floor/partition assets as active tiles');
   assert.strictEqual(ledger.tile_library[0].name, 'thick-solid-carpet-isometric-v3');
   assert.strictEqual(ledger.tile_library[0].actual_top_face_exact_main_color_ratio, 1);
@@ -246,9 +237,8 @@ function main() {
   assert(ledger.meowa_retry_limit <= 3, 'retry limit must be explicit and bounded');
   assert.strictEqual(ledger.secretary_animation_sequence.length, 4, 'secretary sequence must cover all four beats');
   assert.strictEqual(ledger.render_layers.length, 3, 'ledger must define render layer contract');
-  assertProjectFileExists(ledger.quality_gate.designer_self_check);
-  ledger.quality_gate.animation_evidence.forEach(assertProjectFileExists);
-  ledger.quality_gate.visual_evidence.forEach(assertProjectFileExists);
+  assert(ledger.quality_gate.checks.includes('referenced assets exist'));
+  assert.strictEqual(ledger.quality_gate.local_visual_review_required_after_install, true);
 
   assert(!/MEOWART_API_KEY|ma_live_|token|cookie|private key/i.test(html), 'experiment page must not contain secrets');
   console.log(JSON.stringify({ pass: true, suite: 'office-experiment' }));

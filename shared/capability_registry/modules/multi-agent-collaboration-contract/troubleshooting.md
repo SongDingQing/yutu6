@@ -23,7 +23,7 @@ Likely causes:
 
 Fix:
 
-- Read `/Users/yutu/.codex/modules/INDEX.md`.
+- Read `$HOME/.codex/modules/INDEX.md`.
 - Run `module_lookup.py`.
 - Add missing contract details to this module.
 

@@ -243,13 +243,13 @@ function testFalseDoneMissingVerdictAndImpactSkip() {
   }
 }
 
-function testStarlaidMajorApprovalAndSelfTriggerSkip() {
+function testOtherProjectMajorApprovalAndSelfTriggerSkip() {
   const root = initRoot();
   try {
-    const starlaid = task(root, 'starlaid-task', 'fix', { projectId: 'Starlaid' });
-    const starlaidRes = bump(root, starlaid);
-    assert.strictEqual(starlaidRes.decision, 'skip');
-    assert.strictEqual(starlaidRes.reason, 'project_not_console');
+    const otherProject = task(root, 'other-project-task', 'fix', { projectId: 'example-project' });
+    const otherProjectRes = bump(root, otherProject);
+    assert.strictEqual(otherProjectRes.decision, 'skip');
+    assert.strictEqual(otherProjectRes.reason, 'project_not_console');
     assert.strictEqual(VersionManager.readVersionState(root).version, '0.0.0.0');
 
     const major = task(root, 'major-no-approval', 'major');
@@ -285,26 +285,26 @@ function testIdempotencyAndPublishRecovery() {
 
     const failed = task(root, 'publish-fail', 'fix');
     const failedRes = bump(root, failed, {
-      publisher() { throw new Error('simulated gitee failure'); },
+      publisher() { throw new Error('simulated git remote failure'); },
     });
     assert.strictEqual(failedRes.ok, false);
     assert.strictEqual(failedRes.decision, 'rollback');
-    assert.strictEqual(failedRes.reason, 'gitee_publish_failed');
+    assert.strictEqual(failedRes.reason, 'git_publish_failed');
     assert.strictEqual(VersionManager.readVersionState(root).version, '0.0.0.1');
 
     const returnedFailure = task(root, 'publish-return-false', 'fix');
     const returnedFailureRes = bump(root, returnedFailure, {
-      publisher() { return { ok: false, mode: 'simulated_publish', remote: 'gitee', reason: 'simulated false result' }; },
+      publisher() { return { ok: false, mode: 'simulated_publish', remote: 'origin', reason: 'simulated false result' }; },
     });
     assert.strictEqual(returnedFailureRes.ok, false);
     assert.strictEqual(returnedFailureRes.decision, 'rollback');
-    assert.strictEqual(returnedFailureRes.reason, 'gitee_publish_failed');
+    assert.strictEqual(returnedFailureRes.reason, 'git_publish_failed');
     assert.strictEqual(returnedFailureRes.publishResult.ok, false);
     assert.strictEqual(VersionManager.readVersionState(root).version, '0.0.0.1');
 
     const auditFailure = task(root, 'audit-fail-after-publish', 'fix');
     const auditFailureRes = bump(root, auditFailure, {
-      publisher() { return { ok: true, mode: 'simulated_publish', remote: 'gitee' }; },
+      publisher() { return { ok: true, mode: 'simulated_publish', remote: 'origin' }; },
       auditWriter(file, entry) {
         if (entry.decision === 'bump') throw new Error('simulated audit write failure');
         fs.appendFileSync(file, JSON.stringify(entry) + '\n');
@@ -446,7 +446,7 @@ function initGitRoot() {
   git(['config', 'user.email', 't@t'], root);
   git(['config', 'user.name', 't'], root);
   git(['config', 'commit.gpgsign', 'false'], root);
-  git(['remote', 'add', 'github', bare], root); // 2026-07-05 引擎默认发布远端切 github
+  git(['remote', 'add', 'origin', bare], root);
   write(path.join(root, 'VERSION.json'), JSON.stringify({
     schema_version: 1,
     owner_agent: 'it-engineer',
@@ -461,8 +461,8 @@ function initGitRoot() {
   return { root, bare, git };
 }
 
-// P0-B 守卫:真完成 → 默认发布器真 commit 声明文件 + 真 push 到 gitee 远端
-function testAutoCommitPushToGitee() {
+// P0-B 守卫:真完成 → 默认发布器真 commit 声明文件 + 真 push 到已配置 origin
+function testAutoCommitPushToOrigin() {
   const { root, bare, git } = initGitRoot();
   try {
     const res = bump(root, task(root, 'auto-commit', 'fix')); // 无 publisher → 走默认 git 发布器
@@ -474,7 +474,7 @@ function testAutoCommitPushToGitee() {
     assert(/v0\.0\.0\.1/.test(head), `本地 commit 应带版本号: ${head.split('\n')[4] || head}`);
     assert(/VERSION\.json/.test(head) && /changed-auto-commit\.txt/.test(head), '只提交 VERSION.json + 声明文件');
     const bareLog = git(['log', '--oneline', '-1', 'main'], bare).stdout;
-    assert(/v0\.0\.0\.1/.test(bareLog), `gitee(bare 远端)应收到推送: ${bareLog}`);
+    assert(/v0\.0\.0\.1/.test(bareLog), `origin(bare 远端)应收到推送: ${bareLog}`);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(bare, { recursive: true, force: true });
@@ -501,10 +501,10 @@ function testPublisherSecretGuardRollsBack() {
 
 async function main() {
   await testReleaseImpactAndTrueDone();
-  testAutoCommitPushToGitee();
+  testAutoCommitPushToOrigin();
   testPublisherSecretGuardRollsBack();
   testFalseDoneMissingVerdictAndImpactSkip();
-  testStarlaidMajorApprovalAndSelfTriggerSkip();
+  testOtherProjectMajorApprovalAndSelfTriggerSkip();
   testIdempotencyAndPublishRecovery();
   await testConcurrentBumps();
   testRegistryAndEngineIntegration();

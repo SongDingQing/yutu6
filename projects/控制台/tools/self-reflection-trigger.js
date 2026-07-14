@@ -189,7 +189,7 @@ function main() {
     `原因: ${reason}`,
     '要求: 先强力挑刺并列证据; 每个缺点给优化建议; 明确低风险高收益项可自动执行并验证;',
     '有争议、不确定利弊、影响现有功能/接口/队列/权限/成本的改动必须形成主人拍板项, 未批准不得执行;',
-    '把可复用结果补入 board/learning-cases/self-reflection-optimizer-cases.md; Starlaid/星桥排除; 密钥不回显。',
+    '把可复用结果补入 board/learning-cases/self-reflection-optimizer-cases.md; 未登记或未授权项目不处理; 密钥不回显。',
   ].join('\n');
 
   const acceptance = [

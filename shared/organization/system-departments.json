@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "description": "玉兔6 通用发行版内置系统部门；项目部门由项目模板动态创建。",
+  "departments": [
+    {
+      "id": "executive-office",
+      "name": "总裁办公室",
+      "type": "system",
+      "roles": ["secretary", "orchestrator"]
+    },
+    {
+      "id": "board",
+      "name": "董事会",
+      "type": "system",
+      "roles": ["board_deepseek", "board_glm52", "board_claude", "board_opus48"],
+      "optionalProviders": true
+    },
+    {
+      "id": "quality-governance",
+      "name": "质量与监管部",
+      "type": "system",
+      "roles": ["quality_ops", "governance", "memory_officer"]
+    },
+    {
+      "id": "operations",
+      "name": "系统运营部",
+      "type": "system",
+      "roles": ["it_engineer", "insight-scout", "ui_optimizer", "gui_desktop_control"]
+    },
+    {
+      "id": "repair",
+      "name": "维修部",
+      "type": "system",
+      "roles": ["repair-lead", "repair"]
+    },
+    {
+      "id": "human-resources",
+      "name": "人力资源部",
+      "type": "system",
+      "roles": ["hr_manager", "hr_specialist"]
+    }
+  ],
+  "projectDepartmentTemplate": {
+    "supervisorRole": "supervisor",
+    "queuePrefix": "supervisor-",
+    "staffTemplates": ["worker_code", "worker_narrow", "frontend_designer"],
+    "requiredFiles": ["department.json", "brief.md", "status.md", "tasks/.gitkeep", "artifacts/.gitkeep"]
+  }
+}

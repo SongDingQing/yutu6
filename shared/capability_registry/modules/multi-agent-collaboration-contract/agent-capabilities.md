@@ -47,7 +47,7 @@ Can do:
 - Run tests, builds, linters, and command-line checks.
 - Work with Unity projects when local Unity tooling is available.
 - Build or locate APK artifacts when the project supports it.
-- Follow the Simulaid pixel-art asset pipeline through `/Users/yutu/.codex/skills/simulaid-pixel-art-assets/SKILL.md` when generating or integrating game art.
+- Follow only the current project's installed capability pack when generating or integrating project assets.
 - Use Codex sub-agents only as short-lived helpers inside the current session; do not treat them as durable, bound, callback-capable agents.
 - Keep an interactive session open for a long time when the user chooses to leave Codex running, but this is not the same as a guaranteed externally addressable session endpoint.
 - Modify local Hermes/Yutu files on the same Mac mini when requested, using the Hermes module file map and validation workflow.
@@ -67,31 +67,11 @@ Not yet proven:
 - Receive a task from Hermes/Yutu into this exact currently open Codex Desktop session without relying on the user manually returning to the session.
 - Provide a durable current-session callback id that Hermes can target safely.
 
-## Simulaid Image Asset Worker
-
-Primary role:
-
-- Short-lived Codex sub-agent role for Simulaid image generation and post-processing. This is not a durable ecosystem agent.
-
-Can do:
-
-- Read `/Users/yutu/.codex/skills/simulaid-pixel-art-assets/SKILL.md` and its style references.
-- Prepare prompts and generate or process Simulaid backgrounds, crops, card art, item icons, enemy art, and UI image assets.
-- Save final runtime PNGs under `/Users/yutu/Simulaid/Assets/Resources/GeneratedPixel/`.
-- Preserve useful prompt/style notes and report output dimensions and changed files.
-
-Should not do directly:
-
-- Own Unity UI/gameplay integration after image files are produced.
-- Change unrelated code or project files outside the requested asset scope.
-- Assume a prior sub-agent session ID is reusable across Codex accounts; the durable identity is this role and the documented workflow, not a live process id.
-- Be used for scheduled, long-running, callback-dependent, or cross-session work.
-
 ## IT Engineer
 
 Primary role:
 
-- Durable queue agent for Yutu6 workspace version management, Gitee synchronization, release commits, and safe rollback.
+- Durable queue agent for Yutu6 workspace version management, configured Git remote synchronization, release commits, and safe rollback.
 
 Can do:
 
@@ -101,14 +81,14 @@ Can do:
 - Receive release requests through `node projects/控制台/secretary-tools.js it-release-request`.
 - Receive repair rollback requests through `node projects/控制台/secretary-tools.js it-rollback-request`.
 - Dry-run rollback impact before any actual revert.
-- After explicit owner confirmation, create a new revert-based four-part version commit and push to Gitee.
+- After explicit owner confirmation, create a new revert-based four-part version commit and push to the configured `origin`.
 
 Should not do directly:
 
 - Fix business code or UI bugs.
 - Read, print, store, or distribute secrets.
 - Use `git reset --hard`, force-push, delete remote branches, or rewrite history without a separate explicit owner confirmation.
-- Handle Starlaid.
+- Handle project-specific business work outside an installed project department.
 
 ## Durable Worker Requirement
 

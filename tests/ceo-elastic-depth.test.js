@@ -58,8 +58,7 @@ function main() {
 
   try {
     fs.mkdirSync(path.join(projectsDir, '控制台'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Simulaid'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Starlaid'), { recursive: true });
+    fs.mkdirSync(path.join(projectsDir, 'ExampleProject'), { recursive: true });
     writeJson(configPath, { runners: {}, roleRouting: {} });
 
     process.env.CONSOLE_PROJECTS_DIR = projectsDir;
@@ -87,7 +86,7 @@ function main() {
     assert.strictEqual(simple.reason, 'simple_task');
 
     assert.strictEqual(_test.isSimpleTask({ goal: SIMPLE_GOAL }).reason, 'no_explicit_project');
-    assert.strictEqual(_test.isSimpleTask({ projectId: 'Starlaid', goal: SIMPLE_GOAL }).reason, 'starlaid_project');
+    assert.strictEqual(_test.isSimpleTask({ projectId: '未注册项目', goal: SIMPLE_GOAL }).reason, 'unregistered_project');
     assert.strictEqual(_test.isSimpleTask({ projectId: '不存在的项目', goal: SIMPLE_GOAL }).reason, 'unknown_project');
     assert.strictEqual(_test.isSimpleTask({ projectId: '控制台', goal: SIMPLE_GOAL, useOrchestrator: true }).reason, 'use_orchestrator_required');
     assert.strictEqual(_test.isSimpleTask({ projectId: '控制台', goal: SIMPLE_GOAL, boardReview: { required: true } }).reason, 'board_review_required');
@@ -106,19 +105,19 @@ function main() {
     }).reason, 'cross_project_signal');
     assert.strictEqual(_test.isSimpleTask({
       projectId: '控制台',
-      goal: '顺手把 Simulaid 看板的文案也统一下',
+      goal: '顺手把 ExampleProject 看板的文案也统一下',
     }).reason, 'mentions_other_project');
 
-    // 主动涉 Starlaid 不直通(排除语境不算)
+    // 主动涉 未注册项目 不直通(排除语境不算)
     assert.strictEqual(_test.isSimpleTask({
       projectId: '控制台',
-      goal: '修改 Starlaid 项目的构建脚本并运行测试',
-    }).reason, 'starlaid_reference');
+      goal: '修改 未注册项目 项目的构建脚本并运行测试',
+    }).reason, 'unregistered_project_reference');
     assert.strictEqual(_test.isSimpleTask({
       projectId: '控制台',
       goal: SIMPLE_GOAL,
-      bounds: '只处理本任务; Starlaid 一律排除; 密钥不回显',
-    }).simple, true, 'Starlaid 排除语境不应挡直通');
+      bounds: '只处理本任务; 未注册项目 一律排除; 密钥不回显',
+    }).simple, true, '未注册项目 排除语境不应挡直通');
 
     // 董事会重要域不直通(structured 优先 + 文本兜底)
     const importantVerdict = _test.isSimpleTask({
@@ -231,7 +230,7 @@ function main() {
       role: 'orchestrator',
       flowId: 'project-route',
       projectId: '控制台',
-      goal: '跨项目对齐:控制台与 Simulaid 的看板每日汇总文案统一说明',
+      goal: '跨项目对齐:控制台与 ExampleProject 的看板每日汇总文案统一说明',
       useOrchestrator: false,
       autoApproveHuman: true,
     });

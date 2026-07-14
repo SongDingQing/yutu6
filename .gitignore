@@ -27,7 +27,7 @@ shared/tools/meowa/.meow_art/
 # 密钥保险库整理稿(含历史密钥值/来源)
 **/secrets-consolidate*.txt
 **/*secrets-consolidate*
-# new-api 各 provider 的实 env(admin/zhipu/kimi/minimax/deepseek/internal-token...)
+# new-api 各 provider 的实 env(admin/provider/internal-token...)
 projects/控制台/artifacts/new-api/*.env
 # 各类密钥/证书/私钥材料
 *.pem
@@ -49,5 +49,5 @@ projects/控制台/artifacts/new-api/*.env
 # 绕过审计日志(运行时,不入库)
 security/skip-audit.log
 
-# 元宵审批账本(运行时决策数据,不入 git)
-projects/控制台/artifacts/yuanxiao-approvals/
+# 外部客户端审批账本(运行时决策数据,不入 git)
+projects/控制台/artifacts/client-approvals/

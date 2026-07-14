@@ -8,7 +8,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
-const skillRoot = '/Users/yutu6/.codex/skills/self-reflection-optimizer';
+const skillRoot = path.join(root, 'knowledge/corpus/codex-skills/skills/self-reflection-optimizer');
 
 function read(file) {
   return fs.readFileSync(path.isAbsolute(file) ? file : path.join(root, file), 'utf8');
@@ -25,7 +25,7 @@ function main() {
   assert(skill.includes('auto_execute'), 'skill must define auto_execute classification');
   assert(skill.includes('owner_decision'), 'skill must define owner_decision classification');
   assert(skill.includes('board/learning-cases/self-reflection-optimizer-cases.md'), 'skill must write reusable self-reflection cases');
-  assert(skill.includes('Starlaid') && skill.includes('星桥'), 'skill must preserve Starlaid/Xingqiao exclusion');
+  assert(skill.includes('registered project department') && skill.includes('cross project boundaries'), 'skill must preserve generic project boundaries');
   assert(skill.includes('secretary -> CEO -> supervisor'), 'skill must preserve front-door route');
 
   const policy = read(path.join(skillRoot, 'references/decision-policy.md'));
