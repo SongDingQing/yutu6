@@ -65,13 +65,13 @@ node projects/控制台/tools/project-department.js create \
 前置条件:
 
 - macOS，且已完成 `xcode-select --install`（提供 Git）。
-- 当前用户已配置该仓库的 GitHub SSH 访问；部署脚本不会读取、复制或提示输入凭据。
+- 能访问 GitHub；公共仓库默认使用 HTTPS，不要求预先配置 SSH 公钥。
 - 已安装 Node.js 20+；如果缺少 Node.js 但已有 Homebrew，脚本会自动执行 `brew install node`。
 
 在新机终端执行一条命令:
 
 ```bash
-git clone --branch main --single-branch git@github.com:SongDingQing/yutu6.git "$HOME/玉兔6工作区" && "$HOME/玉兔6工作区/deploy-macos.sh"
+git clone --branch main --single-branch https://github.com/SongDingQing/yutu6.git "$HOME/玉兔6工作区" && "$HOME/玉兔6工作区/deploy-macos.sh"
 ```
 
 脚本会启用仓库 Git hooks、启动本地控制台并打开首次配置向导。向导依次检测 Codex/可选 Claude CLI 登录态，并允许连接智谱 Coding Plan、MiniMax、DeepSeek 或其他 OpenAI 兼容接口。API key 只写入本机 `~/.config/yutu6/providers.env`(权限 600)，不会写入 Git、日志或网页回显。
@@ -91,7 +91,7 @@ git clone --branch main --single-branch git@github.com:SongDingQing/yutu6.git "$
 常见失败处理:
 
 - `缺少 Git`:运行 `xcode-select --install`，安装完成后重新执行一键命令。
-- `克隆失败`:用 `ssh -T git@github.com` 检查 GitHub SSH 授权；脚本不会回显仓库凭据。
+- `克隆失败`:先检查 GitHub 网络；私有 fork 可用 `--repo git@github.com:<owner>/<repo>.git` 指定已授权的 SSH 源。脚本不会回显仓库凭据。
 - `目标工作树有未提交或未跟踪改动`:先自行提交、转移或清理本地改动；脚本不会代替用户处理。
 - `Node.js 版本过旧`:升级到 Node.js 20 或更高版本后重试。
 - `模型检测失败`:向导只显示认证/端点/限流等错误类别，不显示密钥或供应商原始响应；修正后重新检测即可。

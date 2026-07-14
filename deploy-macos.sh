@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_REPO="git@github.com:SongDingQing/yutu6.git"
+DEFAULT_REPO="https://github.com/SongDingQing/yutu6.git"
 DEFAULT_REF="main"
 MIN_NODE_MAJOR=20
 
@@ -27,7 +27,7 @@ usage() {
 
 选项:
   --target PATH   目标目录（默认: 当前仓库或 ~/玉兔6工作区）
-  --repo REPO     克隆来源（默认: GitHub SSH 仓库）
+  --repo REPO     克隆来源（默认: GitHub HTTPS 仓库）
   --ref REF       克隆分支或标签（默认: main）
   --dry-run       只做预检并显示计划，不写文件、不安装软件
   --no-start      只部署文件，不启动本地控制台
@@ -100,7 +100,7 @@ command -v git >/dev/null 2>&1 || die "缺少 Git；请先运行 xcode-select --
 
 case "$REPO" in
   http://*@*|https://*@*)
-    die "拒绝包含凭据的仓库 URL；请使用 GitHub SSH 或无凭据 URL"
+    die "拒绝包含凭据的仓库 URL；请使用无凭据 HTTPS URL 或 GitHub SSH"
     ;;
 esac
 case "$REF" in
@@ -213,7 +213,7 @@ clone_workspace() {
   info "正在从 GitHub 克隆到临时目录（仓库地址不回显）"
   if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --single-branch --branch "$REF" "$REPO" "$candidate" \
     >/dev/null 2>&1; then
-    die "克隆失败；请确认网络、GitHub SSH 授权和 --ref 后重试"
+    die "克隆失败；请确认网络、仓库访问权限和 --ref 后重试"
   fi
   workspace_shape_ok "$candidate" || die "克隆内容不是预期的玉兔6仓库；目标目录保持不变"
   repo_is_dirty "$candidate" && die "新克隆意外出现脏状态；目标目录保持不变"
