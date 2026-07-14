@@ -44,7 +44,7 @@
       <div class="metric"><span>执行模型</span><b id="executorState">未检测</b></div>
       <div class="metric"><span>API 模型</span><b id="apiState">0</b></div>
     </div>
-    <div class="notice">先检测一个可执行 CLI，再至少连接一个 API 模型。API 密钥保存后不会重新显示。</div>
+    <div class="notice">至少检测一个可执行 CLI 即可进入工作区；API 模型可按需连接。API 密钥保存后不会重新显示。</div>
     <button class="action" id="toModels">开始配置</button>
   </section>
 
@@ -68,7 +68,7 @@
     <div class="section-head"><h2>完成初始化</h2><p>通过门禁后进入工作区</p></div>
     <div class="finish">
       <div id="executorCheck" class="check"><i>×</i><span>至少一个执行 CLI 已登录</span></div>
-      <div id="apiCheck" class="check"><i>×</i><span>至少一个 API 模型已连通</span></div>
+      <div id="apiCheck" class="check"><i>·</i><span>API 模型可选，但保存前必须真实连通</span></div>
       <div id="projectCheck" class="check"><i>·</i><span>项目部门可稍后继续添加</span></div>
       <button id="finishBtn" class="action" disabled>进入工作区</button>
       <div id="finishResult" class="result" role="status"></div>
@@ -142,7 +142,7 @@ async function refresh(){
   const req=setup.requirements||{};const apiCount=setup.providers.filter(p=>p.kind==='api'&&p.tested).length;
   $('#healthState').textContent='正常';$('#executorState').textContent=req.executorReady?'已就绪':'未就绪';$('#apiState').textContent=String(apiCount);
   $('#executorCheck').classList.toggle('ok',!!req.executorReady);$('#executorCheck i').textContent=req.executorReady?'✓':'×';
-  $('#apiCheck').classList.toggle('ok',!!req.apiReady);$('#apiCheck i').textContent=req.apiReady?'✓':'×';
+  $('#apiCheck').classList.toggle('ok',!!req.apiReady);$('#apiCheck i').textContent=req.apiReady?'✓':'·';
   $('#finishBtn').disabled=!req.ready;$('#overall').textContent=setup.completed?'已完成':req.ready?'可完成':'待配置';$('#overall').classList.toggle('ready',!!setup.completed||!!req.ready);
 }
 async function loadProjects(){

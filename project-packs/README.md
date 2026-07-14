@@ -18,4 +18,4 @@ node projects/控制台/tools/project-department.js create \
   --description "项目目标"
 ```
 
-项目创建后会得到独立的 `supervisor-<projectId>` 主管队列；项目专属能力可再由 HR 流程按需安装。
+项目创建后会得到独立的 `supervisor-<projectId>` 主管映射；队列文件系统在首个任务入队时才懒初始化。项目专属能力可再由 HR 流程按需安装。

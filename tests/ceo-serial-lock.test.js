@@ -112,6 +112,7 @@ async function main() {
     process.env.PROJECT_ROUTE_EVENT_WAKE_ENABLED = '1';
     process.env.PROJECT_ROUTE_ACTIVE_FALLBACK_MS = '1200';
     process.env.PROJECT_ROUTE_DISCOVERY_FALLBACK_MS = '100';
+    process.env.YUTU6_DONE_GATE_EXECUTE = '0';
 
     const { _test } = require('../projects/控制台/ceo-worker');
     const resumedSpec = _test.makeSpec({
@@ -510,13 +511,17 @@ async function main() {
     ]);
     assert.strictEqual(longDownstream.status, 'done');
     assert.strictEqual(longDownstream.entries[0].queueId, 'childLong');
-    assert(Date.now() - finishedAt < 900, 'project-route downstream wait should wake before the 1200ms fallback poll');
+    const eventWakeElapsedMs = Date.now() - finishedAt;
     const waitSummaryEvents = fs.readFileSync(path.join(artifactsDir, 'engine-events.jsonl'), 'utf8')
       .split(/\r?\n/)
       .filter(Boolean)
       .map(line => JSON.parse(line))
       .filter(e => e.type === 'project.route.wait.summary' && e.rootQueueId === 'rootLong');
     assert(waitSummaryEvents.some(e => e.eventWakeCount >= 1), 'project-route wait summary must record event wakeups');
+    assert(
+      eventWakeElapsedMs < 1100,
+      `project-route downstream event wake took ${eventWakeElapsedMs}ms and did not beat the 1200ms fallback poll`,
+    );
     Q.finish(artifactsDir, 'ceo', 'rootLong', 'done', { downstream: { downstreamQueueId: 'childLong' } });
 
     let fakeEngine = null;

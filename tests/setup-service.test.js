@@ -52,6 +52,9 @@ async function main() {
     const initial = Setup.status(opts);
     assert.strictEqual(initial.completed, false);
     assert.strictEqual(initial.requirements.ready, false);
+    assert.strictEqual(initial.providers.find(provider => provider.id === 'zhipu').model, 'GLM-4.7');
+    assert.strictEqual(initial.providers.find(provider => provider.id === 'minimax').model, 'MiniMax-M2.7');
+    assert.strictEqual(initial.providers.find(provider => provider.id === 'deepseek').model, 'deepseek-v4-flash');
     assert(!JSON.stringify(initial).includes(credentialFixture), 'status must never expose key values');
 
     const codex = await Setup.configureProvider('codex', {}, {
@@ -60,6 +63,7 @@ async function main() {
     });
     assert.strictEqual(codex.ok, true, JSON.stringify(codex));
     assert.strictEqual(Setup.status(opts).requirements.executorReady, true);
+    assert.strictEqual(Setup.status(opts).requirements.ready, true, 'one executable CLI must satisfy the workspace gate');
 
     const zhipu = await Setup.configureProvider('zhipu', providerPayload(
       credentialFixture,

@@ -714,15 +714,10 @@ async function selfCleanRuntimeArtifacts() {
 }
 
 function listProjects() {
-  const dir = path.join(WORKDIR, 'projects');
   try {
-    return fs.readdirSync(dir)
-      .filter(name => !name.startsWith('_'))
-      .filter(name => {
-        try { return fs.statSync(path.join(dir, name)).isDirectory(); }
-        catch (_) { return false; }
-      })
-      .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    const managed = ProjectDepartments.listProjectDepartments({ workspaceRoot: WORKDIR })
+      .map(project => project.projectId);
+    return [...new Set(['控制台', ...managed])].sort((a, b) => a.localeCompare(b, 'zh-CN'));
   } catch (_) {
     return ['控制台'];
   }

@@ -6,7 +6,9 @@ const { spawn } = require('child_process');
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_CONFIG_DIR = path.join(process.env.HOME || '.', '.config', 'yutu6');
+const DEFAULT_LEGACY_CONFIG_DIR = path.join(process.env.HOME || '.', '.config', 'yutu6-secrets');
 const API_TIMEOUT_MS = 20000;
+const CONFIG_BACKUP_LIMIT = 10;
 
 const PROVIDERS = Object.freeze({
   codex: {
@@ -20,17 +22,17 @@ const PROVIDERS = Object.freeze({
   zhipu: {
     id: 'zhipu', label: '智谱 Coding Plan', kind: 'api', protocol: 'openai', capability: 'reviewer',
     keyEnv: 'ZHIPU_API_KEY', baseEnv: 'ZHIPU_BASE_URL', modelEnv: 'ZHIPU_MODEL',
-    defaultBaseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', defaultModel: 'glm-5',
+    defaultBaseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', defaultModel: 'GLM-4.7',
   },
   minimax: {
     id: 'minimax', label: 'MiniMax', kind: 'api', protocol: 'anthropic', capability: 'reviewer',
     keyEnv: 'MINIMAX_API_KEY', baseEnv: 'MINIMAX_BASE_URL', modelEnv: 'MINIMAX_MODEL',
-    defaultBaseUrl: 'https://api.minimaxi.com/anthropic', defaultModel: 'MiniMax-M3',
+    defaultBaseUrl: 'https://api.minimaxi.com/anthropic', defaultModel: 'MiniMax-M2.7',
   },
   deepseek: {
     id: 'deepseek', label: 'DeepSeek', kind: 'api', protocol: 'openai', capability: 'reviewer',
     keyEnv: 'DEEPSEEK_API_KEY', baseEnv: 'DEEPSEEK_BASE_URL', modelEnv: 'DEEPSEEK_MODEL',
-    defaultBaseUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat',
+    defaultBaseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-flash',
   },
   openai_compatible: {
     id: 'openai_compatible', label: 'OpenAI 兼容接口', kind: 'api', protocol: 'openai', capability: 'reviewer',
@@ -49,7 +51,15 @@ function files(opts = {}) {
     dir,
     env: path.join(dir, 'providers.env'),
     state: path.join(dir, 'setup-state.json'),
+    backups: path.join(dir, 'backups'),
   };
+}
+
+function legacyFiles(opts = {}) {
+  const managedOverride = opts.configDir || process.env.YUTU6_CONFIG_DIR;
+  const siblingLegacy = managedOverride ? path.join(path.dirname(path.resolve(managedOverride)), 'yutu6-secrets') : '';
+  const dir = path.resolve(opts.legacyConfigDir || process.env.YUTU6_LEGACY_CONFIG_DIR || siblingLegacy || DEFAULT_LEGACY_CONFIG_DIR);
+  return { dir, env: path.join(dir, 'secrets.env') };
 }
 
 function ensurePrivateDir(dir) {
@@ -82,6 +92,58 @@ function writeAtomic(file, text, mode = 0o600) {
 function writeEnvFile(file, env) {
   const lines = Object.keys(env).sort().map((key) => `${key}=${env[key]}`);
   writeAtomic(file, lines.length ? `${lines.join('\n')}\n` : '', 0o600);
+}
+
+function copyPrivateFile(source, target) {
+  fs.writeFileSync(target, fs.readFileSync(source), { mode: 0o600, flag: 'wx' });
+  fs.chmodSync(target, 0o600);
+}
+
+function createConfigBackup(opts = {}, reason = 'config-change') {
+  const fp = files(opts);
+  ensurePrivateDir(fp.dir);
+  ensurePrivateDir(fp.backups);
+  const safeReason = String(reason || 'config-change').replace(/[^a-z0-9_-]+/gi, '-').slice(0, 40) || 'config-change';
+  const dir = fs.mkdtempSync(path.join(fp.backups, `${Date.now()}-${process.pid}-${safeReason}-`));
+  const id = path.basename(dir);
+  fs.chmodSync(dir, 0o700);
+  const snapshot = { id, env: fs.existsSync(fp.env), state: fs.existsSync(fp.state) };
+  if (snapshot.env) copyPrivateFile(fp.env, path.join(dir, 'providers.env'));
+  if (snapshot.state) copyPrivateFile(fp.state, path.join(dir, 'setup-state.json'));
+  writeAtomic(path.join(dir, 'manifest.json'), `${JSON.stringify(snapshot)}\n`, 0o600);
+  try {
+    const rows = fs.readdirSync(fp.backups, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .filter((entry) => entry.name !== id)
+      .map((entry) => ({ name: entry.name, mtimeMs: fs.statSync(path.join(fp.backups, entry.name)).mtimeMs }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const old of rows.slice(Math.max(0, CONFIG_BACKUP_LIMIT - 1))) {
+      fs.rmSync(path.join(fp.backups, old.name), { recursive: true, force: true });
+    }
+  } catch (_) {}
+  return { dir, snapshot };
+}
+
+function restoreConfigBackup(backup, opts = {}) {
+  const fp = files(opts);
+  for (const [key, name] of [['env', 'providers.env'], ['state', 'setup-state.json']]) {
+    const source = path.join(backup.dir, name);
+    if (backup.snapshot[key]) {
+      writeAtomic(fp[key], fs.readFileSync(source), 0o600);
+    } else {
+      try { fs.unlinkSync(fp[key]); } catch (_) {}
+    }
+  }
+}
+
+function withConfigTransaction(opts, reason, operation) {
+  const backup = createConfigBackup(opts, reason);
+  try {
+    return operation(backup);
+  } catch (err) {
+    try { restoreConfigBackup(backup, opts); } catch (_) {}
+    throw err;
+  }
 }
 
 function defaultState() {
@@ -250,35 +312,148 @@ async function configureProvider(id, input = {}, opts = {}) {
   const probe = await probeProvider(id, input, opts);
   if (!probe.ok) return probe;
 
-  if (def.kind === 'api') {
-    const fp = files(opts).env;
-    const env = readEnvFile(fp);
-    env[def.keyEnv] = cleanValue(input.apiKey || env[def.keyEnv], 'api_key', 4000);
-    env[def.baseEnv] = probe.baseUrl;
-    env[def.modelEnv] = probe.model;
-    writeEnvFile(fp, env);
-    if (opts.loadIntoProcess !== false) {
-      process.env[def.keyEnv] = env[def.keyEnv];
-      process.env[def.baseEnv] = env[def.baseEnv];
-      process.env[def.modelEnv] = env[def.modelEnv];
+  let envForProcess = null;
+  withConfigTransaction(opts, `configure-${id}`, () => {
+    if (def.kind === 'api') {
+      const fp = files(opts).env;
+      const env = readEnvFile(fp);
+      env[def.keyEnv] = cleanValue(input.apiKey || env[def.keyEnv], 'api_key', 4000);
+      env[def.baseEnv] = probe.baseUrl;
+      env[def.modelEnv] = probe.model;
+      writeEnvFile(fp, env);
+      envForProcess = env;
+      if (typeof opts.transactionHook === 'function') opts.transactionHook('after-env-write');
+    }
+
+    const state = readState(opts);
+    state.providers[id] = {
+      ok: true,
+      kind: def.kind,
+      capability: def.capability,
+      testedAt: new Date().toISOString(),
+      latencyMs: Number(probe.latencyMs || 0),
+    };
+    writeState(state, opts);
+    if (typeof opts.transactionHook === 'function') opts.transactionHook('after-state-write');
+  });
+  if (def.kind === 'api' && envForProcess && opts.loadIntoProcess !== false) {
+    process.env[def.keyEnv] = envForProcess[def.keyEnv];
+    process.env[def.baseEnv] = envForProcess[def.baseEnv];
+    process.env[def.modelEnv] = envForProcess[def.modelEnv];
+  }
+  return { ok: true, provider: id, kind: def.kind, code: 'configured', latencyMs: probe.latencyMs };
+}
+
+function providerEnvKeys(def) {
+  return [def && def.keyEnv, def && def.baseEnv, def && def.modelEnv].filter(Boolean);
+}
+
+function normalizedProviderEnv(source) {
+  const out = {};
+  for (const def of Object.values(PROVIDERS).filter(item => item.kind === 'api')) {
+    for (const key of providerEnvKeys(def)) {
+      if (source[key]) out[key] = source[key];
     }
   }
+  const openai = PROVIDERS.openai_compatible;
+  if (!out[openai.keyEnv] && source.OPENAI_API_KEY) out[openai.keyEnv] = source.OPENAI_API_KEY;
+  if (!out[openai.baseEnv] && source.OPENAI_BASE_URL) out[openai.baseEnv] = source.OPENAI_BASE_URL;
+  if (!out[openai.modelEnv] && source.OPENAI_MODEL) out[openai.modelEnv] = source.OPENAI_MODEL;
+  for (const def of Object.values(PROVIDERS).filter(item => item.kind === 'api')) {
+    if (!out[def.keyEnv]) continue;
+    if (!out[def.baseEnv] && def.defaultBaseUrl) out[def.baseEnv] = def.defaultBaseUrl;
+    if (!out[def.modelEnv] && def.defaultModel) out[def.modelEnv] = def.defaultModel;
+  }
+  return out;
+}
 
+function configuredApiProviderIds(env) {
+  return Object.values(PROVIDERS)
+    .filter(def => def.kind === 'api')
+    .filter(def => env[def.keyEnv]
+      && (env[def.baseEnv] || def.defaultBaseUrl)
+      && (env[def.modelEnv] || def.defaultModel))
+    .map(def => def.id);
+}
+
+function migrationState(state, source, providerIds) {
+  const now = new Date().toISOString();
+  const next = Object.assign(defaultState(), state, {
+    completed: true,
+    completedAt: state.completedAt || now,
+    migration: {
+      compatibility: true,
+      source,
+      migratedAt: now,
+      providerCount: providerIds.length,
+    },
+  });
+  for (const id of providerIds) {
+    const def = PROVIDERS[id];
+    if (!def || next.providers[id]) continue;
+    next.providers[id] = {
+      ok: false,
+      configured: true,
+      migrated: true,
+      kind: def.kind,
+      capability: def.capability,
+    };
+  }
+  return next;
+}
+
+function migrateLegacyConfig(opts = {}) {
+  const fp = files(opts);
+  const current = normalizedProviderEnv(readEnvFile(fp.env));
+  const currentProviders = configuredApiProviderIds(current);
   const state = readState(opts);
-  state.providers[id] = {
-    ok: true,
-    kind: def.kind,
-    capability: def.capability,
-    testedAt: new Date().toISOString(),
-    latencyMs: Number(probe.latencyMs || 0),
-  };
-  writeState(state, opts);
-  return { ok: true, provider: id, kind: def.kind, code: 'configured', latencyMs: probe.latencyMs };
+  if (state.completed) return { ok: true, completed: true, migrated: false, source: 'managed-state' };
+
+  if (currentProviders.length) {
+    withConfigTransaction(opts, 'adopt-managed-config', () => {
+      try { fs.chmodSync(fp.env, 0o600); } catch (_) {}
+      writeState(migrationState(state, 'managed-private-config', currentProviders), opts);
+    });
+    return { ok: true, completed: true, migrated: false, source: 'managed-private-config', providerCount: currentProviders.length };
+  }
+
+  const legacy = normalizedProviderEnv(readEnvFile(legacyFiles(opts).env));
+  const legacyProviders = configuredApiProviderIds(legacy);
+  if (!legacyProviders.length) return { ok: true, completed: false, migrated: false, source: 'none' };
+
+  withConfigTransaction(opts, 'migrate-legacy-config', () => {
+    writeEnvFile(fp.env, Object.assign({}, readEnvFile(fp.env), legacy));
+    if (typeof opts.transactionHook === 'function') opts.transactionHook('after-env-write');
+    writeState(migrationState(state, 'legacy-private-config', legacyProviders), opts);
+  });
+  return { ok: true, completed: true, migrated: true, source: 'legacy-private-config', providerCount: legacyProviders.length };
+}
+
+async function initializeLegacyInstallation(opts = {}) {
+  const migrated = migrateLegacyConfig(opts);
+  if (migrated.completed || opts.probeCodex === false) return migrated;
+  const probe = await commandProbe(PROVIDERS.codex, opts);
+  if (!probe.ok) return { ok: true, completed: false, migrated: false, source: 'none', codex: probe.code };
+  withConfigTransaction(opts, 'adopt-codex-login', () => {
+    const state = readState(opts);
+    state.providers.codex = {
+      ok: true,
+      kind: 'cli',
+      capability: 'executor',
+      testedAt: new Date().toISOString(),
+      latencyMs: 0,
+    };
+    const next = migrationState(state, 'codex-cli-login', []);
+    writeState(next, opts);
+  });
+  return { ok: true, completed: true, migrated: true, source: 'codex-cli-login', provider: 'codex' };
 }
 
 function legacyInstallationDetected(opts = {}) {
   if (/^(1|true|yes)$/i.test(String(process.env.YUTU6_SETUP_BYPASS || ''))) return true;
   if (/^(1|true|yes)$/i.test(String(process.env.YUTU6_SETUP_FORCE || ''))) return false;
+  if (configuredApiProviderIds(normalizedProviderEnv(readEnvFile(files(opts).env))).length) return true;
+  if (configuredApiProviderIds(normalizedProviderEnv(readEnvFile(legacyFiles(opts).env))).length) return true;
   const root = path.resolve(opts.workspaceRoot || path.join(__dirname, '../..'));
   const events = path.join(root, 'projects', '控制台', 'artifacts', 'engine-events.jsonl');
   try { return fs.statSync(events).size > 0; } catch (_) { return false; }
@@ -288,8 +463,7 @@ function requirements(state, opts = {}) {
   const rows = state.providers || {};
   const executorReady = Object.entries(rows).some(([id, row]) => row && row.ok && PROVIDERS[id] && PROVIDERS[id].capability === 'executor');
   const apiReady = Object.entries(rows).some(([id, row]) => row && row.ok && PROVIDERS[id] && PROVIDERS[id].kind === 'api');
-  const allowCliOnly = /^(1|true|yes)$/i.test(String(process.env.YUTU6_SETUP_ALLOW_CLI_ONLY || opts.allowCliOnly || ''));
-  return { executorReady, apiReady, allowCliOnly, ready: executorReady && (apiReady || allowCliOnly) };
+  return { executorReady, apiReady, ready: executorReady };
 }
 
 function publicProviders(state, opts = {}) {
@@ -316,12 +490,13 @@ function publicProviders(state, opts = {}) {
 function status(opts = {}) {
   const state = readState(opts);
   const legacy = !state.completed && legacyInstallationDetected(opts);
+  const compatibility = legacy || !!(state.migration && state.migration.compatibility);
   const req = requirements(state, opts);
   return {
     ok: true,
     schemaVersion: SCHEMA_VERSION,
     completed: !!state.completed || legacy,
-    mode: legacy ? 'legacy-compatible' : 'managed',
+    mode: compatibility ? 'legacy-compatible' : 'managed',
     requirements: req,
     providers: publicProviders(state, opts),
     configDir: configDir(opts).replace(process.env.HOME || '', '~'),
@@ -331,10 +506,10 @@ function status(opts = {}) {
 function completeSetup(opts = {}) {
   const state = readState(opts);
   const req = requirements(state, opts);
-  if (!req.ready) return { ok: false, code: !req.executorReady ? 'executor_required' : 'api_provider_required', requirements: req };
+  if (!req.ready) return { ok: false, code: 'executor_required', requirements: req };
   state.completed = true;
   state.completedAt = new Date().toISOString();
-  writeState(state, opts);
+  withConfigTransaction(opts, 'complete-setup', () => writeState(state, opts));
   return { ok: true, completed: true, requirements: req };
 }
 
@@ -349,6 +524,7 @@ function loadPrivateEnv(opts = {}) {
 module.exports = {
   PROVIDERS,
   files,
+  legacyFiles,
   readEnvFile,
   readState,
   status,
@@ -356,6 +532,10 @@ module.exports = {
   probeProvider,
   configureProvider,
   completeSetup,
+  migrateLegacyConfig,
+  initializeLegacyInstallation,
   legacyInstallationDetected,
   loadPrivateEnv,
+  createConfigBackup,
+  restoreConfigBackup,
 };

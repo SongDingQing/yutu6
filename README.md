@@ -47,9 +47,9 @@
 
 ## 内置部门与项目部门
 
-系统内置总裁办公室、董事会、质量与监管部、系统运营部、维修部和人力资源部，权威清单在 `shared/organization/system-departments.json`。
+系统内置秘书与 CEO、董事会、IT、质量运营、监管与记忆、洞察、交互运营、维修和人力资源部门。机器可校验的权威角色集合位于 `shared/organization/system-departments.json`；其中只引用 `shared/capability_registry/registry.json` 的能力 ID，不复制能力定义。
 
-业务项目不写死在系统核心。新建一个项目时会同时创建独立项目部门、项目主管身份和 `supervisor-<projectId>` 队列：
+业务项目不写死在系统核心。新建一个项目时会同时创建独立项目部门、项目主管映射和 `supervisor-<projectId>` 队列契约；队列目录只在首个任务入队时懒初始化。默认最多 32 个项目部门，每分钟最多创建 5 个，可通过环境变量收紧但不可无上限扩张：
 
 ```bash
 node projects/控制台/tools/project-department.js create \
@@ -76,7 +76,7 @@ git clone --branch main --single-branch https://github.com/SongDingQing/yutu6.gi
 
 脚本会启用仓库 Git hooks、启动本地控制台并打开首次配置向导。向导依次检测 Codex/可选 Claude CLI 登录态，并允许连接智谱 Coding Plan、MiniMax、DeepSeek 或其他 OpenAI 兼容接口。API key 只写入本机 `~/.config/yutu6/providers.env`(权限 600)，不会写入 Git、日志或网页回显。
 
-至少一个执行 CLI 和一个 API 模型检测通过后，向导才开放工作区。脚本可以安全重复执行；如果目标是脏工作树、非空的非仓库目录或不可识别的仓库，会直接失败且不覆盖内容。先只看执行计划:
+至少一个可执行 CLI 检测通过并完成基础配置后，向导才开放工作区；API 模型是可选扩展，但保存前会执行真实连通测试。老安装会按 `~/.config/yutu6/` → `~/.config/yutu6-secrets/` → Codex CLI 登录态的顺序安全兼容，不因升级锁死。脚本可以安全重复执行；如果目标是脏工作树、非空的非仓库目录或不可识别的仓库，会直接失败且不覆盖内容。改配置前会在 `~/.config/yutu6/backups/` 创建私有备份，部署中途失败会自动回滚。先只看执行计划:
 
 ```bash
 "$HOME/玉兔6工作区/deploy-macos.sh" --dry-run

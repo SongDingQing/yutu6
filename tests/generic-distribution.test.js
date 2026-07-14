@@ -60,14 +60,30 @@ function main() {
   assert(!/127\.0\.0\.1:10808/.test(critical), 'generic launchd configuration forces a developer proxy');
 
   const departments = JSON.parse(read(root, 'shared/organization/system-departments.json'));
+  const capabilityRegistry = JSON.parse(read(root, 'shared/capability_registry/registry.json'));
   const config = JSON.parse(read(root, 'projects/控制台/config.json'));
   assert(departments.departments.length >= 5, 'generic system departments missing');
+  assert.strictEqual(departments.capabilityRegistry.path, 'shared/capability_registry/registry.json');
+  const capabilityIds = new Set(capabilityRegistry.modules.map(item => item.id));
+  const listedRoles = [];
   for (const department of departments.departments) {
     assert.strictEqual(department.type, 'system');
     for (const role of department.roles) {
+      listedRoles.push(role);
       assert(config.roleRouting[role], 'system department role missing from roleRouting: ' + role);
+      const bindings = department.capabilityBindings && department.capabilityBindings[role];
+      assert(bindings && bindings.length, 'system role missing capability binding: ' + role);
+      for (const capabilityId of bindings) {
+        assert(capabilityIds.has(capabilityId), 'unknown capability registry id: ' + capabilityId);
+      }
     }
   }
+  assert.deepStrictEqual(
+    [...new Set(listedRoles)].sort(),
+    [...departments.requiredSystemRoles].sort(),
+    'required system role set does not match department roles',
+  );
+  assert.strictEqual(departments.projectDepartmentTemplate.queueInitialization, 'lazy-on-first-task');
 
   assert(fs.existsSync(path.join(root, 'project-packs', 'README.md')));
   assert(fs.existsSync(path.join(root, 'projects', '控制台', 'public', 'setup.html')));

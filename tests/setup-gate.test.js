@@ -20,9 +20,16 @@ function freePort() {
   });
 }
 
-function request(port, pathname) {
+function request(port, pathname, body = null) {
   return new Promise((resolve, reject) => {
-    const req = http.get({ hostname: '127.0.0.1', port, path: pathname }, (res) => {
+    const payload = body == null ? '' : JSON.stringify(body);
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: pathname,
+      method: body == null ? 'GET' : 'POST',
+      headers: body == null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) },
+    }, (res) => {
       let body = '';
       res.setEncoding('utf8');
       res.on('data', chunk => { body += chunk; });
@@ -30,6 +37,8 @@ function request(port, pathname) {
     });
     req.setTimeout(2500, () => req.destroy(new Error('request timeout')));
     req.once('error', reject);
+    if (payload) req.write(payload);
+    req.end();
   });
 }
 
@@ -62,6 +71,8 @@ async function main() {
   const configDir = path.join(temp, 'config');
   const artifacts = path.join(temp, 'artifacts');
   const port = await freePort();
+  const projectId = `api-fixture-${process.pid}`;
+  const projectDir = path.join(root, 'projects', projectId);
   const logs = [];
   const child = spawn(process.execPath, ['projects/控制台/server.js'], {
     cwd: root,
@@ -71,6 +82,7 @@ async function main() {
       YUTU6_CONFIG_DIR: configDir,
       CONSOLE_ARTIFACTS_DIR: artifacts,
       YUTU6_SETUP_FORCE: '1',
+      YUTU6_PROJECT_CREATE_RATE_LIMIT: '1',
       AUTO_OPTIMIZER_ENABLED: '0',
       SCHEDULED_PAGE_REVIEW_ENABLED: '0',
       INSIGHT_SCOUT_REPOS_ENABLED: '0',
@@ -93,13 +105,28 @@ async function main() {
     const status = JSON.parse((await request(port, '/api/setup/status')).body);
     assert.strictEqual(status.completed, false);
 
+    const escaped = await request(port, '/api/projects', { projectId: '../escape' });
+    assert.strictEqual(escaped.status, 400);
+    assert.match(JSON.parse(escaped.body).code, /^project_id_(?:reserved|invalid_characters)$/);
+    const created = await request(port, '/api/projects', { projectId, name: 'API 夹具' });
+    assert.strictEqual(created.status, 201, created.body);
+    assert.strictEqual(JSON.parse(created.body).project.supervisor.queueAgent, `supervisor-${projectId}`);
+    const runners = JSON.parse((await request(port, '/api/runners')).body);
+    assert(runners.queueAgents.some(agent => agent.id === `supervisor-${projectId}` && agent.role === 'supervisor'));
+    assert(!fs.existsSync(path.join(artifacts, 'queues', `supervisor-${projectId}`)), 'project queue must remain lazy until first task');
+    const repeated = await request(port, '/api/projects', { projectId });
+    assert.strictEqual(repeated.status, 200);
+    assert.strictEqual(JSON.parse(repeated.body).created, false);
+    const limited = await request(port, '/api/projects', { projectId: `${projectId}-second` });
+    assert.strictEqual(limited.status, 400);
+    assert.strictEqual(JSON.parse(limited.body).code, 'project_create_rate_limited');
+
     fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(configDir, 'setup-state.json'), JSON.stringify({
       schemaVersion: 1,
       completed: true,
       providers: {
         codex: { ok: true, kind: 'cli', capability: 'executor' },
-        zhipu: { ok: true, kind: 'api', capability: 'reviewer' },
       },
     }), { mode: 0o600 });
 
@@ -109,6 +136,7 @@ async function main() {
     console.log(JSON.stringify({ pass: true, suite: 'setup-gate' }));
   } finally {
     await stop(child);
+    fs.rmSync(projectDir, { recursive: true, force: true });
     fs.rmSync(temp, { recursive: true, force: true });
   }
 }

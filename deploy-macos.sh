@@ -17,6 +17,13 @@ NODE_PLANNED=0
 STAGING_DIR=""
 START_CONSOLE=1
 OPEN_BROWSER=1
+TARGET_CREATED=0
+TARGET_WAS_EMPTY=0
+DEPLOY_ROLLBACK_ARMED=0
+ROLLBACK_DIR=""
+PRIVATE_BACKUP_DIR=""
+PRIVATE_DIR_EXISTED=0
+STARTED_CONSOLE_PID=""
 
 usage() {
   cat <<'EOF'
@@ -38,6 +45,7 @@ usage() {
   - 不读取、复制或输出 .env、密钥、token、cookie、私钥。
   - 已有目标必须是本仓库的干净工作树；否则立即退出，不覆盖任何内容。
   - 新克隆先落到同级临时目录，校验通过后再原子移动到目标位置。
+  - 改配置前会创建私有备份；部署失败会恢复原配置并移除未完成的新克隆。
 EOF
 }
 
@@ -162,6 +170,7 @@ inspect_target() {
   [[ -d "$TARGET" ]] || die "目标已存在但不是目录；未做任何改动"
   if dir_is_empty "$TARGET"; then
     TARGET_KIND="empty"
+    TARGET_WAS_EMPTY=1
     return
   fi
   workspace_shape_ok "$TARGET" || die "目标是非空目录且不是可识别的玉兔6仓库；拒绝覆盖"
@@ -223,9 +232,103 @@ clone_workspace() {
     rmdir -- "$TARGET" || die "无法安全移除空目标目录"
   fi
   mv -- "$candidate" "$TARGET"
+  TARGET_CREATED=1
   rmdir -- "$STAGING_DIR" 2>/dev/null || true
   STAGING_DIR=""
   trap - EXIT HUP INT TERM
+}
+
+private_config_dir() {
+  printf '%s\n' "${YUTU6_CONFIG_DIR:-$HOME/.config/yutu6}"
+}
+
+backup_private_config() {
+  local private_dir backups_root stamp backup_count=0 old_backup name
+  private_dir="$(private_config_dir)"
+  [[ -d "$private_dir" ]] && PRIVATE_DIR_EXISTED=1
+  mkdir -p -- "$private_dir"
+  chmod 700 "$private_dir"
+  backups_root="$private_dir/backups"
+  mkdir -p -- "$backups_root"
+  chmod 700 "$backups_root"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  PRIVATE_BACKUP_DIR="$backups_root/deploy-$stamp"
+  mkdir -- "$PRIVATE_BACKUP_DIR"
+  chmod 700 "$PRIVATE_BACKUP_DIR"
+  for name in providers.env setup-state.json; do
+    if [[ -f "$private_dir/$name" ]]; then
+      cp -p -- "$private_dir/$name" "$PRIVATE_BACKUP_DIR/$name"
+      chmod 600 "$PRIVATE_BACKUP_DIR/$name"
+      : > "$PRIVATE_BACKUP_DIR/$name.present"
+      chmod 600 "$PRIVATE_BACKUP_DIR/$name.present"
+    fi
+  done
+  while IFS= read -r old_backup; do
+    backup_count=$((backup_count + 1))
+    if (( backup_count > 10 )); then rm -rf -- "$old_backup"; fi
+  done < <(find "$backups_root" -mindepth 1 -maxdepth 1 -type d -name 'deploy-*' -print | sort -r)
+}
+
+restore_private_config() {
+  local private_dir name
+  private_dir="$(private_config_dir)"
+  [[ -n "$PRIVATE_BACKUP_DIR" && -d "$PRIVATE_BACKUP_DIR" ]] || return 0
+  for name in providers.env setup-state.json; do
+    if [[ -f "$PRIVATE_BACKUP_DIR/$name.present" ]]; then
+      cp -p -- "$PRIVATE_BACKUP_DIR/$name" "$private_dir/$name"
+      chmod 600 "$private_dir/$name"
+    else
+      rm -f -- "$private_dir/$name"
+    fi
+  done
+  rm -rf -- "$PRIVATE_BACKUP_DIR"
+  rmdir -- "$private_dir/backups" 2>/dev/null || true
+  if (( PRIVATE_DIR_EXISTED == 0 )); then rmdir -- "$private_dir" 2>/dev/null || true; fi
+}
+
+arm_deploy_rollback() {
+  local hooks_path
+  ROLLBACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/yutu6-deploy-rollback.XXXXXX")"
+  chmod 700 "$ROLLBACK_DIR"
+  if hooks_path="$(git -C "$TARGET" config --local --get core.hooksPath 2>/dev/null)"; then
+    printf '%s\n' "$hooks_path" > "$ROLLBACK_DIR/hooks-path.before"
+  else
+    : > "$ROLLBACK_DIR/hooks-path.absent"
+  fi
+  chmod 600 "$ROLLBACK_DIR"/*
+  backup_private_config
+  DEPLOY_ROLLBACK_ARMED=1
+  trap 'rollback_deploy $?' EXIT
+  trap 'rollback_deploy 130' HUP INT TERM
+}
+
+rollback_deploy() {
+  local code="$1"
+  trap - EXIT HUP INT TERM
+  if (( DEPLOY_ROLLBACK_ARMED )) && (( code != 0 )); then
+    if [[ -n "$STARTED_CONSOLE_PID" ]] && kill -0 "$STARTED_CONSOLE_PID" 2>/dev/null; then
+      kill "$STARTED_CONSOLE_PID" 2>/dev/null || true
+    fi
+    restore_private_config || true
+    if (( TARGET_CREATED )); then
+      rm -rf -- "$TARGET"
+      if (( TARGET_WAS_EMPTY )); then mkdir -p -- "$TARGET"; fi
+    elif [[ -f "$ROLLBACK_DIR/hooks-path.absent" ]]; then
+      git -C "$TARGET" config --local --unset-all core.hooksPath 2>/dev/null || true
+    else
+      git -C "$TARGET" config --local core.hooksPath "$(<"$ROLLBACK_DIR/hooks-path.before")" 2>/dev/null || true
+    fi
+    info "部署失败，已恢复部署前配置"
+  fi
+  [[ -n "$ROLLBACK_DIR" ]] && rm -rf -- "$ROLLBACK_DIR"
+  exit "$code"
+}
+
+commit_deploy() {
+  DEPLOY_ROLLBACK_ARMED=0
+  trap - EXIT HUP INT TERM
+  [[ -n "$ROLLBACK_DIR" ]] && rm -rf -- "$ROLLBACK_DIR"
+  ROLLBACK_DIR=""
 }
 
 console_probe() {
@@ -257,6 +360,7 @@ start_console() {
     nohup env PORT="$port" YUTU6_CONFIG_DIR="$private_dir" \
       "$NODE_BIN" "$TARGET/projects/控制台/server.js" >>"$log_file" 2>&1 &
     pid=$!
+    STARTED_CONSOLE_PID="$pid"
     printf '%s\n' "$pid" > "$pid_file"
     chmod 600 "$pid_file" "$log_file" 2>/dev/null || true
     for _ in {1..45}; do
@@ -312,8 +416,15 @@ case "$TARGET_KIND" in
     ;;
 esac
 
+arm_deploy_rollback
 git -C "$TARGET" config --local core.hooksPath .githooks
 "$NODE_BIN" --check "$TARGET/projects/控制台/server.js" >/dev/null
+if [[ -f "$TARGET/projects/控制台/tools/setup-preflight.js" ]]; then
+  info "正在安全检查旧版私有配置与 Codex 登录态"
+  YUTU6_CONFIG_DIR="$(private_config_dir)" \
+    "$NODE_BIN" "$TARGET/projects/控制台/tools/setup-preflight.js" >/dev/null || \
+    die "旧配置迁移失败；已启动自动回滚"
+fi
 
 info "部署完成；仓库工作树保持干净，本地 Git hooks 已启用"
 if (( START_CONSOLE )); then
@@ -322,3 +433,4 @@ else
   printf '[yutu6-deploy] 启动控制台: cd %q && bash %q\n' \
     "$TARGET" "projects/控制台/start.sh"
 fi
+commit_deploy

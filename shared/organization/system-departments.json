@@ -1,49 +1,128 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "description": "玉兔6 通用发行版内置系统部门；项目部门由项目模板动态创建。",
+  "capabilityRegistry": {
+    "path": "shared/capability_registry/registry.json",
+    "bindingField": "capabilityBindings",
+    "policy": "部门只引用能力注册表 ID，不复制能力定义或密钥。"
+  },
+  "requiredSystemRoles": [
+    "secretary",
+    "orchestrator",
+    "board_deepseek",
+    "board_glm52",
+    "board_claude",
+    "board_opus48",
+    "quality_ops",
+    "governance",
+    "memory_officer",
+    "it_engineer",
+    "insight-scout",
+    "ui_optimizer",
+    "gui_desktop_control",
+    "repair-lead",
+    "repair",
+    "hr_manager",
+    "hr_specialist"
+  ],
   "departments": [
     {
       "id": "executive-office",
-      "name": "总裁办公室",
+      "name": "秘书与 CEO 办公室",
       "type": "system",
-      "roles": ["secretary", "orchestrator"]
+      "roles": ["secretary", "orchestrator"],
+      "capabilityBindings": {
+        "secretary": ["multi-agent-collaboration-contract", "instruction-expansion-router"],
+        "orchestrator": ["multi-agent-collaboration-contract", "instruction-expansion-router"]
+      }
     },
     {
       "id": "board",
       "name": "董事会",
       "type": "system",
       "roles": ["board_deepseek", "board_glm52", "board_claude", "board_opus48"],
+      "capabilityBindings": {
+        "board_deepseek": ["multi-agent-collaboration-contract"],
+        "board_glm52": ["multi-agent-collaboration-contract"],
+        "board_claude": ["multi-agent-collaboration-contract"],
+        "board_opus48": ["multi-agent-collaboration-contract"]
+      },
       "optionalProviders": true
     },
     {
-      "id": "quality-governance",
-      "name": "质量与监管部",
+      "id": "quality-operations",
+      "name": "质量运营部",
       "type": "system",
-      "roles": ["quality_ops", "governance", "memory_officer"]
+      "roles": ["quality_ops"],
+      "capabilityBindings": {
+        "quality_ops": ["multi-agent-collaboration-contract", "self-reflection-optimizer"]
+      }
     },
     {
-      "id": "operations",
-      "name": "系统运营部",
+      "id": "governance",
+      "name": "监管与记忆部",
       "type": "system",
-      "roles": ["it_engineer", "insight-scout", "ui_optimizer", "gui_desktop_control"]
+      "roles": ["governance", "memory_officer"],
+      "capabilityBindings": {
+        "governance": ["multi-agent-collaboration-contract", "self-reflection-optimizer"],
+        "memory_officer": ["multi-agent-collaboration-contract"]
+      }
+    },
+    {
+      "id": "information-technology",
+      "name": "IT 部",
+      "type": "system",
+      "roles": ["it_engineer"],
+      "capabilityBindings": {
+        "it_engineer": ["multi-agent-collaboration-contract"]
+      }
+    },
+    {
+      "id": "insights",
+      "name": "洞察部",
+      "type": "system",
+      "roles": ["insight-scout"],
+      "capabilityBindings": {
+        "insight-scout": ["multi-agent-collaboration-contract", "instruction-expansion-router"]
+      }
+    },
+    {
+      "id": "experience-operations",
+      "name": "交互运营部",
+      "type": "system",
+      "roles": ["ui_optimizer", "gui_desktop_control"],
+      "capabilityBindings": {
+        "ui_optimizer": ["multi-agent-collaboration-contract", "self-reflection-optimizer"],
+        "gui_desktop_control": ["multi-agent-collaboration-contract", "peekaboo-desktop-control"]
+      }
     },
     {
       "id": "repair",
       "name": "维修部",
       "type": "system",
-      "roles": ["repair-lead", "repair"]
+      "roles": ["repair-lead", "repair"],
+      "capabilityBindings": {
+        "repair-lead": ["multi-agent-collaboration-contract", "self-reflection-optimizer"],
+        "repair": ["multi-agent-collaboration-contract"]
+      }
     },
     {
       "id": "human-resources",
       "name": "人力资源部",
       "type": "system",
-      "roles": ["hr_manager", "hr_specialist"]
+      "roles": ["hr_manager", "hr_specialist"],
+      "capabilityBindings": {
+        "hr_manager": ["multi-agent-collaboration-contract"],
+        "hr_specialist": ["multi-agent-collaboration-contract"]
+      }
     }
   ],
   "projectDepartmentTemplate": {
     "supervisorRole": "supervisor",
     "queuePrefix": "supervisor-",
+    "queueInitialization": "lazy-on-first-task",
     "staffTemplates": ["worker_code", "worker_narrow", "frontend_designer"],
+    "capabilityIds": ["multi-agent-collaboration-contract"],
     "requiredFiles": ["department.json", "brief.md", "status.md", "tasks/.gitkeep", "artifacts/.gitkeep"]
   }
 }

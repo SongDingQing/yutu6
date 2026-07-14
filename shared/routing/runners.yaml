@@ -74,5 +74,5 @@ runners:
 policy:
   authority: task_and_result_envelopes
   secret_source: ~/.config/yutu6/providers.env
-  setup_gate: executor_plus_one_api_provider
+  setup_gate: at_least_one_executor_model
   project_agents: generated_per_project_department

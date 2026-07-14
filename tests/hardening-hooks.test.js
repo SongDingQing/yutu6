@@ -101,7 +101,9 @@ function testRegistryOutputFalseCanBlock() {
 
 function testEngineStopsOnBlockingHook() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hardening-hook-flow-'));
+  const changedFixture = `.hardening-hook-change-${process.pid}-${Date.now()}.tmp`;
   try {
+    fs.writeFileSync(path.join(repoRoot, changedFixture), 'untracked fixture change\n');
     const events = [];
     const registry = new HookRegistry();
     registry.register('task.true_done', {
@@ -134,14 +136,15 @@ function testEngineStopsOnBlockingHook() {
       hooks: registry,
       vars: { goal: '修复控制台源码', acceptance: '必须有真实 changed_files 和测试证据' },
       runner(node, ctx) {
-        if (node.id === 'implement') return { vars: { implementation: implementationWithReceipt(ctx, ['tests/hardening-hooks.test.js']) } };
-        return { vars: { review: review(['tests/hardening-hooks.test.js']) } };
+        if (node.id === 'implement') return { vars: { implementation: implementationWithReceipt(ctx, [changedFixture]) } };
+        return { vars: { review: review([changedFixture]) } };
       },
     });
     assert.strictEqual(result.ok, false);
     assert.match(result.reason, /hook_gate_failed/);
     assert(events.some(e => e.type === 'hook.blocked' && e.hookId === 'fixture.block.true_done'));
   } finally {
+    try { fs.unlinkSync(path.join(repoRoot, changedFixture)); } catch (_) {}
     fs.rmSync(root, { recursive: true, force: true });
   }
 }

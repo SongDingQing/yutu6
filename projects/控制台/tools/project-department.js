@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 
+const path = require('path');
 const Departments = require('../project-departments');
+
+function departmentOptions() {
+  return process.env.YUTU6_WORKSPACE_ROOT
+    ? { workspaceRoot: path.resolve(process.env.YUTU6_WORKSPACE_ROOT) }
+    : {};
+}
 
 function value(args, name) {
   const index = args.indexOf(name);
@@ -21,7 +28,7 @@ function main() {
   const args = process.argv.slice(2);
   const command = args[0];
   if (command === 'list') {
-    process.stdout.write(`${JSON.stringify({ ok: true, projects: Departments.listProjectDepartments() }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ok: true, projects: Departments.listProjectDepartments(departmentOptions()) }, null, 2)}\n`);
     return;
   }
   if (command === 'create') {
@@ -29,7 +36,7 @@ function main() {
       projectId: value(args, '--id'),
       name: value(args, '--name'),
       description: value(args, '--description'),
-    });
+    }, departmentOptions());
     process.stdout.write(`${JSON.stringify({ ok: true, created: result.created, project: result.project }, null, 2)}\n`);
     return;
   }

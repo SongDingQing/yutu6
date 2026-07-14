@@ -4,6 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const MANIFEST_NAME = 'department.json';
+const DEFAULT_MAX_PROJECTS = 32;
+const DEFAULT_RATE_LIMIT = 5;
+const DEFAULT_RATE_WINDOW_MS = 60 * 1000;
+const creationAttempts = new Map();
 
 function normalizeProjectId(value) {
   const id = String(value == null ? '' : value).normalize('NFKC').trim();
@@ -50,10 +54,37 @@ function departmentManifest(id, input = {}) {
     description,
     type: 'project',
     supervisor: { role: 'supervisor', queueAgent: `supervisor-${id}`, scopedToProject: true },
+    queueInitialization: 'lazy-on-first-task',
+    capabilityRegistry: {
+      path: 'shared/capability_registry/registry.json',
+      capabilities: ['multi-agent-collaboration-contract'],
+    },
     staffTemplates: ['worker_code', 'worker_narrow', 'frontend_designer'],
     status: 'active',
     createdAt: new Date().toISOString(),
   };
+}
+
+function positiveLimit(value, fallback, maximum) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1) return fallback;
+  return Math.min(number, maximum);
+}
+
+function enforceCreationPolicy(p, opts = {}) {
+  const maxProjects = positiveLimit(opts.maxProjects || process.env.YUTU6_MAX_PROJECTS, DEFAULT_MAX_PROJECTS, 1000);
+  if (listProjectDepartments(opts).length >= maxProjects) throw new Error('project_limit_reached');
+
+  const rateLimit = positiveLimit(opts.rateLimit || process.env.YUTU6_PROJECT_CREATE_RATE_LIMIT, DEFAULT_RATE_LIMIT, 100);
+  const windowMs = positiveLimit(opts.rateWindowMs || process.env.YUTU6_PROJECT_CREATE_RATE_WINDOW_MS, DEFAULT_RATE_WINDOW_MS, 60 * 60 * 1000);
+  const now = Number(opts.now == null ? Date.now() : opts.now);
+  const attempts = (creationAttempts.get(p.root) || []).filter(timestamp => now - timestamp < windowMs);
+  if (attempts.length >= rateLimit) {
+    creationAttempts.set(p.root, attempts);
+    throw new Error('project_create_rate_limited');
+  }
+  attempts.push(now);
+  creationAttempts.set(p.root, attempts);
 }
 
 function createProjectDepartment(input = {}, opts = {}) {
@@ -64,11 +95,25 @@ function createProjectDepartment(input = {}, opts = {}) {
     return { ok: true, created: false, idempotent: true, project: existing, path: p.projectDir };
   }
   if (fs.existsSync(p.projectDir)) throw new Error('project_directory_exists_without_manifest');
+  enforceCreationPolicy(p, opts);
 
   const manifest = departmentManifest(p.id, input);
-  fs.mkdirSync(path.join(p.projectDir, 'tasks'), { recursive: true });
-  fs.mkdirSync(path.join(p.projectDir, 'artifacts'), { recursive: true });
+  fs.mkdirSync(p.projectsDir, { recursive: true });
+  let ownsProjectDir = false;
   try {
+    try {
+      fs.mkdirSync(p.projectDir);
+      ownsProjectDir = true;
+    } catch (err) {
+      if (!err || err.code !== 'EEXIST') throw err;
+      const raced = readJson(p.manifest);
+      if (raced && raced.projectId === p.id && raced.type === 'project') {
+        return { ok: true, created: false, idempotent: true, project: raced, path: p.projectDir };
+      }
+      throw new Error('project_creation_in_progress');
+    }
+    fs.mkdirSync(path.join(p.projectDir, 'tasks'));
+    fs.mkdirSync(path.join(p.projectDir, 'artifacts'));
     writeExclusive(p.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
     writeExclusive(path.join(p.projectDir, 'brief.md'), [
       `# ${manifest.name} · 项目简报`, '',
@@ -86,7 +131,9 @@ function createProjectDepartment(input = {}, opts = {}) {
     writeExclusive(path.join(p.projectDir, 'tasks', '.gitkeep'), '');
     writeExclusive(path.join(p.projectDir, 'artifacts', '.gitkeep'), '');
   } catch (err) {
-    try { fs.rmSync(p.projectDir, { recursive: true, force: true }); } catch (_) {}
+    if (ownsProjectDir) {
+      try { fs.rmSync(p.projectDir, { recursive: true, force: true }); } catch (_) {}
+    }
     throw err;
   }
   return { ok: true, created: true, idempotent: false, project: manifest, path: p.projectDir };
@@ -117,4 +164,5 @@ module.exports = {
   createProjectDepartment,
   listProjectDepartments,
   readSystemDepartments,
+  enforceCreationPolicy,
 };
