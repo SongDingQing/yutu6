@@ -45,6 +45,39 @@
 - `shared/routing/`:模型路由(订阅→API→Ollama 兜底)、runner 注册表(**Hermes=默认对话 runner**、Codex=最强推理执行)、声明式流程图。
 - `shared/capability_registry/`:旧机 `~/.codex` 的模块/skill 落到新机的目录;2 个核心模块已转入,其余待从旧机拷。
 
+## 新 Mac 一键部署
+
+前置条件:
+
+- macOS，且已完成 `xcode-select --install`（提供 Git）。
+- 当前用户已配置该私有仓库的 GitHub SSH 访问；部署脚本不会读取、复制或提示输入凭据。
+- 已安装 Node.js 20+；如果缺少 Node.js 但已有 Homebrew，脚本会自动执行 `brew install node`。
+
+在新机终端执行一条命令:
+
+```bash
+git clone --branch main --single-branch git@github.com:SongDingQing/yutu6.git "$HOME/玉兔6工作区" && "$HOME/玉兔6工作区/deploy-macos.sh"
+```
+
+脚本会启用仓库 Git hooks、检查控制台入口，并保持仓库工作树干净。它可以安全重复执行；如果目标是脏工作树、非空的非仓库目录或不可识别的仓库，会直接失败且不覆盖内容。先只看执行计划:
+
+```bash
+"$HOME/玉兔6工作区/deploy-macos.sh" --dry-run
+```
+
+部署后启动控制台:
+
+```bash
+cd "$HOME/玉兔6工作区" && bash projects/控制台/start.sh
+```
+
+常见失败处理:
+
+- `缺少 Git`:运行 `xcode-select --install`，安装完成后重新执行一键命令。
+- `克隆失败`:用 `ssh -T git@github.com` 检查 GitHub SSH 授权；脚本不会回显仓库凭据。
+- `目标工作树有未提交或未跟踪改动`:先自行提交、转移或清理本地改动；脚本不会代替用户处理。
+- `Node.js 版本过旧`:升级到 Node.js 20 或更高版本后重试。
+
 ## 玉兔系列 · 版本沿革
 
 - **玉兔2** 旧 Mac mini 上一代(退冷备/参照)· **玉兔3–5** 中间各代 · **玉兔6** 当前代(本工作区,新 Mac mini)。
@@ -52,4 +85,4 @@
 
 ## 迁移状态
 
-搬家进度与机器侧待办见 `projects/_迁移/`(由总管维护)。原始搬家包:`玉兔搬家部署包/`(纸箱,长期知识已抽进 knowledge/ 与 shared/ 后可归档)。
+旧搬家包与 Claude Code 交接快照已归档出仓库；新机器统一使用根目录 `deploy-macos.sh` 从 GitHub 当前 `main` 部署。
