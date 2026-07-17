@@ -21,4 +21,3 @@ Use this module before installing any agent-private Meowa skill or copying API k
 
 - Do not print, commit, paste, or store `MEOWART_API_KEY` outside the unified local secrets file.
 - Report only key names, balance, command status, and artifact paths.
-- Starlaid is excluded unless the user explicitly confirms otherwise.

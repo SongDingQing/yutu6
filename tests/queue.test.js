@@ -79,6 +79,8 @@ function main() {
       progress_event: 'edge.take',
       progress_node: 'review',
       progress_task: 'old-task',
+      engine_pid: 424242,
+      lease_ms: 90000,
     });
     assert.strictEqual(pausedRunning.status, 'paused');
     assert.strictEqual(pausedRunning.reason, 'needs human');
@@ -95,6 +97,8 @@ function main() {
     assert.strictEqual(resumedRunningPause.progress_event, undefined);
     assert.strictEqual(resumedRunningPause.progress_node, undefined);
     assert.strictEqual(resumedRunningPause.progress_task, undefined);
+    assert.strictEqual(resumedRunningPause.engine_pid, undefined, 'resume 必须清 engine_pid(与 requeue 对齐,消除三份黑名单 drift)');
+    assert.strictEqual(resumedRunningPause.lease_ms, undefined, 'resume 必须清 lease_ms(与 requeue 对齐)');
     Q.cancel(root, agent, 'run-pause');
 
     Q.enqueue(root, agent, { goal: 'blocked by current resource lock' }, { id: 'blocked', priority: 1 });
@@ -125,6 +129,25 @@ function main() {
     assert.strictEqual(requeued.progress_node, undefined);
     assert.strictEqual(requeued.progress_task, undefined);
     assert.deepStrictEqual(ids(Q.list(root, agent).queued), ['retry']);
+
+    // touchLease/touchProgress 不得复活已迁出/损坏的 running 文件(TOCTOU 幽灵 running 防护)。
+    Q.enqueue(root, agent, { goal: 'heartbeat race' }, { id: 'hb-race', priority: 12 });
+    Q.claim(root, agent, { match: entry => entry.id === 'hb-race' });
+    // 模拟"心跳读到 existsSync=true 后,任务被并发 finish 迁走":直接删掉 running 文件。
+    const hbRunning = path.join(root, 'queues', agent, 'running', 'hb-race.json');
+    fs.unlinkSync(hbRunning);
+    assert.strictEqual(Q.touchProgress(root, agent, 'hb-race', { progress_at: 'x' }), null,
+      'running 文件已迁走时 touchProgress 必须返回 null');
+    assert.strictEqual(fs.existsSync(hbRunning), false, 'touchProgress 不得重建幽灵 running 文件');
+    assert.strictEqual(Q.touchLease(root, agent, 'hb-race', { owner: 'w', ownerPid: 1 }), null,
+      'running 文件已迁走时 touchLease 必须返回 null');
+    assert.strictEqual(fs.existsSync(hbRunning), false, 'touchLease 不得重建幽灵 running 文件');
+    // 损坏(存在但无法解析)的 running 文件:不得用两字段桩覆盖、丢掉任务数据。
+    fs.writeFileSync(hbRunning, '{ not json');
+    assert.strictEqual(Q.touchProgress(root, agent, 'hb-race', { progress_at: 'y' }), null,
+      'running 文件损坏时 touchProgress 必须返回 null 而非覆盖');
+    assert.strictEqual(fs.readFileSync(hbRunning, 'utf8'), '{ not json', 'touchProgress 不得覆盖损坏文件');
+    fs.unlinkSync(hbRunning);
 
     Q.enqueue(root, agent, { goal: 'stale queued runtime metadata' }, { id: 'stale-queued', priority: 15 });
     const queueDir = path.join(root, 'queues', agent);
@@ -173,6 +196,25 @@ function main() {
     assert(raceClaimed && raceClaimed.id === 'race-b', 'claim 竞争失败必须继续扫下一个待领取项');
     Q.complete(root, agent, 'race-b', true);
     fs.unlinkSync(path.join(queueDir, 'running', 'race-a.json'));
+
+    // setPriority/steer 对损坏文件必须返回 null 而非抛错(与 pause/cancel/resume 的 null 守卫对齐,不覆盖文件)。
+    Q.enqueue(root, agent, { goal: 'corrupt guard' }, { id: 'corrupt', priority: 30 });
+    const corruptFile = fs.readdirSync(queueDir).find(file => file.endsWith('-corrupt.json'));
+    const corruptPath = path.join(queueDir, corruptFile);
+    fs.writeFileSync(corruptPath, '{ not json');
+    assert.strictEqual(Q.setPriority(root, agent, 'corrupt', 5), null, 'setPriority 遇损坏 queued 文件必须返回 null');
+    assert.strictEqual(Q.steer(root, agent, 'corrupt', 'hi'), null, 'steer 遇损坏 queued 文件必须返回 null');
+    assert.strictEqual(fs.readFileSync(corruptPath, 'utf8'), '{ not json', 'guard 不得覆盖损坏文件');
+    fs.unlinkSync(corruptPath);
+
+    // steer 遇损坏 running 文件必须返回 null 而非抛错/复活幽灵 running 文件。
+    Q.enqueue(root, agent, { goal: 'steer corrupt running' }, { id: 'steer-corrupt', priority: 12 });
+    Q.claim(root, agent, { match: entry => entry.id === 'steer-corrupt' });
+    const steerRun = path.join(queueDir, 'running', 'steer-corrupt.json');
+    fs.writeFileSync(steerRun, '{ not json');
+    assert.strictEqual(Q.steer(root, agent, 'steer-corrupt', 'late'), null, 'running 文件损坏时 steer 必须返回 null');
+    assert.strictEqual(fs.readFileSync(steerRun, 'utf8'), '{ not json', 'steer 不得覆盖损坏 running 文件');
+    fs.unlinkSync(steerRun);
 
     Q.enqueue(root, agent, { goal: 'first drag item' }, { id: 'drag-a', priority: 80 });
     Q.enqueue(root, agent, { goal: 'second drag item' }, { id: 'drag-b', priority: 5 });

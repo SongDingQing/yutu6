@@ -153,6 +153,26 @@ python3 skills/meowart_api.py skill-doc-status --check
 `~/.cache/meowa-skills/game-assets/docs/`。如果网络不可用、接口异常或校验失败，
 会自动回退到当前 bundled `meowart_api.md`。
 
+## 2.3 Agent / Skill 工作流
+
+这条流程来自 B 站 Meowa Skill 教程的本地取证笔记：
+`projects/Simulaid/artifacts/meowa-bv1x8g26heyR-source/source-evidence.md`。
+
+1. 先装载 Meowa Skill，再接 API key。API key 由用户在 Meowa 网站创建，
+   只放环境变量或本地忽略的 `.env`，不要写入聊天、日志、命令历史或仓库。
+2. 让 Agent 先读项目，再生成素材。至少确认素材风格、文件命名、像素尺寸、
+   动画帧数、导入目录和代码替换点。
+3. 先查模板/预设，再生成。像素图看 `pixel-gen-template-info`，地图先
+   `map-reference-search`，UI 图集用 `ui-gen-run`，音效/BGM 用对应音频命令。
+4. 高质量生成不要盲目抽卡。如果结果尺寸、主体或风格不对，先换更贴近的
+   template/preset，再继续生成。
+5. 成本敏感任务先做一个样本，记录 job id、输出目录和验收结果；样本过关后
+   再批量生成。
+6. 生成后先验收再接入：检查尺寸、透明背景、像素采样、循环动画帧注册、
+   contact sheet、音频时长/循环点和游戏加载路径。
+7. 接入游戏时只替换已通过验收的候选，并在任务状态或 artifact 中记录命令、
+   产物路径和回滚点。
+
 ## 3. Credits
 
 ```bash

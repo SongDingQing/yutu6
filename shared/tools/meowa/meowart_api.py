@@ -1376,7 +1376,8 @@ def build_gemini_generate_content_contents(*, text: str = "", image_files: list[
             parts.append(image_file_to_inline_data_part(raw_path))
     if not parts:
         raise ValueError("gemini-generate-content requires --text or at least one --image-file")
-    return [{"parts": parts}]
+    # 修复(2026-07-07):gemini-3.1-flash-image-preview 严格要求 contents 带 role,缺失会 400 "Please use a valid role"。
+    return [{"role": "user", "parts": parts}]
 
 
 def gemini_proxy_request(

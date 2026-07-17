@@ -49,7 +49,7 @@ if (/# 任务:review/.test(prompt)) {
 } else if (isImplement) {
   payload = { implementation: { done: true, summary: 'concurrency smoke implementation ok', changed_files: [], logic_chain: { summary: 'concurrency smoke implementation ok', current_status: 'done', actions: ['ran concurrency smoke fixture'], evidence: [{ kind: 'test', command: 'node projects/控制台/tools/concurrency-smoke-test.js', exit_code: 0, summary: 'concurrency smoke fixture evidence' }], tests: [{ command: 'node projects/控制台/tools/concurrency-smoke-test.js', exit_code: 0, summary: 'concurrency smoke fixture' }], conclusion: 'concurrency smoke complete' } } };
 } else {
-  payload = { orchestrator: { projectId: '控制台', summary: 'concurrency smoke route ok', acceptance: 'ok' } };
+  payload = { orchestrator: { projectId: '控制台', summary: 'concurrency smoke route ok', acceptance: [{ text: 'concurrency smoke acceptance', scope: 'project/控制台' }] } };
 }
 setTimeout(() => {
   process.stdout.write('concurrency smoke ok\\n\\n\\\`\\\`\\\`json\\n' + JSON.stringify(payload) + '\\n\\\`\\\`\\\`\\n');
@@ -107,7 +107,7 @@ function enqueueSupervisor(id, goal, resourceDomains) {
     projectId: '控制台',
     scopedToProject: true,
     goal,
-    bounds: 'concurrency smoke only; Starlaid excluded; no secrets',
+    bounds: 'concurrency smoke only; no secrets',
     acceptance: 'review-loop completes',
     resourceDomains,
     useOrchestrator: false,

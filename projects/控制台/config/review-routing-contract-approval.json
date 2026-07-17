@@ -1,0 +1,13 @@
+{
+  "schema": "review-routing-contract-approval@1",
+  "feature": "review-routing-contract-v1",
+  "status": "not_authorized",
+  "ownerApproved": false,
+  "approvedBy": null,
+  "approvedAt": null,
+  "taskId": "cr-1784188730576-9502ee93",
+  "approvedScope": [],
+  "rollbackPlan": "Set YUTU6_REVIEW_ROUTING_CONTRACT_ENABLED=0 and restart console workers.",
+  "approvalSource": "board/control-plane/approvals.md",
+  "approvalRecordId": null
+}

@@ -1,0 +1,36 @@
+schema: console.readonly_governance.apm_lock.v0
+generated_at: "2026-07-05T13:21:00+08:00"
+runtime_contract: false
+git:
+  head_short: "e542a50"
+  working_tree_note: "workspace had pre-existing dirty/untracked files before this refresh; hashes are working-tree snapshots, not clean release hashes"
+toolchain:
+  external_runtime_install: false
+  required_commands:
+    - shasum
+    - git
+    - node
+hash_algorithm: SHA256
+hash_object_rule: full working-tree bytes of each listed project-relative source file
+entries:
+  - id: console.engine.review_loop
+    hash_object: projects/控制台/engine-runner.js
+    sha256: 840fc72cefb440264a0a032ca18c1d9d872581b36fda8853a7f0e3bcc84916df
+    verify: shasum -a 256 projects/控制台/engine-runner.js
+  - id: console.secretary.queue_organize
+    hash_object: projects/控制台/secretary-tools.js
+    sha256: 6996315316d099472da71f89fde5f2264b2a113c84a9955145c5e2c5e48ba25d
+    verify: shasum -a 256 projects/控制台/secretary-tools.js
+  - id: console.tools.serial_smoke_test
+    hash_object: projects/控制台/tools/serial-smoke-test.js
+    sha256: c64e40c57b8f9eb97301956b17e23b60289955028084548a7346af50002f7003
+    verify: shasum -a 256 projects/控制台/tools/serial-smoke-test.js
+source_snapshot_hashes:
+  - source: projects/控制台/brief.md
+    sha256: 6e991a5a4f08e786a161b48501e9bf144068d639e7e4a1a575404a2612cf9ac6
+  - source: board/insights/insights.md
+    sha256: 45c3f6553c1b6a9e04ee3c889babbd3e05393ff504ffed78a36c94cf4964cf70
+  - source: memory/decisions.md
+    sha256: f890aec2263b2cdd23b0d0a2b7ef8d8f87772037ce2c7093e50ee8bd2ceff954
+  - source: projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md
+    sha256: 1dce84ec5f937fd4432201afbfc2d8d46894f244598be53d3f494b7cbed90b4e

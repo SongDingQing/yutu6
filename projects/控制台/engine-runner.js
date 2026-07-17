@@ -21,19 +21,35 @@ const EventLog = require('../../shared/engine/eventlog');
 const { TaskStore } = require('../../shared/engine/taskstore');
 const { loadFlow, runFlow } = require('../../shared/engine/engine');
 const { HookRegistry } = require('../../shared/engine/hook-registry');
-const { makeCliRunner } = require('../../shared/engine/cli-runner');
+const GatePolicy = require('../../shared/engine/gate-policy');
+const ExecutionProfile = require('../../shared/engine/execution-profile');
 const Handoff = require('../../shared/engine/handoff');
+const ProtocolGate = require('../../shared/engine/protocol-gate');
 const DoneGate = require('../../shared/engine/done-gate');
+const AcceptanceContract = require('../../shared/engine/acceptance-contract');
 const LoopEngineering = require('../../shared/engine/loop-engineering');
+const RunnerFailover = require('../../shared/routing/failover');
 const { loadAgents } = require('../../shared/engine/agents');
 const Q = require('../../shared/engine/queue');
 const QueueAutoMerge = require('./queue-automerge');
 const BoardReview = require('./board-review');
-const { hasActiveStarlaidReference, isStarlaidProjectId, keywordProjectId } = require('./project-guard');
+const BoardFailoverRunner = require('./board-failover-runner');
+const BoardContextRef = require('./board-context-ref');
+const BoardRunnerAdapter = require('./board-runner-adapter');
+const { keywordProjectId } = require('./project-guard');
 const RuntimePaths = require('./runtime-paths');
 const VersionProgressHook = require('./version-progress-hook');
 const HardeningHooks = require('./hardening-hooks');
 const InsightScoutRepos = require('./insight-scout-repos');
+const LessonGraphAdapter = require('./lesson-graph-adapter');
+const CapabilityPreflight = require('./capability-preflight');
+const DirectCompletionOverride = require('./direct-completion-override');
+const ImplementCheckpoint = require('./implement-checkpoint');
+const AcceptanceHandoff = require('./acceptance-handoff');
+const KnowledgeRouting = require('./knowledge-routing');
+const ProcessReceiptHook = require('./process-receipt-hook');
+const ReviewDeltaContext = require('./review-delta-context');
+const RunnerTimeoutFailoverFence = require('./runner-timeout-failover-fence');
 
 const ARTIFACTS_ROOT = process.env.CONSOLE_ARTIFACTS_DIR
   ? path.resolve(process.env.CONSOLE_ARTIFACTS_DIR)
@@ -81,7 +97,12 @@ function eventIndicatesQueueProgress(type) {
 }
 
 function makeHookRegistry(eventlog) {
-  const registry = new HookRegistry({ eventlog });
+  const policy = GatePolicy.loadPolicy(WORKDIR);
+  const registry = new HookRegistry({
+    eventlog,
+    policy,
+    requireBlockingProvenance: true,
+  });
   HardeningHooks.registerHardeningHooks(registry, {
     workspaceRoot: WORKDIR,
   });
@@ -90,7 +111,39 @@ function makeHookRegistry(eventlog) {
     root: WORKDIR,
     workspaceRoot: WORKDIR,
   });
+  registry.register('task.true_done', {
+    id: 'acceptance-contract-consumers',
+    priority: 35,
+    timeoutMs: 100,
+    failureMode: 'block',
+    incidentRefs: ['cr-1784214555246-aabffa71'],
+    condition(context) {
+      return !!(context && context.ctx && context.ctx.acceptance_contract);
+    },
+    handler(context) {
+      const ctx = context.ctx || {};
+      const implementation = ctx.implementation && ctx.implementation.acceptance_table;
+      const review = ctx.review && ctx.review.verification && ctx.review.verification.acceptance_table;
+      const implementationResult = AcceptanceContract.validateConsumerRows(ctx.acceptance_contract, implementation, {
+        textDiagnostic: false,
+      });
+      if (!implementationResult.ok) {
+        return { ok: false, reason: `implementation acceptance contract mismatch: ${implementationResult.reason}` };
+      }
+      const reviewResult = AcceptanceContract.validateConsumerRows(ctx.acceptance_contract, review, {
+        textDiagnostic: false,
+      });
+      if (!reviewResult.ok) return { ok: false, reason: `review acceptance contract mismatch: ${reviewResult.reason}` };
+      return { ok: true, contractId: AcceptanceContract.normalizeContract(ctx.acceptance_contract).contract_id };
+    },
+  });
   return registry;
+}
+
+function directCompletionConflictMode() {
+  const policy = GatePolicy.loadPolicy(WORKDIR);
+  const gate = policy && policy.gates && policy.gates['engine.direct_completion_conflict'];
+  return gate && gate.mode === 'active' ? 'active' : 'shadow';
 }
 
 function touchQueueProgress(spec, type, data) {
@@ -221,7 +274,15 @@ function capturePeekabooScreenshot({ file, runner }) {
 }
 
 function screenshotRef(capture) {
-  return capture && capture.path ? rel(capture.path) : null;
+  return capture && capture.ok && capture.path ? rel(capture.path) : null;
+}
+
+function screenshotFailure(capture) {
+  if (!capture || capture.ok) return null;
+  return {
+    path: capture.path ? rel(capture.path) : null,
+    reason: sanitizeReason(capture.reason || 'unknown'),
+  };
 }
 
 function actionKind(text) {
@@ -271,10 +332,16 @@ function withVerifyEvidence(out, record) {
       reason: record.reason,
       beforeScreenshot: record.beforeScreenshot,
       afterScreenshot: record.afterScreenshot,
+      beforeScreenshotFailure: record.beforeScreenshotFailure || null,
+      afterScreenshotFailure: record.afterScreenshotFailure || null,
       correction: record.correction || null,
       result: out && out.evidence || null,
     },
   };
+}
+
+function cloneActionRecord(record) {
+  return JSON.parse(JSON.stringify(record || null));
 }
 
 function healGoal(ctx, record) {
@@ -297,12 +364,24 @@ function emitActionEvent(eventlog, type, record, extra) {
     action: record.action,
     beforeScreenshot: record.beforeScreenshot,
     afterScreenshot: record.afterScreenshot,
+    beforeScreenshotFailure: record.beforeScreenshotFailure || null,
+    afterScreenshotFailure: record.afterScreenshotFailure || null,
     landed: record.landed,
     method: record.method,
     reason: record.reason,
     projectId: record.projectId || null,
   }, extra || {});
   eventlog.emit(type, payload);
+}
+
+function verifiedResult(out, record, opts, extra) {
+  const result = Object.assign({}, out || {}, withVerifyEvidence(out, record), extra || {});
+  emitActionEvent(opts.eventlog, 'action.evidence', record, {
+    correction: record.correction || null,
+    finalLanded: !!record.landed,
+    evidence: result.evidence || null,
+  });
+  return result;
 }
 
 function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
@@ -326,18 +405,20 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   const record = Object.assign({}, base, {
     beforeScreenshot: screenshotRef(before),
     afterScreenshot: screenshotRef(after),
+    beforeScreenshotFailure: screenshotFailure(before),
+    afterScreenshotFailure: screenshotFailure(after),
     landed: verdict.landed,
     method: verdict.method,
     reason: verdict.reason,
     correction: null,
   });
   emitActionEvent(opts.eventlog, 'action.verify', record);
-  if (verdict.landed) return Object.assign({}, firstOut, withVerifyEvidence(firstOut, record));
+  if (verdict.landed) return verifiedResult(firstOut, record, opts);
 
   if (!ACTION_VERIFY_HEAL_ENABLED) {
     record.correction = { type: 'report', attempted: false, reason: 'self-heal disabled' };
     emitActionEvent(opts.eventlog, 'action.heal', record, { correction: record.correction });
-    return Object.assign({}, withVerifyEvidence(firstOut, record), {
+    return verifiedResult(firstOut, record, opts, {
       fail: `computer-use action did not land: ${record.reason}`,
     });
   }
@@ -350,7 +431,7 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
       reason: 'screenshot verification unavailable; manual authorization or Peekaboo health check required',
     };
     emitActionEvent(opts.eventlog, 'action.heal', record, { correction: record.correction });
-    return Object.assign({}, withVerifyEvidence(firstOut, record), {
+    return verifiedResult(firstOut, record, opts, {
       fail: `computer-use action could not be verified: ${record.reason}`,
     });
   }
@@ -362,12 +443,13 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   };
   const healCtx = Object.assign({}, ctx, {
     goal: healGoal(ctx, record),
-    previous_computer_use_action_verify: record,
+    previous_computer_use_action_verify: cloneActionRecord(record),
   });
   const healOut = baseRunner(node, healCtx, `${attempt}-heal`) || {};
   const healedAfter = capturePeekabooScreenshot({ file: path.join(verifyDir, 'after-heal.png'), runner });
   const healVerdict = verdictFromScreenshots(after && after.ok ? after : before, healedAfter, healOut);
   correction.afterScreenshot = screenshotRef(healedAfter);
+  correction.afterScreenshotFailure = screenshotFailure(healedAfter);
   correction.landed = healVerdict.landed;
   correction.method = healVerdict.method;
   correction.result = healOut.evidence || null;
@@ -378,8 +460,8 @@ function runVerifiedGuiAction(baseRunner, node, ctx, attempt, opts) {
   record.reason = healVerdict.reason;
   emitActionEvent(opts.eventlog, 'action.heal', record, { correction });
 
-  if (healVerdict.landed) return Object.assign({}, healOut, withVerifyEvidence(healOut, record));
-  return Object.assign({}, withVerifyEvidence(healOut, record), {
+  if (healVerdict.landed) return verifiedResult(healOut, record, opts);
+  return verifiedResult(healOut, record, opts, {
     fail: `computer-use action did not land after self-heal: ${healVerdict.reason}`,
   });
 }
@@ -398,6 +480,9 @@ function makeActionVerifyingRunner(baseRunner, opts) {
       }
       return actionVerifyingRunner(node, ctx, attempt);
     };
+  }
+  if (typeof baseRunner.runBoardNodeAsync === 'function') {
+    actionVerifyingRunner.runBoardNodeAsync = (node, ctx, attempt) => baseRunner.runBoardNodeAsync(node, ctx, attempt);
   }
   return actionVerifyingRunner;
 }
@@ -440,6 +525,70 @@ function withAttachmentPrompt(goal, attachments) {
   ].filter(Boolean).join('\n');
 }
 
+function hydrateRetryMetadata(spec, queueEntry = null) {
+  const source = Object.assign({}, spec || {});
+  let entry = queueEntry;
+  if (!entry && source.queueAgent && source.queueId) {
+    const agent = String(source.queueAgent);
+    const id = String(source.queueId);
+    if (/^[A-Za-z0-9_\-\u4e00-\u9fff]+$/.test(agent) && /^[A-Za-z0-9_-]+$/.test(id)) {
+      try {
+        entry = JSON.parse(fs.readFileSync(
+          path.join(ARTIFACTS_ROOT, 'queues', agent, 'running', `${id}.json`),
+          'utf8',
+        ));
+      } catch (_) {}
+    }
+  }
+  if (!entry) return source;
+  if (source.nodeRetry == null) source.nodeRetry = Number(entry.nodeRetry || 0);
+  if (source.engineRetry == null) source.engineRetry = Number(entry.engineRetry || 0);
+  if (source.retryReason == null) source.retryReason = entry.retry_reason || null;
+  return source;
+}
+
+function runningQueueIdentity(spec) {
+  const queueAgent = String(spec && spec.queueAgent || '').trim();
+  const queueId = String(spec && spec.queueId || '').trim();
+  const taskId = String(spec && spec.taskId || '').trim();
+  if (!/^[A-Za-z0-9_\-\u4e00-\u9fff]+$/.test(queueAgent)
+    || !/^[A-Za-z0-9_-]+$/.test(queueId)
+    || !/^[A-Za-z0-9_-]+$/.test(taskId)) {
+    return { ok: false, reason: '人工覆盖缺少合法的当前 queue/task 身份' };
+  }
+  let entry = null;
+  try {
+    entry = JSON.parse(fs.readFileSync(
+      path.join(ARTIFACTS_ROOT, 'queues', queueAgent, 'running', `${queueId}.json`),
+      'utf8',
+    ));
+  } catch (_) {}
+  if (!entry) return { ok: false, reason: '人工覆盖最终复核找不到当前 running queue 记录' };
+  if (String(entry.id || '') !== queueId
+    || String(entry.target || queueAgent) !== queueAgent
+    || String(entry.taskId || '') !== taskId) {
+    return { ok: false, reason: '人工覆盖 engine-job 与当前 running queue/task 绑定不一致' };
+  }
+  return { ok: true, queueAgent, queueId, taskId };
+}
+
+function makeDirectCompletionOverrideVerifier(spec) {
+  return input => {
+    const identity = runningQueueIdentity(spec);
+    if (!identity.ok) return identity;
+    const receiptId = input && (input.receiptId || input.receipt_id);
+    return DirectCompletionOverride.resolveForTask({
+      artifactsRoot: ARTIFACTS_ROOT,
+      receiptId,
+      queueAgent: identity.queueAgent,
+      queueId: identity.queueId,
+      taskId: identity.taskId,
+      authorityPublicKey: process.env[DirectCompletionOverride.AUTHORITY_PUBLIC_KEY_ENV],
+      expectedOverride: input,
+    });
+  };
+}
+
 function loadSpec() {
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log('Usage: node engine-runner.js --spec <spec.json>');
@@ -448,16 +597,42 @@ function loadSpec() {
   const idx = process.argv.indexOf('--spec');
   const file = idx >= 0 ? process.argv[idx + 1] : process.argv[2];
   if (!file || String(file).startsWith('-')) throw new Error('missing --spec <file>');
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return hydrateRetryMetadata(JSON.parse(fs.readFileSync(file, 'utf8')));
 }
 
-function loadAgentPrompts() {
+function promptSelectionForSpec(spec = {}) {
+  const flowId = String(spec.flowId || '').trim();
+  if (!flowId) return null;
+  const roles = new Set();
+  let includeBoard = false;
+  if (flowId === 'review-loop') {
+    roles.add('worker_code');
+    roles.add('supervisor');
+  } else if (flowId === 'agent-once') {
+    if (spec.role) roles.add(String(spec.role));
+  } else if (flowId === 'project-route') {
+    roles.add('orchestrator');
+    includeBoard = true;
+  } else {
+    return null;
+  }
+  if (flowId !== 'project-route' && spec.useOrchestrator !== false) roles.add('orchestrator');
+  return { roles, includeBoard };
+}
+
+function loadAgentPrompts(capabilityPromptByRole = {}, selection = null) {
   const out = {};
   const dir = path.join(WORKDIR, 'shared/agents');
   try {
     for (const agent of loadAgents(dir)) {
+      if (selection
+        && !selection.roles.has(agent.role)
+        && !(selection.includeBoard && isBoardRole(agent.role))) continue;
       const promptFile = path.join(dir, agent.id, agent.prompt || 'prompt.md');
-      out[agent.role] = readText(promptFile).trim();
+      out[agent.role] = [
+        readText(promptFile).trim(),
+        String(capabilityPromptByRole[agent.role] || '').trim(),
+      ].filter(Boolean).join('\n\n');
     }
   } catch (_) {}
   return out;
@@ -521,13 +696,136 @@ function roleExecMetaFromConfig(config) {
   return out;
 }
 
-function makeCtx(spec) {
+function boardCandidateEventLog(eventlog, candidateIndex) {
+  if (!eventlog) return null;
+  return {
+    file: eventlog.file,
+    emit(type, data) {
+      if (type === 'runner.call') {
+        return eventlog.emit(type, Object.assign({}, data || {}, {
+          candidate_index: candidateIndex,
+          failover: candidateIndex > 0,
+        }));
+      }
+      return eventlog.emit(type, data);
+    },
+  };
+}
+
+function boardContextCapability(runners, runnerId) {
+  const runner = runners && runners[runnerId];
+  if (!runner) return null;
+  return {
+    mode: BoardContextRef.DELIVERY_MODE,
+    resolver: 'project_board_wrapper',
+    runner_kind: runner.kind || 'command',
+  };
+}
+
+function attachBoardFailoverRunner(baseCliRunner, opts = {}) {
+  const roleMap = Object.assign({}, opts.roleMap || {});
+  const roleExecMeta = opts.roleExecMeta || {};
+  const runners = opts.runners || {};
+  const rolePrefer = opts.rolePrefer || RunnerFailover.loadRolePrefer(opts.routingFile);
+  const boardRunner = BoardFailoverRunner.makeBoardFailoverRunner({
+    taskId: opts.taskId,
+    projectId: opts.projectId,
+    eventlog: opts.eventlog,
+    candidatesFor(role) {
+      const director = BoardReview.DIRECTORS.find(item => item.role === role || item.id === role);
+      const primary = roleMap[role] || director && director.runner || null;
+      if (!primary) return [];
+      const candidates = RunnerFailover.failoverCandidates(role, {
+        primaryRunnerId: primary,
+        runners,
+        rolePrefer,
+      });
+      return candidates.length ? candidates : [primary];
+    },
+    capabilityFor(runnerId) {
+      return boardContextCapability(runners, runnerId);
+    },
+    makeSingleRunner({ role, runnerId, candidateIndex }) {
+      return BoardRunnerAdapter.makeBoardCandidateRunner({
+        runners,
+        roleMap,
+        role,
+        runnerId,
+        candidateIndex,
+        roleExecMeta,
+        workdir: opts.workdir,
+        runsDir: opts.runsDir,
+        nodeTimeoutSec: opts.nodeTimeoutSec,
+        eventlog: boardCandidateEventLog(opts.eventlog, candidateIndex),
+        queueRoot: opts.queueRoot,
+        queueAgent: opts.queueAgent,
+        queueId: opts.queueId,
+        taskId: opts.taskId,
+        projectId: opts.projectId,
+        failover: false,
+      });
+    },
+  });
+  baseCliRunner.runBoardNodeAsync = boardRunner.runNodeAsync;
+  return baseCliRunner;
+}
+
+function validVisualAcceptanceAudit(audit) {
+  if (!audit || typeof audit !== 'object') return false;
+  if (audit.schema !== DoneGate.VISUAL_ACCEPTANCE_SCHEMA
+    || audit.acceptance_protocol !== DoneGate.STRUCTURED_ACCEPTANCE_PROTOCOL
+    || typeof audit.required !== 'boolean') return false;
+  const priorityBySource = {
+    explicit_user_requirement: 1,
+    human_gate: 2,
+    change_path: 3,
+    task_type: 4,
+  };
+  if (priorityBySource[audit.source] !== audit.priority) return false;
+  if (audit.required === false) {
+    return audit.state === DoneGate.VISUAL_ACCEPTANCE_NA
+      && audit.source === 'task_type'
+      && audit.explicit_visual_requirement !== true
+      && audit.human_gate_forced !== true
+      && !(Array.isArray(audit.path_matches) && audit.path_matches.length)
+      && audit.task_type_positive !== true;
+  }
+  if (audit.state !== DoneGate.VISUAL_ACCEPTANCE_PENDING) return false;
+  if (audit.source === 'explicit_user_requirement') return audit.explicit_visual_requirement === true;
+  if (audit.source === 'human_gate') return audit.human_gate_forced === true;
+  if (audit.source === 'change_path') return Array.isArray(audit.path_matches) && audit.path_matches.length > 0;
+  return audit.source === 'task_type' && audit.task_type_positive === true;
+}
+
+function visualAcceptanceForCtx(spec, runtime, rawAcceptance) {
+  const recomputed = DoneGate.classifyVisualAcceptance(Object.assign({}, spec, runtime, {
+    goal: spec.goal || spec.message || '',
+    acceptance: rawAcceptance,
+  }));
+  const persisted = validVisualAcceptanceAudit(spec.visual_acceptance)
+    ? spec.visual_acceptance
+    : null;
+  if (!persisted) return recomputed;
+  // The producer audit is the frozen task-envelope decision. Runner-time inputs
+  // may only make it stricter (human gate/new paths), never erase an explicit or
+  // structured task-type signal that is no longer recoverable from a v2 table.
+  if (recomputed.required === true
+    && (persisted.required !== true || recomputed.priority < persisted.priority)) {
+    return recomputed;
+  }
+  return persisted;
+}
+
+function makeCtx(spec, runtime = {}) {
   const rawAcceptance = spec.acceptance || '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图';
+  const visualAcceptance = visualAcceptanceForCtx(spec, runtime, rawAcceptance);
   const acceptance = spec.structuredAcceptance === false || spec.skipStructuredAcceptance
     ? rawAcceptance
     : DoneGate.buildStructuredAcceptanceTable({
       goal: spec.goal || spec.message || '',
       acceptance: rawAcceptance,
+      visual_acceptance: visualAcceptance,
+      changePaths: spec.changePaths || spec.change_paths || spec.targetPaths || spec.target_paths,
       projectId: spec.projectId || null,
       workspaceRoot: WORKDIR,
       decisionsFile: MEMORY_DECISIONS,
@@ -535,10 +833,13 @@ function makeCtx(spec) {
     });
   return {
     goal: withAttachmentPrompt(spec.goal || spec.message || '', spec.attachments),
-    bounds: spec.bounds || '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+    bounds: spec.bounds || '只处理本任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
     inputs: mergeInputs(spec.inputs, spec.attachments),
     attachments: Array.isArray(spec.attachments) ? spec.attachments : [],
     acceptance,
+    acceptance_contract: spec.acceptance_contract || spec.acceptanceContract || null,
+    requiredRows: spec.requiredRows || spec.required_rows || null,
+    visual_acceptance: visualAcceptance,
     workspaceRoot: WORKDIR,
     projectId: spec.projectId || null,
     scopedToProject: !!spec.scopedToProject,
@@ -548,11 +849,19 @@ function makeCtx(spec) {
     rootQueueAgent: spec.rootQueueAgent || null,
     rootQueueId: spec.rootQueueId || null,
     rootTaskId: spec.rootTaskId || null,
-    agentPrompts: loadAgentPrompts(),
+    manual_completion_override: spec.manual_completion_override || spec.manualCompletionOverride || null,
+    taskTags: spec.taskTags || spec.task_tags || spec.tags || [],
+    explicitKnowledgeRefs: spec.explicitKnowledgeRefs || spec.explicit_knowledge_refs || spec.knowledge_refs || [],
+    knowledgeFallback: spec.knowledgeFallback === true || spec.knowledge_fallback === true,
+    timeout_failover_fence: spec.timeoutFailoverFence || spec.timeout_failover_fence || null,
+    agentPrompts: loadAgentPrompts(
+      runtime.capabilityPromptByRole,
+      promptSelectionForSpec(spec),
+    ),
   };
 }
 
-// 交接文件夹机制 shadow 阶段(拍板①②修正版):任务启动时(spec 就绪处)把任务稿/元数据
+// 交接文件夹机制 auto/shadow 阶段(拍板①②修正版):任务启动时(spec 就绪处)把任务稿/元数据
 // 寄生写进 engine-runs/<taskId>/ 根(该目录本就创建、轮转现成),生命周期随目录轮转绑队列终态。
 // board_* 角色(纯文本 runner,走 board-review 专用通道)排除;
 // 任何失败静默降级 + emit handoff.fallback,绝不阻断任务。
@@ -571,7 +880,9 @@ function writeHandoffShadow({ spec, ctx, runsDir, eventlog, taskId }) {
       queueId: spec.queueId || null,
       from: spec.rootQueueAgent || spec.queueAgent || 'ceo',
       to: spec.queueAgent || spec.role || null,
-      spec_fingerprint: doc.fingerprint,
+      spec_fingerprint: ctx.spec_fingerprint || spec.spec_fingerprint || null,
+      task_document_fingerprint: doc.fingerprint,
+      visual_acceptance: ctx.visual_acceptance || spec.visual_acceptance || null,
       attempts: [],
     });
     eventlog.emit('handoff.shadow.written', {
@@ -580,6 +891,8 @@ function writeHandoffShadow({ spec, ctx, runsDir, eventlog, taskId }) {
       file: rel(doc.file),
       meta: rel(meta.file),
       fingerprint: doc.fingerprint,
+      spec_fingerprint: meta.meta.spec_fingerprint,
+      visual_acceptance: meta.meta.visual_acceptance,
       projectId: spec.projectId || null,
     });
     return doc;
@@ -687,7 +1000,7 @@ function sweepTaskStoreRunning(taskstore, eventlog) {
 function listProjects() {
   try {
     return fs.readdirSync(PROJECTS_DIR)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(PROJECTS_DIR, name)).isDirectory(); }
         catch (_) { return false; }
@@ -701,7 +1014,7 @@ function listProjects() {
 function normalizeProjectId(projectId) {
   const projects = listProjects();
   const raw = String(projectId || '').trim();
-  if (!raw || /starlaid/i.test(raw)) return null;
+  if (!raw) return null;
   if (projects.includes(raw)) return raw;
   const lower = raw.toLowerCase();
   return projects.find(p => p.toLowerCase() === lower) || null;
@@ -720,16 +1033,16 @@ function inferProjectId(spec, planText, planProjectId) {
   const source = spec || {};
   const sourceText = [source.goal, source.message, source.originalGoal]
     .filter(Boolean).join('\n');
-  if (isStarlaidProjectId(source.projectId)) return null;
-  const explicit = normalizeProjectId(source.projectId);
+  const rawExplicit = String(source.projectId || '').trim();
+  const explicit = normalizeProjectId(rawExplicit);
   if (explicit) return explicit;
-  if (hasActiveStarlaidReference(sourceText)) return null;
+  if (rawExplicit) return null;
   const sourceKeyword = normalizeKeywordProjectId(sourceText);
   if (sourceKeyword) return sourceKeyword;
-  if (isStarlaidProjectId(planProjectId)) return null;
-  const planned = normalizeProjectId(planProjectId);
+  const rawPlanned = String(planProjectId || '').trim();
+  const planned = normalizeProjectId(rawPlanned);
   if (planned) return planned;
-  if (hasActiveStarlaidReference(planText)) return null;
+  if (rawPlanned) return null;
   const planKeyword = normalizeKeywordProjectId(planText);
   if (planKeyword) return planKeyword;
   return defaultProjectId();
@@ -820,9 +1133,8 @@ function boardImportanceForSimpleTask(spec, goalText) {
 function isSimpleTask(spec) {
   const source = spec && typeof spec === 'object' ? spec : {};
   const fail = (reason, extra) => Object.assign({ simple: false, reason }, extra || {});
-  // a) projectId 必须显式给定且能规范化(Starlaid/未知项目一律不算)。
+  // a) projectId 必须显式给定且能规范化(未知项目不直通)。
   if (!source.projectId) return fail('no_explicit_project');
-  if (isStarlaidProjectId(source.projectId)) return fail('starlaid_project');
   const projectId = normalizeProjectId(source.projectId);
   if (!projectId) return fail('unknown_project');
   // d) 显式要求 CEO 拆解 / 董事会评议的任务不短路。
@@ -832,7 +1144,7 @@ function isSimpleTask(spec) {
   if (isConsoleRestartExecutionRequest(source, '')) return fail('console_restart_request');
   // e) 维修/救火类不直通。
   if (isRepairOrFirefightSpec(source)) return fail('repair_or_firefight');
-  // b) 老板正文非空、<600 字符、无跨项目信号、不提及其他项目、不主动涉 Starlaid。
+  // b) 老板正文非空、<600 字符、无跨项目信号、不提及其他项目。
   const goalText = simpleTaskGoalText(source);
   if (!goalText) return fail('empty_goal');
   if (goalText.length >= SIMPLE_TASK_MAX_GOAL_CHARS) return fail('goal_too_long', { goalChars: goalText.length });
@@ -840,7 +1152,6 @@ function isSimpleTask(spec) {
   if (CROSS_PROJECT_SIGNAL_RE.test(crossText)) return fail('cross_project_signal');
   const otherProjects = mentionedProjects(crossText).filter(p => p !== projectId);
   if (otherProjects.length) return fail('mentions_other_project', { otherProjects });
-  if (hasActiveStarlaidReference(crossText)) return fail('starlaid_reference');
   // c) 不命中董事会重要域(structured 优先 + 文本兜底)。
   const important = boardImportanceForSimpleTask(source, goalText);
   if (important) return fail(`board_important:${important.reason || 'unknown'}`);
@@ -891,9 +1202,7 @@ function explicitDirectQueueForGoal(spec) {
 }
 
 function hasNegatedDirectRoute(text, roleRe) {
-  const s = String(text || '')
-    .replace(/(?:starlaid|星桥)\s*(?:项目|范围|全程|一律|硬)?\s*(?:排除|不涉及|无关|跳过|不处理)/gi, '')
-    .replace(/(?:排除|不涉及|无关|跳过|不处理)\s*(?:starlaid|星桥)/gi, '');
+  const s = String(text || '');
   const role = `(?:${roleRe})`;
   const before = new RegExp(`(?:不要|不用|无需|别|不必|禁止|避免|不要交给|别交给|不要让|别让|不交给|不派给|排除)\\s*.{0,16}${role}`, 'i');
   const after = new RegExp(`${role}\\s*.{0,16}(?:不用|无需|不参与|不接|不做|不处理|排除|跳过|不要接|别接)`, 'i');
@@ -901,34 +1210,11 @@ function hasNegatedDirectRoute(text, roleRe) {
 }
 
 function automaticLightweightSource(spec) {
-  if (!spec || typeof spec !== 'object') return null;
-  const explicit = [
-    spec.autoSource,
-    spec.rootAutoSource,
-    spec.automationSource,
-    spec.source,
-    spec.queueSource,
-  ].filter(Boolean).join('\n');
-  const text = [
-    explicit,
-    spec.queueAgent,
-    spec.role,
-    spec.flowId,
-    spec.goal,
-    spec.bounds,
-    spec.title,
-  ].filter(Boolean).join('\n');
-  if (/洞察员|insight[-_ ]?scout|insight-/i.test(text)) return 'insight-scout';
-  if (/ui[_-]?optimizer|界面自优化|ui\s*自优化|自省优化|self[-_ ]?reflection/i.test(text)) return 'optimizer';
-  if (/scheduled|cron|定时|自动巡检|自动洞察/i.test(text)) return 'scheduled';
-  return null;
+  return ExecutionProfile.automaticSource(spec);
 }
 
 function loopEngineeringEnabledForSpec(spec) {
-  if (spec && spec.loopEngineering === false) return false;
-  if (spec && spec.loopEngineering === true) return true;
-  if (process.env.CONSOLE_LOOP_ENGINEERING_AUTOMATION === '1') return true;
-  return !automaticLightweightSource(spec);
+  return ExecutionProfile.loopEngineeringDecision(spec, process.env).enabled;
 }
 
 function rootTaskFields(spec, taskId) {
@@ -1104,16 +1390,120 @@ function appendBrief(projectId, spec, planText) {
     String(planText || '(无)').trim().slice(0, 3000),
     '',
   ].join('\n');
-  fs.appendFileSync(path.join(dir, 'brief.md'), block);
+  const historyFile = path.join(dir, 'brief.md');
+  const taskBriefDir = path.join(dir, 'artifacts', 'task-briefs');
+  const taskBriefFile = path.join(taskBriefDir, `${safeName(spec.taskId || `task-${Date.now()}`)}.md`);
+  fs.mkdirSync(taskBriefDir, { recursive: true });
+  fs.appendFileSync(historyFile, block);
+  fs.writeFileSync(taskBriefFile, [
+    '# CEO 当前任务 brief',
+    '',
+    block.trim(),
+    '',
+  ].join('\n'));
+  return {
+    historyFile: rel(historyFile),
+    taskFile: rel(taskBriefFile),
+  };
 }
 
 // 协议必需步骤(CEO 增值步骤之外,直通/全链两条路径都必须走,一步不能少):
 // brief 落盘 + project.brief.written、direct 建议压制记录、root 链路字段、
 // supervisor review-loop 入队(含 DoneGate 结构化验收表)、queue.enqueued/project.routed/
 // edge.take/project.route.waiting 事件、waiting_downstream 返回值。
-function routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planText }) {
-  appendBrief(projectId, routeSpec, planText);
-  eventlog.emit('project.brief.written', { task: taskId, projectId, file: `projects/${projectId}/brief.md` });
+function orchestratorAcceptanceText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (DoneGate.hasStructuredAcceptanceTable(text)) {
+      return DoneGate.parseStructuredAcceptanceRows(text)
+        .filter(row => !DoneGate.visualAcceptancePoint(row.point))
+        .map(row => String(row.point || '').replace(/^任务验收\s*[:：]\s*/i, ''))
+        .filter(Boolean)
+        .join('\n');
+    }
+    return text;
+  }
+  if (Array.isArray(value)) return value.map(orchestratorAcceptanceText).filter(Boolean).join('\n');
+  if (typeof value !== 'object') return String(value).trim();
+  for (const key of ['rows', 'items', 'checklist', 'table', 'acceptance_table', 'acceptanceTable']) {
+    if (value[key] != null) return orchestratorAcceptanceText(value[key]);
+  }
+  const point = value.text || value.point || value.item || value.requirement || value.check || value['要点'];
+  return point == null ? '' : String(point).trim();
+}
+
+function buildSupervisorAcceptance({ projectId, supervisorGoal, acceptanceGoal, orchestratorAcceptance, visualAcceptance, routeSpec }) {
+  const specificAcceptance = orchestratorAcceptanceText(orchestratorAcceptance);
+  const implementAcceptance = `实现阶段完成 ${projectId} 项目 CEO brief 的交付、逐项证据和 projects/${projectId}/status.md 更新（review 由系统随后单独执行，不要求 implement 预先声明 review 已完成）。`;
+  const acceptanceText = [specificAcceptance, implementAcceptance].filter(Boolean).join('\n');
+  const classification = visualAcceptance || DoneGate.classifyVisualAcceptance(Object.assign({}, routeSpec || {}, {
+    goal: acceptanceGoal || supervisorGoal,
+    acceptance: acceptanceText,
+  }));
+  return DoneGate.buildStructuredAcceptanceTable({
+    // 任务类型只由老板原始目标/正式验收决定。董事评语和路由说明可以讨论
+    // UI 风险，但不能据此把纯引擎任务升级成视觉任务。
+    goal: acceptanceGoal || supervisorGoal,
+    acceptance: acceptanceText,
+    visual_acceptance: classification,
+    changePaths: routeSpec && (routeSpec.changePaths || routeSpec.change_paths || routeSpec.targetPaths || routeSpec.target_paths),
+    projectId,
+    workspaceRoot: WORKDIR,
+    decisionsFile: MEMORY_DECISIONS,
+  });
+}
+
+function buildSupervisorAcceptanceBundle({ projectId, supervisorGoal, acceptanceGoal, orchestratorAcceptance, upstreamContract, recoveredDownstreamContract, visualAcceptance, routeSpec, rootTaskId }) {
+  if (!upstreamContract) {
+    return {
+      acceptance: buildSupervisorAcceptance({
+        projectId,
+        supervisorGoal,
+        acceptanceGoal,
+        orchestratorAcceptance,
+        visualAcceptance,
+        routeSpec,
+      }),
+      acceptanceContract: null,
+      requiredRows: null,
+    };
+  }
+  const deliveryPoint = `任务验收: 实现阶段完成 ${projectId} 项目 CEO brief 的交付、逐项证据和 projects/${projectId}/status.md 更新（review 由系统随后单独执行，不要求 implement 预先声明 review 已完成）。`;
+  const classification = visualAcceptance || DoneGate.classifyVisualAcceptance(Object.assign({}, routeSpec || {}, {
+    goal: acceptanceGoal || supervisorGoal,
+    acceptance: orchestratorAcceptanceText(orchestratorAcceptance),
+  }));
+  const acceptanceContract = recoveredDownstreamContract
+    ? AcceptanceContract.normalizeContract(recoveredDownstreamContract)
+    : AcceptanceHandoff.buildDownstreamContract(upstreamContract, {
+      projectId,
+      rootTaskId,
+      scope: `project/${projectId}`,
+      deliveryPoint,
+      visualPoint: classification.required === true ? DoneGate.VISUAL_ACCEPTANCE_POINT : DoneGate.VISUAL_ACCEPTANCE_NA_POINT,
+      visualRequired: classification.required === true,
+      visualSource: classification.source,
+      visualReason: classification.reason,
+    });
+  const acceptance = AcceptanceHandoff.renderStructuredAcceptanceTable(acceptanceContract, {
+    templateRef: DoneGate.structuredAcceptanceTemplateReference({ workspaceRoot: WORKDIR }),
+  });
+  return {
+    acceptance,
+    acceptanceContract,
+    requiredRows: AcceptanceContract.acceptanceRows(acceptanceContract),
+  };
+}
+
+function routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planText, orchestratorAcceptance }) {
+  const briefFiles = appendBrief(projectId, routeSpec, planText);
+  eventlog.emit('project.brief.written', {
+    task: taskId,
+    projectId,
+    file: briefFiles.historyFile,
+    taskFile: briefFiles.taskFile,
+  });
   const direct = directQueueForGoal(routeSpec, planText);
   const directHint = direct
     ? `\n\n原始派单建议:可让 ${direct.agent} / ${direct.role} 参与具体实现,但根任务完成必须经主管 review-loop 的 implement + review 复审通过。`
@@ -1130,6 +1520,85 @@ function routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planTe
   const queueAgent = supervisorQueue(projectId);
   const childRoot = rootTaskFields(routeSpec, taskId);
   const supervisorGoal = `项目主管(${projectId})执行 CEO brief。原始目标:\n${routeSpec.goal || ''}${directHint}`;
+  const acceptanceGoal = routeSpec.originalGoal || routeSpec.goal || routeSpec.message || '';
+  const specificAcceptance = orchestratorAcceptanceText(
+    orchestratorAcceptance == null ? routeSpec.acceptance : orchestratorAcceptance,
+  );
+  const implementAcceptance = `实现阶段完成 ${projectId} 项目 CEO brief 的交付、逐项证据和 projects/${projectId}/status.md 更新（review 由系统随后单独执行，不要求 implement 预先声明 review 已完成）。`;
+  const supervisorVisualAcceptance = DoneGate.classifyVisualAcceptance(Object.assign({}, routeSpec, {
+    goal: acceptanceGoal,
+    acceptance: [specificAcceptance, implementAcceptance].filter(Boolean).join('\n'),
+  }));
+  const upstreamContract = routeSpec.acceptance_contract
+    || routeSpec.acceptanceContract
+    || routeSpec.orchestrator_acceptance_contract
+    || null;
+  let recoveredDownstreamContract = null;
+  if (routeSpec.acceptance_handoff_recovery) {
+    const recovered = AcceptanceHandoff.resolveRecoveredDownstreamContract({
+      workspaceRoot: WORKDIR,
+      artifactsRoot: ARTIFACTS_ROOT,
+      taskId,
+      queueAgent: routeSpec.queueAgent,
+      queueId: routeSpec.queueId,
+      receipt: routeSpec.acceptance_handoff_recovery,
+      upstreamContract,
+      correctedDownstreamContract: routeSpec.acceptance_handoff_corrected_contract,
+    });
+    if (!recovered.ok) {
+      const reason = `acceptance_handoff_recovery_invalid:${recovered.reason}`;
+      eventlog.emit('acceptance.handoff.recovery_rejected', {
+        task: taskId,
+        projectId,
+        queueAgent: routeSpec.queueAgent || null,
+        queueId: routeSpec.queueId || null,
+        reason: recovered.reason,
+      });
+      eventlog.emit('node.await_human', { task: taskId, node: 'acceptance-handoff', reason, projectId });
+      return { ok: false, paused: true, reason, projectId };
+    }
+    recoveredDownstreamContract = recovered.contract;
+  }
+  const acceptanceBundle = buildSupervisorAcceptanceBundle({
+    projectId,
+    supervisorGoal,
+    acceptanceGoal,
+    orchestratorAcceptance: orchestratorAcceptance == null ? routeSpec.acceptance : orchestratorAcceptance,
+    upstreamContract,
+    recoveredDownstreamContract,
+    visualAcceptance: supervisorVisualAcceptance,
+    routeSpec,
+    rootTaskId: childRoot.rootTaskId,
+  });
+  const handoffGate = AcceptanceHandoff.evaluateBeforeEnqueue({
+    workspaceRoot: WORKDIR,
+    artifactsRoot: ARTIFACTS_ROOT,
+    taskId,
+    projectId,
+    scope: `project/${projectId}`,
+    retryCount: routeSpec.acceptance_handoff_retry_count || routeSpec.acceptanceHandoffRetryCount || routeSpec.nodeRetry || 0,
+    queueAgent: routeSpec.queueAgent || null,
+    queueId: routeSpec.queueId || null,
+    upstreamContract,
+    downstreamContract: acceptanceBundle.acceptanceContract,
+    eventlog,
+  });
+  if (!handoffGate.ok) {
+    eventlog.emit('node.await_human', {
+      task: taskId,
+      node: 'acceptance-handoff',
+      reason: handoffGate.reason,
+      projectId,
+      reviewFile: handoffGate.reviewFile ? rel(handoffGate.reviewFile) : null,
+    });
+    return {
+      ok: false,
+      paused: true,
+      reason: handoffGate.reason,
+      projectId,
+      reviewFile: handoffGate.reviewFile ? rel(handoffGate.reviewFile) : null,
+    };
+  }
   const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, queueAgent, Object.assign({
     role: 'supervisor',
     flowId: 'review-loop',
@@ -1137,18 +1606,29 @@ function routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planTe
     autoSource: childRoot.rootAutoSource || null,
     scopedToProject: true,
     goal: supervisorGoal,
-    bounds: `只处理 projects/${projectId}/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。`,
-    inputs: [`projects/${projectId}/brief.md`].concat(mergeInputs(routeSpec.inputs, routeSpec.attachments)),
+    bounds: `只处理 projects/${projectId}/ 与明确输入; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。`,
+    // 历史 brief.md 继续保留作审计总账，但主管只读本任务快照，避免把数百次
+    // 旧派单和旧验收重新送进每个任务，也避免长期持有 brief-status 读锁。
+    inputs: [briefFiles.taskFile].concat(mergeInputs(routeSpec.inputs, routeSpec.attachments)),
     attachments: Array.isArray(routeSpec.attachments) ? routeSpec.attachments : [],
-    acceptance: DoneGate.buildStructuredAcceptanceTable({
-      goal: supervisorGoal,
-      acceptance: `在 ${projectId} 项目 scope 内跑 review-loop; 完成后更新 projects/${projectId}/status.md,并由系统增量更新 board/status-rollup.md。`,
-      projectId,
-      workspaceRoot: WORKDIR,
-      decisionsFile: MEMORY_DECISIONS,
-    }),
+    postCompletionCloseout: {
+      type: 'project-status-rollup',
+      statusFile: `projects/${projectId}/status.md`,
+      rollupFile: 'board/status-rollup.md',
+    },
+    acceptance: acceptanceBundle.acceptance,
+    acceptance_contract: acceptanceBundle.acceptanceContract,
+    requiredRows: acceptanceBundle.requiredRows,
+    visual_acceptance: supervisorVisualAcceptance,
+    visual_acceptance_human_gate: supervisorVisualAcceptance.human_gate_forced,
+    changePaths: routeSpec.changePaths || routeSpec.change_paths || routeSpec.targetPaths || routeSpec.target_paths || null,
     useOrchestrator: false,
     autoApproveHuman: true,
+    // 只消费结构化触发字段；不得从 goal/验收证据文本猜测是否需要专职复核，
+    // 避免“覆盖证据反过来自激触发门禁”。
+    requiredIndependentReceipts: Array.isArray(routeSpec.requiredIndependentReceipts)
+      ? routeSpec.requiredIndependentReceipts
+      : null,
   }, childRoot), { priority: routeSpec.priority != null ? routeSpec.priority : 50, eventlog, source: 'project-route', projectId });
   eventlog.emit('queue.enqueued', { queueAgent, queueId: entry.id, priority: entry.priority, goal: String(entry.task.goal || '').slice(0, 500), attachments: (entry.task.attachments || []).length || undefined, projectId, sourceTask: taskId, rootQueueAgent: childRoot.rootQueueAgent, rootQueueId: childRoot.rootQueueId, rootTaskId: childRoot.rootTaskId });
   eventlog.emit('project.routed', { task: taskId, projectId, supervisorQueue: queueAgent, queueId: entry.id, rootQueueAgent: childRoot.rootQueueAgent, rootQueueId: childRoot.rootQueueId, rootTaskId: childRoot.rootTaskId });
@@ -1178,59 +1658,81 @@ function runDirectSupervisorRoute({ spec, taskId, eventlog, ctx, verdict }) {
     '(CEO 弹性伸缩:简单任务直通项目主管,CEO 拆解节点已跳过;brief 采用秘书信封/任务原文)',
     String(spec.goal || spec.message || '').trim().slice(0, 3000),
   ].filter(Boolean).join('\n');
-  return routeBriefToSupervisor({ routeSpec: Object.assign({}, spec), taskId, eventlog, projectId, planText });
+  return routeBriefToSupervisor({
+    routeSpec: Object.assign({}, spec, {
+      originalGoal: String(spec.originalGoal || spec.goal || spec.message || '').trim(),
+    }),
+    taskId,
+    eventlog,
+    projectId,
+    planText,
+  });
+}
+
+function directSupervisorContractDecision(spec, activation) {
+  const supplied = spec && (spec.acceptance_contract || spec.acceptanceContract) || null;
+  let suppliedContractValid = false;
+  if (supplied) {
+    try {
+      AcceptanceContract.normalizeContract(supplied);
+      suppliedContractValid = true;
+    } catch (_) {}
+  }
+  if (activation && activation.active && !suppliedContractValid) {
+    return {
+      allowed: false,
+      suppliedContractValid: false,
+      reason: 'active acceptance handoff requires orchestrator machine contract',
+    };
+  }
+  return { allowed: true, suppliedContractValid, reason: null };
 }
 
 async function runProjectRoute({ spec, taskId, eventlog, cliRunner, ctx }) {
+  const handoffLoaded = AcceptanceHandoff.loadConfig({ workspaceRoot: WORKDIR });
+  const handoffActivation = AcceptanceHandoff.activationDecision(handoffLoaded.config, { workspaceRoot: WORKDIR });
+  const directContract = directSupervisorContractDecision(spec, handoffActivation);
+  const suppliedContractValid = directContract.suppliedContractValid;
   if (ceoElasticEnabled()) {
     const verdict = isSimpleTask(spec);
-    if (verdict.simple) {
+    if (verdict.simple && directContract.allowed) {
       return runDirectSupervisorRoute({ spec, taskId, eventlog, ctx, verdict });
     }
+    if (verdict.simple && !directContract.allowed) {
+      eventlog.emit('route.direct_to_supervisor.contract_required', {
+        task: taskId,
+        projectId: verdict.projectId || spec.projectId || null,
+        reason: directContract.reason,
+      });
+    }
   }
-  eventlog.emit('task.created', { task: taskId, flow: 'project-route', start: 'orchestrator-plan', projectId: spec.projectId || null });
-  let planText = '';
-  if (spec.useOrchestrator !== false) {
-    const planned = runOrchestratorPlan({ taskId, eventlog, cliRunner, ctx });
-    if (!planned.ok) return { ok: false, reason: planned.reason };
-    planText = ctx.orchestrator_plan || '';
-  } else {
-    eventlog.emit('node.start', { task: taskId, node: 'orchestrator-plan', attempt: 1, role: 'orchestrator', projectId: spec.projectId || null });
-    planText = String(spec.goal || '').slice(0, 3000);
-    ctx.orchestrator_plan = planText;
-    eventlog.emit('node.end', { task: taskId, node: 'orchestrator-plan', attempt: 1, role: 'orchestrator', projectId: spec.projectId || null });
-  }
-  const projectId = inferProjectId(spec, planText, ctx.orchestrator_projectId);
-  if (!projectId) {
-    const reason = '检测到 Starlaid 排除范围或项目归属需要主人确认,CEO 已软暂停派单';
+  const originalGoal = String(spec.originalGoal || spec.goal || spec.message || '').trim();
+  const preReviewProjectId = inferProjectId(spec, originalGoal, null);
+  if (!preReviewProjectId) {
+    const reason = '无法安全确定项目归属,CEO 已软暂停派单';
     eventlog.emit('project.route.paused', { task: taskId, reason, projectId: null });
     eventlog.emit('node.await_human', { task: taskId, node: 'project-route', reason, projectId: null });
     return { ok: false, paused: true, reason };
   }
-  ctx.projectId = projectId;
-  let routeSpec = Object.assign({}, spec);
-  if (isConsoleRestartExecutionRequest(spec, planText)) {
-    const handoff = writeConsoleRestartHandoff(projectId, spec, taskId);
-    const reason = `控制台重启请求已转为外部 detached 触发,未进入普通执行槽; 请主人本机执行 ${handoff.command}`;
-    eventlog.emit('project.route.restart_detached_required', {
-      task: taskId,
-      projectId,
-      handoff: handoff.file,
-      command: handoff.command,
-      queueAgent: spec.queueAgent || null,
-      queueId: spec.queueId || null,
-    });
-    eventlog.emit('node.await_human', { task: taskId, node: 'project-route', reason, projectId });
-    return { ok: false, paused: true, reason, projectId, restartHandoff: handoff.file };
-  }
-  const boardAssessment = BoardReview.shouldRunBoardReview(routeSpec, planText);
+  ctx.projectId = preReviewProjectId;
+  let routeSpec = Object.assign({}, spec, { originalGoal });
+  const boardAssessment = BoardReview.shouldRunBoardReview(routeSpec, originalGoal);
+  eventlog.emit('task.created', {
+    task: taskId,
+    flow: 'project-route',
+    start: boardAssessment.important ? 'board-review' : 'orchestrator-plan',
+    projectId: preReviewProjectId,
+  });
+
+  // 董事会是 CEO 拆解前的事前门禁：只看秘书交付的原始目标与 projectId，
+  // 通过后才允许 orchestrator-plan 产生执行 brief。
   if (boardAssessment.important) {
     const boardResult = await BoardReview.runBoardReview({
       spec: routeSpec,
       ctx,
       taskId,
-      projectId,
-      planText,
+      projectId: preReviewProjectId,
+      planText: originalGoal,
       assessment: boardAssessment,
       eventlog,
       cliRunner,
@@ -1238,12 +1740,12 @@ async function runProjectRoute({ spec, taskId, eventlog, cliRunner, ctx }) {
       memoryFile: MEMORY_DECISIONS,
     });
     if (boardResult.paused) {
-      eventlog.emit('node.await_human', { task: taskId, node: 'board-review', reason: boardResult.reason, projectId });
-      return { ok: false, paused: true, reason: boardResult.reason, projectId, boardDecisionId: boardResult.decisionId || null };
+      eventlog.emit('node.await_human', { task: taskId, node: 'board-review', reason: boardResult.reason, projectId: preReviewProjectId });
+      return { ok: false, paused: true, reason: boardResult.reason, projectId: preReviewProjectId, boardDecisionId: boardResult.decisionId || null };
     }
     if (!boardResult.ok) {
-      eventlog.emit('node.fail', { task: taskId, node: 'board-review', attempt: 1, role: 'board_opus48', reason: boardResult.reason || 'board review failed', projectId });
-      return { ok: false, reason: boardResult.reason || 'board review failed', projectId };
+      eventlog.emit('node.fail', { task: taskId, node: 'board-review', attempt: 1, role: 'board_opus48', reason: boardResult.reason || 'board review failed', projectId: preReviewProjectId });
+      return { ok: false, reason: boardResult.reason || 'board review failed', projectId: preReviewProjectId };
     }
     routeSpec = Object.assign({}, routeSpec, {
       goal: boardResult.revisedGoal || routeSpec.goal,
@@ -1256,33 +1758,170 @@ async function runProjectRoute({ spec, taskId, eventlog, cliRunner, ctx }) {
       },
     });
     ctx.goal = routeSpec.goal || ctx.goal;
+  }
+
+  let planText = '';
+  const requiresContractPlan = handoffActivation.active && !suppliedContractValid;
+  if (routeSpec.useOrchestrator !== false || requiresContractPlan) {
+    if (requiresContractPlan && routeSpec.useOrchestrator === false) {
+      eventlog.emit('orchestrator.contract_generation.forced', {
+        task: taskId,
+        projectId: preReviewProjectId,
+        reason: 'active acceptance handoff cannot parse prose or route without a machine contract',
+      });
+    }
+    const planned = runOrchestratorPlan({ taskId, eventlog, cliRunner, ctx });
+    if (!planned.ok) return { ok: false, reason: planned.reason };
+    planText = ctx.orchestrator_plan || '';
+  } else {
+    eventlog.emit('node.start', { task: taskId, node: 'orchestrator-plan', attempt: 1, role: 'orchestrator', projectId: preReviewProjectId });
+    planText = String(routeSpec.goal || '').slice(0, 3000);
+    ctx.orchestrator_plan = planText;
+    eventlog.emit('node.end', { task: taskId, node: 'orchestrator-plan', attempt: 1, role: 'orchestrator', projectId: preReviewProjectId });
+  }
+
+  const projectId = inferProjectId(routeSpec, planText, ctx.orchestrator_projectId);
+  if (!projectId) {
+    const reason = '无法安全确定项目归属,CEO 已软暂停派单';
+    eventlog.emit('project.route.paused', { task: taskId, reason, projectId: null });
+    eventlog.emit('node.await_human', { task: taskId, node: 'project-route', reason, projectId: null });
+    return { ok: false, paused: true, reason };
+  }
+  if (projectId !== preReviewProjectId) {
+    eventlog.emit('project.route.project_refined', {
+      task: taskId,
+      fromProjectId: preReviewProjectId,
+      projectId,
+      source: 'orchestrator-plan',
+    });
+  }
+  ctx.projectId = projectId;
+  if (routeSpec.boardReview && routeSpec.boardReview.completed) {
     planText = [
       planText,
       '',
-      `董事会评议:默认执行; 轮次 ${routeSpec.boardReview.rounds}/${routeSpec.boardReview.maxRounds}; 记录见 memory/decisions.md。`,
+      `董事会事前评议:已通过; 轮次 ${routeSpec.boardReview.rounds}/${routeSpec.boardReview.maxRounds}; 记录见 memory/decisions.md。`,
     ].filter(Boolean).join('\n');
   }
-  return routeBriefToSupervisor({ routeSpec, taskId, eventlog, projectId, planText });
+  if (isConsoleRestartExecutionRequest(routeSpec, planText)) {
+    const handoff = writeConsoleRestartHandoff(projectId, routeSpec, taskId);
+    const reason = `控制台重启请求已转为外部 detached 触发,未进入普通执行槽; 请主人本机执行 ${handoff.command}`;
+    eventlog.emit('project.route.restart_detached_required', {
+      task: taskId,
+      projectId,
+      handoff: handoff.file,
+      command: handoff.command,
+      queueAgent: routeSpec.queueAgent || null,
+      queueId: routeSpec.queueId || null,
+    });
+    eventlog.emit('node.await_human', { task: taskId, node: 'project-route', reason, projectId });
+    return { ok: false, paused: true, reason, projectId, restartHandoff: handoff.file };
+  }
+  return routeBriefToSupervisor({
+    routeSpec: Object.assign({}, routeSpec, {
+      orchestrator_acceptance_contract: ctx.orchestrator_acceptance_contract || null,
+    }),
+    taskId,
+    eventlog,
+    projectId,
+    planText,
+    orchestratorAcceptance: ctx.orchestrator_acceptance,
+  });
 }
 
 function runOrchestratorPlan({ taskId, eventlog, cliRunner, ctx }) {
   const node = { id: 'orchestrator-plan', agent_role: 'orchestrator' };
   eventlog.emit('node.start', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, projectId: ctx.projectId || null });
+  const projectInputs = [
+    ctx.projectId ? `projects/${ctx.projectId}/status.md` : null,
+  ].filter(file => file && fs.existsSync(path.join(WORKDIR, file)));
   const out = cliRunner(node, Object.assign({}, ctx, {
-    acceptance: '把老板任务拆成项目主管可执行 brief; 判断 projectId; 不改文件; 最后输出简短 JSON,包含 projectId/summary/acceptance',
+    // CEO 只收到任务信封正文和项目状态摘要；历史 brief.md 是追加式审计总账，
+    // 不再作为每次规划输入，避免旧任务/旧验收污染当前拆解。
+    // 显式移除任务级附件/日志 inputs，避免根节点沿着 engine-runs、
+    // eventlog 或 usage 证据下钻做主管工作。
+    inputs: projectInputs,
+    attachments: [],
+    acceptance: [
+      'CEO 只做项目归属、范围摘要和验收原子，不替主管制定技术方案、实现步骤或排期。',
+      '不得在根节点查询/扫描 usage、eventlog、engine-runs 或任务级运行记录；只使用任务信封给出的目标与项目级 brief/status 摘要。',
+      '不改文件；最后输出简短 JSON，orchestrator 对象只允许 projectId、summary、acceptance 三个字段。',
+      'acceptance 必须是非空逐项对象数组 [{"text":"单一可验收原子","scope":"project/<projectId>"}]；每项只允许 text/scope，禁止散文字符串、编号拼接、泛化合并或自行生成 acceptance_id/source_hash。',
+    ].join('\n'),
   }), 1) || {};
   if (out.fail) {
     eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason: out.fail, projectId: ctx.projectId || null });
     return { ok: false, reason: out.fail };
   }
-  let summary = '';
-  if (out.evidence && out.evidence.path) summary = readText(out.evidence.path).slice(0, 3000);
-  const planProjectId = out.vars && out.vars.orchestrator && out.vars.orchestrator.projectId;
+  const plan = out.vars && out.vars.orchestrator;
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) {
+    const reason = 'orchestrator output missing structured orchestrator object';
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
+  const unknown = Object.keys(plan).filter(key => !['projectId', 'summary', 'acceptance'].includes(key));
+  if (unknown.length) {
+    const reason = `orchestrator output contains forbidden technical fields: ${unknown.sort().join(',')}`;
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
+  const planSummary = String(plan.summary || '').trim();
+  if (planSummary.length > 1500 || /```|(?:^|\n)\s*(?:\d+[.)]|[-*])\s+|\b(?:implementation|technicalPlan|commands?|steps?)\b|(?:技术方案|实现步骤|执行步骤|修改文件|运行命令)/i.test(planSummary)) {
+    const reason = 'orchestrator summary crossed into technical planning';
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
+  const planProjectId = plan.projectId;
+  const planAcceptance = plan.acceptance;
   const normalizedProjectId = normalizeProjectId(planProjectId);
+  if (!Array.isArray(planAcceptance) || !planAcceptance.length
+    || planAcceptance.some(item => !item || typeof item !== 'object' || Array.isArray(item))) {
+    const reason = 'orchestrator acceptance must be a non-empty machine item array; prose/string splitting is forbidden';
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
+  const invalidAcceptanceFields = planAcceptance
+    .flatMap((item, index) => Object.keys(item).filter(key => !['text', 'scope'].includes(key)).map(key => `${index + 1}.${key}`));
+  if (invalidAcceptanceFields.length || planAcceptance.some(item => !String(item.text || '').trim())) {
+    const reason = `orchestrator acceptance items only allow non-empty text/scope fields: ${invalidAcceptanceFields.join(',') || 'missing text'}`;
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
+  let orchestratorAcceptanceContract;
+  try {
+    orchestratorAcceptanceContract = AcceptanceContract.createContract(planAcceptance.map(item => ({
+      text: item.text,
+      scope: item.scope,
+    })), {
+      stage: 'orchestrator',
+      projectId: normalizedProjectId || ctx.projectId || null,
+      rootTaskId: ctx.rootTaskId || taskId,
+      scope: `project/${normalizedProjectId || ctx.projectId || 'unknown'}`,
+      sourceRef: `orchestrator:${ctx.rootTaskId || taskId}`,
+      sourceKind: 'orchestrator',
+    });
+  } catch (error) {
+    const reason = `orchestrator acceptance contract invalid: ${String(error && error.message || error)}`;
+    eventlog.emit('node.fail', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, reason, projectId: ctx.projectId || null });
+    return { ok: false, reason };
+  }
   if (normalizedProjectId) ctx.orchestrator_projectId = normalizedProjectId;
-  ctx.orchestrator_plan = summary || '(总管已完成拆解,详见 result.md)';
+  ctx.orchestrator_acceptance = planAcceptance;
+  ctx.orchestrator_acceptance_contract = orchestratorAcceptanceContract;
+  ctx.orchestrator_plan = JSON.stringify({
+    orchestrator: {
+      projectId: normalizedProjectId || ctx.projectId || null,
+      summary: planSummary,
+      acceptance: orchestratorAcceptanceContract.records.map(record => ({
+        acceptance_id: record.acceptance_id,
+        source_hash: record.source_hash,
+        scope: record.scope,
+        text: record.text,
+      })),
+    },
+  });
   eventlog.emit('node.end', { task: taskId, node: node.id, attempt: 1, role: node.agent_role, evidence: out.evidence || null, projectId: ctx.projectId || null });
-  return { ok: true };
+  return { ok: true, planText: ctx.orchestrator_plan };
 }
 
 async function main() {
@@ -1295,10 +1934,32 @@ async function main() {
   const runsDir = path.join(RUNS, taskId);
   fs.mkdirSync(runsDir, { recursive: true });
 
-  const baseCliRunner = makeCliRunner({
+  const reviewDeltaContext = ReviewDeltaContext.create({
+    config: cfg.reviewDeltaContext || {},
+    env: process.env,
+    workspaceRoot: WORKDIR,
+    projectRoot: path.join(WORKDIR, 'projects/控制台'),
+    runsDir,
+    eventlog,
+    taskId,
+    projectId: spec.projectId || null,
+    flowId,
+  });
+  eventlog.emit('review.delta.activation', {
+    task: taskId,
+    projectId: spec.projectId || null,
+    mode: reviewDeltaContext.activation.mode,
+    active: reviewDeltaContext.activation.active,
+    shadow: reviewDeltaContext.activation.shadow,
+    reason: reviewDeltaContext.activation.reason,
+  });
+
+  const roleMap = roleMapFromConfig(cfg, spec);
+  const roleExecMeta = roleExecMetaFromConfig(cfg);
+  const runnerOptions = {
     runners: cfg.runners,
-    roleMap: roleMapFromConfig(cfg, spec),
-    roleExecMeta: roleExecMetaFromConfig(cfg),
+    roleMap,
+    roleExecMeta,
     workdir: WORKDIR,
     runsDir,
     nodeTimeoutSec: defaultNodeTimeoutSec(spec, flowId),
@@ -1308,15 +1969,68 @@ async function main() {
     queueId: spec.queueId || null,
     taskId,
     projectId: spec.projectId || null,
+    reviewDeltaContext,
+  };
+  const knowledgeRoutingActivation = KnowledgeRouting.activationState(cfg.knowledgeRouting || {}, process.env);
+  eventlog.emit('knowledge.gate.activation', {
+    task: taskId,
+    projectId: spec.projectId || null,
+    enabled: knowledgeRoutingActivation.enabled,
+    reason: knowledgeRoutingActivation.reason,
+    dynamicRoutingEnabled: knowledgeRoutingActivation.enabled
+      && knowledgeRoutingActivation.config.dynamicRouting.enabled === true,
   });
-  const cliRunner = makeActionVerifyingRunner(baseCliRunner, {
+  if (knowledgeRoutingActivation.enabled) {
+    // Dedicated engine process: disabling the shared legacy block here cannot race
+    // with another task. The approved project wrapper below becomes the sole injector.
+    process.env.YUTU6_KB_INJECT = '0';
+  }
+  const sharedCliRunner = attachBoardFailoverRunner(RunnerTimeoutFailoverFence.makeCliRunner(runnerOptions, {
+    config: cfg.runnerTimeoutFailoverFence || {},
+    env: process.env,
+    artifactsRoot: ARTIFACTS_ROOT,
+  }), runnerOptions);
+  const processReceiptRunner = ProcessReceiptHook.makeProcessReceiptRunner(sharedCliRunner, Object.assign({}, runnerOptions, {
+    workspaceRoot: WORKDIR,
+    env: process.env,
+  }));
+  const baseCliRunner = KnowledgeRouting.makeKnowledgeRoutingRunner(processReceiptRunner, {
+    config: knowledgeRoutingActivation.config,
+    env: process.env,
+    workspaceRoot: WORKDIR,
+    artifactsRoot: ARTIFACTS_ROOT,
+    eventlog,
+    taskId,
+    usageLedgerFile: path.join(ARTIFACTS_ROOT, 'knowledge-routing', 'usage.jsonl'),
+    routeStateFile: path.join(ARTIFACTS_ROOT, 'knowledge-routing', 'route-state.json'),
+  });
+  const actionVerifyingRunner = makeActionVerifyingRunner(baseCliRunner, {
     config: cfg,
     eventlog,
     runsDir,
     taskId,
   });
+  const cliRunner = ImplementCheckpoint.makeImplementCheckpointRunner(actionVerifyingRunner, {
+    config: cfg.implementCheckpointExperiment || {},
+    spec: Object.assign({}, spec, { taskId }),
+    env: process.env,
+    workspaceRoot: WORKDIR,
+    artifactsRoot: ARTIFACTS_ROOT,
+    projectRel: 'projects/控制台',
+    eventlog,
+  });
 
-  const ctx = makeCtx(spec);
+  const capabilityContext = await CapabilityPreflight.prepareFrontDoorCapabilityContext({
+    workspaceRoot: WORKDIR,
+    cacheFile: path.join(ARTIFACTS_ROOT, 'capability-preflight-cache.json'),
+    taskId,
+    query: spec.goal || spec.message || '',
+    eventlog,
+  });
+  const ctx = makeCtx(spec, { capabilityPromptByRole: capabilityContext.promptByRole });
+  // Establish the canonical task-envelope fingerprint before handoff meta and traces are written.
+  // runFlow performs the same idempotent normalization later for execution state.
+  ProtocolGate.ensureTaskProtocol(ctx, { taskId, flow: flowId, projectId: spec.projectId || null });
   eventlog.emit('engine.worker.start', { task: taskId, flow: flowId, pid: process.pid, projectId: spec.projectId || null });
   writeHandoffShadow({ spec, ctx, runsDir, eventlog, taskId });
 
@@ -1347,13 +2061,30 @@ async function main() {
 
   const flowFile = path.join(WORKDIR, 'shared/routing/flows', `${flowId}.yaml`);
   const flow = flowId === 'agent-once' ? singleAgentFlow(spec.role) : loadFlow(flowFile);
-	  const loopEngineeringEnabled = loopEngineeringEnabledForSpec(spec);
+	  const loopDecision = ExecutionProfile.loopEngineeringDecision(spec, process.env);
+	  const loopEngineeringEnabled = loopDecision.enabled;
 	  if (!loopEngineeringEnabled) {
 	    eventlog.emit('loop.skipped', {
 	      task: taskId,
-	      reason: 'auto-lightweight',
+	      reason: loopDecision.reason,
 	      source: automaticLightweightSource(spec),
 	      projectId: spec.projectId || null,
+	    });
+	  }
+	  let lessonGraphSourceState = null;
+	  try {
+	    lessonGraphSourceState = LessonGraphAdapter.captureCanaryState({
+	      workspaceRoot: WORKDIR,
+	      spec,
+	      env: process.env,
+	    });
+	  } catch (error) {
+	    eventlog.emit('memory.lesson_graph.capture_failed', {
+	      task: taskId,
+	      queueAgent: spec.queueAgent || null,
+	      queueId: spec.queueId || null,
+	      reason: String(error && error.message || error || 'unknown').slice(0, 300),
+	      memoryPreserved: true,
 	    });
 	  }
 	  let result = runFlow({
@@ -1366,6 +2097,9 @@ async function main() {
     vars: ctx,
 	    workspaceRoot: WORKDIR,
 	    runnersConfig: cfg.runners || null, // 拍板⑤:done gate 特权写路径审计读 execution.allowedWritePaths
+	    directCompletionConflictMode: directCompletionConflictMode(),
+	    manualCompletionOverride: ctx.manual_completion_override || null,
+	    verifyManualCompletionOverride: makeDirectCompletionOverrideVerifier(spec),
 	    loopEngineering: LoopEngineering.createLoopEngineering({
 	      enabled: loopEngineeringEnabled,
 	      workspaceRoot: WORKDIR,
@@ -1375,7 +2109,36 @@ async function main() {
     }),
     hooks: makeHookRegistry(eventlog),
     checkpoint: makeQueueCheckpoint(spec, eventlog),
-  });
+	  });
+
+  // 记忆官仍只写 memory/。成功后由独立适配器读取本轮 append-only 增量;
+  // 图谱失败只留审计,绝不反向覆盖或回滚已完成的记忆提炼。
+  if (result.ok && lessonGraphSourceState) {
+    const applied = LessonGraphAdapter.applyCanaryAfterMemory({
+      workspaceRoot: WORKDIR,
+      dbPath: process.env.XJ_KB_PATH || path.join(WORKDIR, 'knowledge', 'kb.sqlite'),
+      auditFile: process.env.LESSON_GRAPH_AUDIT_FILE || path.join(ARTIFACTS_ROOT, 'canary', 'lesson-graph-audit.jsonl'),
+      sourceState: lessonGraphSourceState,
+      spec,
+      env: process.env,
+    });
+    eventlog.emit(applied.ok ? 'memory.lesson_graph.applied' : 'memory.lesson_graph.write_failed', {
+      task: taskId,
+      queueAgent: spec.queueAgent || null,
+      queueId: spec.queueId || null,
+      ok: applied.ok,
+      skipped: !!applied.skipped,
+      reason: applied.reason || null,
+      candidates: Number(applied.candidates || 0),
+      insertedEdges: Number(applied.insertedEdges || 0),
+      duplicateEdges: Number(applied.duplicateEdges || 0),
+      insertedProvenance: Number(applied.insertedProvenance || 0),
+      duplicateProvenance: Number(applied.duplicateProvenance || 0),
+      durationMs: Number(applied.durationMs || 0),
+      memoryPreserved: applied.memoryPreserved !== false,
+    });
+    result = Object.assign({}, result, { lessonGraphCanary: applied });
+  }
 
   if (result.ok && flowId === 'agent-once' && spec.role === InsightScoutRepos.AGENT) {
     const vars = Object.assign({}, ctx, result.task && result.task.vars || {});
@@ -1481,14 +2244,33 @@ module.exports = {
     boardImportanceForSimpleTask,
     stripSecretaryContextPackText,
     roleMapFromConfig,
+    boardCandidateEventLog,
+    attachBoardFailoverRunner,
     routeRunnerForRole,
     rolloutPercent,
     defaultNodeTimeoutSec,
     automaticLightweightSource,
     loopEngineeringEnabledForSpec,
+	    hydrateRetryMetadata,
+	    runningQueueIdentity,
+	    makeDirectCompletionOverrideVerifier,
+	    makeHookRegistry,
+    directCompletionConflictMode,
     isPausedResult,
     isBoardRole,
     writeHandoffShadow,
     makeCtx,
+    promptSelectionForSpec,
+    screenshotRef,
+    screenshotFailure,
+    verdictFromScreenshots,
+    makeActionVerifyingRunner,
+    runVerifiedGuiAction,
+    orchestratorAcceptanceText,
+    buildSupervisorAcceptance,
+    buildSupervisorAcceptanceBundle,
+    directSupervisorContractDecision,
+    runOrchestratorPlan,
+    runProjectRoute,
   },
 };

@@ -72,17 +72,17 @@ roles:
     tier: standard
     prefer: [api.zhipu.glm-5.2]
     context_mode: explicit
-  board_gpt55:                  # 兼容旧别名:不再作为活跃董事;GPT-5.5 视角并入 board_opus48
+  board_gpt55:                  # 兼容旧别名:不再作为活跃董事;GPT-5.6-Sol 视角并入 board_opus48
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
     deprecated: true
     alias_of: board_opus48
-  board_claude:                 # 董事会 Claude:2026-07-03 补充成员,暂用 Opus-4.8
+  board_claude:                 # 董事会 Claude:2026-07-14 切换 Fable 5
     tier: strong
-    prefer: [subscription.claude.opus-4-8, subscription.codex]
+    prefer: [subscription.claude.fable-5, subscription.codex]
     context_mode: explicit
-  board_opus48:                 # 历史兼容槽位:最终误判风险裁决,现为唯一 Codex/GPT-5.5 董事
+  board_opus48:                 # 历史兼容槽位:最终误判风险裁决,现为唯一 Codex/GPT-5.6-Sol 董事
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
@@ -109,9 +109,9 @@ roles:
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
-  repair-lead:                  # 维修主管 —— Claude Code 特权 runner 根因分析/分级/派工/复核(2026-07-03 接回;codex 兜底)
+  repair-lead:                  # 维修主管 —— Codex 特权 runner 根因分析/分级/派工/复核
     tier: strong
-    prefer: [subscription.claude, subscription.codex]
+    prefer: [subscription.codex]
     execution: { requires_tool_capable_for_delivery: true, privileged_channel: true, delegates_to: repair, high_risk_requires_owner_confirmation: true }
     context_mode: explicit
   gui_desktop_control:          # 桌面控制:Codex 特权 runner 调 Peekaboo 截图/点击/视觉验收执行

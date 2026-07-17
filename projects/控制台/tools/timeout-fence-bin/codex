@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+'use strict';
+
+require('../runner-process-fence-shim').main().catch(error => {
+  process.stderr.write(`${String(error && error.message || error).slice(0, 300)}\n`);
+  process.exit(127);
+});

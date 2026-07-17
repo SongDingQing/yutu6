@@ -1,0 +1,31 @@
+{
+  "schema": "yutu6-ahr-26-30-contract-test-evidence@1",
+  "taskId": "cr-1784018284182-397d53ad",
+  "specFingerprint": "b9bed0c74c32fe54e9c973a3ad04786dcbbe529167b803e080beeba762443d6c",
+  "recordedAt": "2026-07-14T16:46:42+08:00",
+  "command": "node projects/控制台/tests/ahr-26-30-contract.test.js",
+  "exitCode": 0,
+  "checks": [
+    "current_defaults_warn_timeout_100_priority_100",
+    "current_default_warn_is_fail_open",
+    "current_priority_then_id_order",
+    "current_duplicate_id_throws",
+    "current_sync_registry_rejects_promise",
+    "ahr_30_timeout_is_post_facto_not_interrupting",
+    "ahr_26_aliases_resolve_to_one_preferred_entry",
+    "ahr_27_absolute_path_and_stable_artifact_id",
+    "ahr_28_pre_post_responsibilities_are_separate",
+    "ahr_29_canonical_schema_and_correlation_fields",
+    "ahr_30_policy_must_declare_mode_timeout_and_degradation",
+    "owner_approval_is_absent_and_does_not_block_preparation",
+    "production_global_blocking_hook_files_match_preimplementation_baseline"
+  ],
+  "timeoutInjection": {
+    "budgetMs": 5,
+    "injectedHandlerMs": 40,
+    "actualBlockingMs": 40,
+    "result": "blocked_after_handler_returned",
+    "interruptCapability": false
+  },
+  "productionHookBaselineMatched": true
+}

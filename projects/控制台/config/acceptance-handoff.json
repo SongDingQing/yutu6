@@ -1,0 +1,59 @@
+{
+  "schema": "acceptance-handoff-config@2",
+  "feature": "orchestrator-acceptance-handoff",
+  "projectId": "控制台",
+  "activationTaskId": "cr-1784226649413-ee4aea5d",
+  "activationSpecFingerprint": "75fb249c2e48a19df6dea7c1792d1b90b91b1b45db0b51bdb2b2a12a7541e3d3",
+  "enabled": false,
+  "textDiagnostic": false,
+  "timeoutMs": 100,
+  "maxRetries": 3,
+  "exceptionMode": "manual_review",
+  "timeoutMode": "manual_review",
+  "prerequisites": {
+    "orchestratorContract": true,
+    "supervisorContract": true,
+    "doneGateContract": true,
+    "regressionValidated": true,
+    "performanceValidated": true,
+    "architectureReviewPassed": false,
+    "ownerApproved": false
+  },
+  "prerequisiteEvidence": {
+    "orchestratorContract": {
+      "kind": "runtime_capability",
+      "subject": "orchestratorContract",
+      "path": "projects/控制台/engine-runner.js",
+      "sha256": "4ac2db24dc65926dd02d9e083b572bd49b502fc84b45626d922daa7476bb6b6c",
+      "verdict": "pass"
+    },
+    "supervisorContract": {
+      "kind": "runtime_capability",
+      "subject": "supervisorContract",
+      "path": "projects/控制台/acceptance-handoff.js",
+      "sha256": "43c5e30f4cb86f6394eda1c99ad3552de36727124dea133715455baada1192f7",
+      "verdict": "pass"
+    },
+    "doneGateContract": {
+      "kind": "runtime_capability",
+      "subject": "doneGateContract",
+      "path": "shared/engine/done-gate.js",
+      "sha256": "a13d237218d4667a822ed9d63a04a229c326804d22f2c576935b445497e52e87",
+      "verdict": "pass"
+    },
+    "regressionValidated": {
+      "kind": "test_report",
+      "path": "projects/控制台/artifacts/acceptance-handoff-cr-1784226649413-ee4aea5d/activation-evidence.json",
+      "sha256": "5c45dadda7277d7976cefaec06cf2312f890e3442ba1ea6e969d28e0b916b9a2",
+      "verdict": "pass"
+    },
+    "performanceValidated": {
+      "kind": "test_report",
+      "path": "projects/控制台/artifacts/acceptance-handoff-cr-1784226649413-ee4aea5d/activation-evidence.json",
+      "sha256": "5c45dadda7277d7976cefaec06cf2312f890e3442ba1ea6e969d28e0b916b9a2",
+      "verdict": "pass"
+    }
+  },
+  "architectureReviewEvidence": null,
+  "ownerApprovalEvidence": null
+}

@@ -8,7 +8,7 @@
   "tier": "strong",
   "context_mode": "explicit",
   "read_paths": [
-    "玉兔6-董事会设计方案.md",
+    "docs/设计/玉兔6-董事会设计方案.md",
     "projects/控制台/brief.md",
     "projects/控制台/",
     "shared/engine/",
@@ -33,7 +33,7 @@
   },
   "boundary_statement": {
     "does": "从 Kimi K2.7 Code 视角审查代码实现、Agent 链路、长上下文需求遗漏和架构风险。",
-    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥、登录或授权。"
   },
   "decoupling": "只做事前评审和挑刺,不直接改文件、不派队列。",
   "validation": "单轮评审必须区分可执行建议与硬阻断;普通优化建议不得当作否决。",

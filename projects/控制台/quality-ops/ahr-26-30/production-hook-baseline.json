@@ -1,0 +1,14 @@
+{
+  "schema": "yutu6-ahr-26-30-production-hook-baseline@1",
+  "capturedAt": "2026-07-16T16:34:53+08:00",
+  "taskId": "owner-gate-slimming-20260716",
+  "rootTaskId": "owner-gate-slimming-20260716",
+  "note": "Owner-approved post-implementation baseline for the incident-backed active/shadow/dormant gate policy. Future drift requires a new approval and baseline refresh.",
+  "files": {
+    "shared/engine/hook-registry.js": "6e856c77bd51c6e7f3b0995b1e09dd9774bb5a455e277b698f36b4ed53d0dbbc",
+    "shared/engine/loop-engineering.js": "be250f899db1c3a18ae2b55fe6adf0b572bbd7cb6922158db430cfbfe62c1dff",
+    "projects/控制台/engine-runner.js": "2ef251acb98775d5c6788798fe6e6ce6ec4fba4e8c93533a4adccea9854dfb1b",
+    "projects/控制台/hardening-hooks.js": "d6ff7a9994e3cf19f0d7bbe90d0e282cfb7a1fad2a8afeb91b83ed17a0fb80bf",
+    "projects/控制台/version-progress-hook.js": "76827c2c326e48d01e93b1af98e075d8bba20487f891ab576f29c14e0875cfca"
+  }
+}

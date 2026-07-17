@@ -95,6 +95,10 @@ Contains:
 - Latest Codex run status writer.
 - Confirmed scheduled Codex handoff tool.
 - Generated Hermes cron runner script writer.
+- Yutu6 owner decision-card callback bridge:
+  - accepts non-secret `card_id` + `approve/reject`
+  - loads the per-card secret locally
+  - signs and calls the localhost control-console decision endpoint
 
 Related generated files:
 
@@ -161,6 +165,7 @@ Contains:
 - Reads `/Users/yutu/.hermes/voice-wake/config.json` for the voice notice config.
 - Feishu text burst batching before messages enter the base adapter.
 - Voice notice is only scheduled when the adapter is connected, so offline/unit-test sends do not spawn local speech tasks.
+- Native Yutu6 decision buttons return an inline replacement card immediately, then route the action asynchronously to the local plugin.
 
 Validate:
 

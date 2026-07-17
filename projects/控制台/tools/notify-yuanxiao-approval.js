@@ -79,7 +79,13 @@ function pushToInbox(payload) {
   const out = execFileSync('ssh', [...sshBase, SSH_DEST, remoteCmd], { input: json, encoding: 'utf8', timeout: 30000 });
   const m = out.match(/HTTP:(\d+)\s*$/);
   const code = m ? parseInt(m[1], 10) : 0;
-  return { code, ok: code >= 200 && code < 300, raw: out.replace(/\nHTTP:\d+\s*$/, '').slice(0, 500) };
+  const body = out.replace(/\nHTTP:\d+\s*$/, '');
+  let receiptId = null;
+  try {
+    const parsed = JSON.parse(body || '{}');
+    receiptId = parsed && parsed.message && parsed.message.id ? String(parsed.message.id).slice(0, 160) : null;
+  } catch (_) {}
+  return { code, ok: code >= 200 && code < 300, raw: body.slice(0, 500), receiptId };
 }
 
 function main() {
@@ -130,4 +136,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { buildBody, buildImageEntry, parseArgs };
+module.exports = { buildBody, buildImageEntry, parseArgs, pushToInbox };

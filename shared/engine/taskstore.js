@@ -7,9 +7,46 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const STATES = ['queued', 'running', 'awaiting_human', 'awaiting_verify', 'done', 'failed', 'paused', 'canceled'];
 const TERMINAL_STATES = new Set(['done', 'failed', 'canceled']);
+
+function fsyncDir(dir) {
+  let fd = null;
+  try {
+    fd = fs.openSync(dir, 'r');
+    fs.fsyncSync(fd);
+  } catch (_) {
+    // Directory fsync is best-effort across platforms; the temp-file rename is still atomic.
+  } finally {
+    if (fd != null) {
+      try { fs.closeSync(fd); } catch (_) {}
+    }
+  }
+}
+
+function writeFileAtomic(file, content) {
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`);
+  let fd = null;
+  try {
+    fd = fs.openSync(tmp, 'wx');
+    fs.writeFileSync(fd, content, 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmp, file);
+    fsyncDir(dir);
+  } catch (err) {
+    if (fd != null) {
+      try { fs.closeSync(fd); } catch (_) {}
+    }
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    throw err;
+  }
+}
 
 class TaskStore {
   constructor(dir) { this.dir = dir; fs.mkdirSync(dir, { recursive: true }); }
@@ -56,7 +93,7 @@ class TaskStore {
     t.updated = new Date().toISOString();
     const out = Object.assign({}, t);
     delete out._resumed;
-    fs.writeFileSync(this._file(t.id), JSON.stringify(out, null, 2));
+    writeFileAtomic(this._file(t.id), JSON.stringify(out, null, 2));
   }
   setState(t, state) {
     if (!STATES.includes(state)) throw new Error('未知状态: ' + state);

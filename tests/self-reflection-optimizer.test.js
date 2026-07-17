@@ -25,7 +25,6 @@ function main() {
   assert(skill.includes('auto_execute'), 'skill must define auto_execute classification');
   assert(skill.includes('owner_decision'), 'skill must define owner_decision classification');
   assert(skill.includes('board/learning-cases/self-reflection-optimizer-cases.md'), 'skill must write reusable self-reflection cases');
-  assert(skill.includes('Starlaid') && skill.includes('星桥'), 'skill must preserve Starlaid/Xingqiao exclusion');
   assert(skill.includes('secretary -> CEO -> supervisor'), 'skill must preserve front-door route');
 
   const policy = read(path.join(skillRoot, 'references/decision-policy.md'));

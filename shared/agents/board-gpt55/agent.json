@@ -1,6 +1,6 @@
 {
   "id": "board-gpt55",
-  "name": "董事 GPT-5.5(codex) 旧别名",
+  "name": "董事 GPT-5.6-Sol(codex) 旧别名",
   "schema_version": 1,
   "role": "board_gpt55",
   "runner": "codex",
@@ -8,7 +8,7 @@
   "alias_of": "board_opus48",
   "tier": "strong",
   "context_mode": "explicit",
-  "read_paths": ["玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
+  "read_paths": ["docs/设计/玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
   "writes": [],
   "triggers": ["旧任务兼容;新董事会评议请使用 board_opus48"],
   "io": {
@@ -16,8 +16,8 @@
     "outputs": ["结构化事前评审意见", "风险等级", "是否可默认执行", "是否存在硬阻断"]
   },
   "boundary_statement": {
-    "does": "仅作为旧任务兼容别名;活跃 GPT-5.5/Codex 评审由 board_opus48 承担。",
-    "does_not": "不落地代码、不派队列、不处理密钥/登录/授权或 Starlaid。"
+    "does": "仅作为旧任务兼容别名;活跃 GPT-5.6-Sol/Codex 评审由 board_opus48 承担。",
+    "does_not": "不落地代码、不派队列、不处理密钥、登录或授权。"
   },
   "decoupling": "只做架构评议和挑刺,不直接改文件、不派队列。",
   "validation": "单轮评审必须区分可执行建议与硬阻断;合理改动应默认可执行,禁止把普通建议当否决。",

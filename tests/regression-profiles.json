@@ -1,0 +1,284 @@
+{
+  "schema": "yutu6-regression-profiles@1",
+  "default_profile": "full",
+  "routine_profile": "smoke",
+  "principle": "Routine tasks run incident-backed scoped tests. Tests outside lean are dormant for routine work but remain available in full.",
+  "profiles": {
+    "gate": {
+      "description": "Completion integrity and evidence protocol regressions.",
+      "tests": [
+        {
+          "file": "protocol-gate.test.js",
+          "reason": "Spec drift and receipt mismatch previously allowed declarations to diverge from the real task.",
+          "incident_refs": [
+            "projects/控制台/artifacts/done-gate-audit-2026-06-23.md"
+          ]
+        },
+        {
+          "file": "done-gate.test.js",
+          "reason": "Historical false completion and false-positive classification incidents require primary completion verification.",
+          "incident_refs": [
+            "projects/控制台/artifacts/done-gate-audit-2026-06-23.md",
+            "board/repair-tickets/auto-20260623020730-e485207314349a23.md",
+            "projects/控制台/artifacts/gate-load-audit/incidents/20260716-placeholder-note-false-positive.md"
+          ]
+        },
+        {
+          "file": "../projects/控制台/tests/acceptance-handoff.test.js",
+          "reason": "Orchestrator prose acceptance previously lost or generalized concrete requirements before supervisor enqueue and done-gate verification.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784019424367-265c0ba9/orchestrator-plan-1/result.redacted.md",
+            "projects/控制台/artifacts/engine-runs/cr-1784023254548-b9854dd7/implement-1/task.redacted.md"
+          ]
+        },
+        {
+          "file": "../projects/控制台/tests/review-delta-context.test.js",
+          "reason": "Review-loop prompts previously reserialized the complete accumulated history; differential context now requires immutable identity, full-row coverage, hashed project-bounded refs, redacted fallback and independent critique checks.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784171154971-19856f34/implement-1/task.redacted.md",
+            "projects/控制台/artifacts/engine-runs/cr-1784171154971-19856f34/review-6/interaction-trace.json",
+            "projects/控制台/artifacts/task-briefs/cr-1784233090660-32c43b39.md"
+          ]
+        },
+        {
+          "file": "review-routing-contract.test.js",
+          "reason": "A structurally valid negative review was previously converted into node.fail and queue.retry instead of retaining the same task review loop.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784167841906-19856f34/review-2/result.redacted.md",
+            "projects/控制台/artifacts/engine-runs/cr-1784167841906-19856f34/review-2/process-summary.redacted.log"
+          ]
+        },
+        {
+          "file": "../projects/控制台/tests/review-negative-routing-contract.test.js",
+          "reason": "Negative review routing must distinguish valid rework from malformed or forged review evidence while preserving the implement target.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784023254548-b9854dd7/review-2/result.redacted.md",
+            "projects/控制台/artifacts/engine-runs/cr-1784023254548-b9854dd7/review-2/process-summary.redacted.log"
+          ]
+        },
+        {
+          "file": "done-gate-execute-evidence.test.js",
+          "reason": "Claimed exit 0 evidence previously differed from the command's real exit status.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260710111745-86216f9bd15ada5b.md"
+          ]
+        },
+        {
+          "file": "agent-once-self-report.test.js",
+          "reason": "Direct execute previously emitted edge.take to done even when result/implementation/review or structured acceptance explicitly reported incomplete work.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784019435832-74298708/execute-1/result.redacted.md",
+            "projects/控制台/artifacts/engine-runs/cr-1784020905877-d6be4147/execute-1/result.redacted.md"
+          ]
+        },
+        {
+          "file": "decision-callback.test.js",
+          "reason": "The trusted direct-completion override previously stopped at runFlow parameters because the production queue path dropped the owner decision receipt before ceo-worker.makeSpec.",
+          "incident_refs": [
+            "projects/控制台/artifacts/engine-runs/cr-1784199716042-51a76d1d/review-2/result.redacted.md"
+          ]
+        },
+        {
+          "file": "regression-command-policy.test.js",
+          "reason": "Completion verification previously reran an unscoped full suite and converted unrelated shared-tree failures into task failure.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260710111745-86216f9bd15ada5b.md",
+            "board/repair-tickets/auto-20260710142454-69940c668bc65909.md"
+          ]
+        },
+        {
+          "file": "hardening-hooks.test.js",
+          "reason": "The true_done hook boundary must not bypass the primary completion verdict.",
+          "incident_refs": [
+            "projects/控制台/artifacts/done-gate-audit-2026-06-23.md"
+          ]
+        },
+        {
+          "file": "gate-policy.test.js",
+          "reason": "Prevents new active blocking hooks without incident provenance and verifies dormant/shadow semantics.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260710111745-86216f9bd15ada5b.md"
+          ]
+        },
+        {
+          "file": "test-run-profiles.test.js",
+          "reason": "Prevents routine tasks from silently falling back to the full repository suite.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260710142454-69940c668bc65909.md"
+          ]
+        },
+        {
+          "file": "execution-profile.test.js",
+          "reason": "Prevents routine work from paying for multi-round loop engineering while preserving explicit and iterative tasks.",
+          "incident_refs": [
+            "projects/控制台/artifacts/self-reflection-optimizer/insight-50-review-20260716.md",
+            "projects/控制台/artifacts/gate-load-audit/incidents/20260716-retry-loop-token-amplification.md"
+          ]
+        },
+        {
+          "file": "context-budget.test.js",
+          "reason": "Review and planning nodes previously received duplicated generation knowledge, inflating prompts without improving verification.",
+          "incident_refs": [
+            "projects/控制台/artifacts/gate-load-audit/latest.md"
+          ]
+        },
+        {
+          "file": "prompt-budget.test.js",
+          "reason": "Completion and visual rules accumulated into oversized prompts and repeated full-suite instructions.",
+          "incident_refs": [
+            "projects/控制台/artifacts/gate-load-audit/latest.md",
+            "board/repair-tickets/auto-20260710142454-69940c668bc65909.md"
+          ]
+        },
+        {
+          "file": "secret-hygiene.test.js",
+          "reason": "Secret leakage protection remains foundational and must run in every routine profile.",
+          "incident_refs": [
+            "shared/reference/失败案例库.md"
+          ]
+        }
+      ]
+    },
+    "runtime": {
+      "description": "Queue liveness, orphan recovery and process stability regressions.",
+      "tests": [
+        {
+          "file": "queue.test.js",
+          "reason": "Queue state is the control plane source of truth.",
+          "incident_refs": [
+            "docs/设计/玉兔6-三遍自查与稳固清单.md"
+          ]
+        },
+        {
+          "file": "worker-reaper.test.js",
+          "reason": "Orphan cleanup previously killed live engines and also left dead workers behind.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260621134421-79822ed9c5b74e36.md"
+          ]
+        },
+        {
+          "file": "stale-running-heartbeat.test.js",
+          "reason": "Dead running tasks previously occupied the only engine slot indefinitely.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260623031829-8e8327b1ad4ff6a2.md"
+          ]
+        },
+        {
+          "file": "crash-recovery-idempotency.test.js",
+          "reason": "Restart recovery must not duplicate or lose queue transitions.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260623031829-8e8327b1ad4ff6a2.md"
+          ]
+        },
+        {
+          "file": "server-async-unblock.test.js",
+          "reason": "Long synchronous work previously blocked the console request path.",
+          "incident_refs": [
+            "docs/设计/玉兔6-架构稳定性审核.md"
+          ]
+        },
+        {
+          "file": "memory-architecture.test.js",
+          "reason": "Memory and worker process growth require bounded architecture checks.",
+          "incident_refs": [
+            "board/repair-tickets/repair-multi-agent-memory-architecture-20260713.md"
+          ]
+        },
+        {
+          "file": "incremental-event-reader.test.js",
+          "reason": "Waiting parent workers repeatedly reparsed the complete event history on every append, consuming a CPU core while no downstream state changed.",
+          "incident_refs": [
+            "projects/控制台/artifacts/self-reflection-optimizer/task-runtime-self-reflection-20260717.md"
+          ]
+        },
+        {
+          "file": "audit-pulse.test.js",
+          "reason": "Unchanged keepalive and all-blocked audit states dominated the event log and woke waiting workers without adding new state.",
+          "incident_refs": [
+            "projects/控制台/artifacts/self-reflection-optimizer/task-runtime-self-reflection-20260717.md"
+          ]
+        },
+        {
+          "file": "ceo-runtime-efficiency.test.js",
+          "reason": "The CEO downstream wait path must use incremental event reads, direct queue refs and state-change audit pulses together.",
+          "incident_refs": [
+            "projects/控制台/artifacts/self-reflection-optimizer/task-runtime-self-reflection-20260717.md"
+          ]
+        }
+      ]
+    },
+    "routing": {
+      "description": "Front-door and runner capability regressions.",
+      "tests": [
+        {
+          "file": "front-door-policy.test.js",
+          "reason": "Normal work and repair work require distinct routing lanes.",
+          "incident_refs": [
+            "projects/控制台/artifacts/front-door-policy-20260701"
+          ]
+        },
+        {
+          "file": "project-routing.test.js",
+          "reason": "Project routing previously lost or misclassified project ownership.",
+          "incident_refs": [
+            "docs/设计/玉兔6-三遍自查与稳固清单.md"
+          ]
+        },
+        {
+          "file": "runner-failover.test.js",
+          "reason": "Text-only or unavailable runners previously failed tasks without a capable fallback.",
+          "incident_refs": [
+            "board/repair-tickets/auto-20260625013315-dc613b9ef8b5260c.md"
+          ]
+        },
+        {
+          "file": "interaction-trace.test.js",
+          "reason": "Repair and quality operations need a complete prompt and agent handoff trail.",
+          "incident_refs": [
+            "docs/设计/玉兔6-协同设计分析.md"
+          ]
+        },
+        {
+          "file": "quality-ops-audit.test.js",
+          "reason": "Quality audit previously treated an intermediate runner failure as the final chain state even after fallback task.done and queue.completed ok=true.",
+          "incident_refs": [
+            "projects/控制台/artifacts/quality-ops/audits/2026-07-15/qops-20260715-first_week_full/batch-01.json",
+            "projects/控制台/artifacts/engine-events.2026-07-16-0926-50889.jsonl"
+          ]
+        },
+        {
+          "file": "handoff-shadow.test.js",
+          "reason": "Large CLI goals were duplicated inline despite a fingerprinted task document, inflating heavy-node token use.",
+          "incident_refs": [
+            "projects/控制台/artifacts/gate-load-audit/incidents/20260716-retry-loop-token-amplification.md"
+          ]
+        }
+      ]
+    },
+    "smoke": {
+      "description": "Fast routine contract checks. Each selected test has incident provenance in the gate profile.",
+      "tests": [
+        "protocol-gate.test.js",
+        "done-gate.test.js",
+        "done-gate-execute-evidence.test.js",
+        "regression-command-policy.test.js",
+        "hardening-hooks.test.js",
+        "gate-policy.test.js",
+        "test-run-profiles.test.js",
+        "execution-profile.test.js",
+        "context-budget.test.js",
+        "prompt-budget.test.js",
+        "handoff-shadow.test.js"
+      ]
+    },
+    "lean": {
+      "description": "Routine incident-backed safety profile.",
+      "include": [
+        "gate",
+        "runtime",
+        "routing"
+      ],
+      "tests": []
+    }
+  }
+}

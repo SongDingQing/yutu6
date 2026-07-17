@@ -10,11 +10,14 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { spawnSync, spawn } = require('child_process');
 const EventLog = require('./eventlog');
 const DoneGate = require('./done-gate');
 const Handoff = require('./handoff');
+const InteractionTrace = require('./interaction-trace');
 const LessonIndex = require('./lesson-index');
+const ContextBudget = require('./context-budget');
 const Failover = require('../routing/failover');
 const DEFAULT_QUEUE_MODULE = path.resolve(__dirname, 'queue.js');
 
@@ -35,6 +38,8 @@ const DEFAULT_ROLE_MAP = {
   hr_specialist: 'zhipu-glm',
   it_engineer: 'zhipu-glm',
   frontend_designer: 'zhipu-glm',
+  board_glm52: 'zhipu-board-direct',
+  board_deepseek: 'deepseek-board-direct',
   'repair-lead': 'claude-code',
   repair: 'codex-privileged',
   gui_desktop_control: 'peekaboo',   // 需点击/原生 App/无 API 网页 → Peekaboo(见 runners.yaml)
@@ -43,21 +48,29 @@ const DEFAULT_ROLE_MAP = {
 // 知识库检索注入(知识库打通):envelope 组装前 spawnSync query.py --json 取 top-k,
 // 拼成"# 知识库检索(只读)"块注入信封。对所有 runner(含纯文本)生效,因为是预取而非让 agent 自己调。
 // 安全:任何失败/超时/无内容都静默返空,绝不阻断信封组装。env YUTU6_KB_INJECT=0 可关。
-const KB_INJECT_MAX_HITS = 3;
 const KB_INJECT_TIMEOUT_MS = 4000;
 // 进程级缓存:同一任务内 goal 跨节点/attempt/failover 候选不变,检索结果只取一次。
 // 此前每个节点、每次 attempt、每个 failover 候选都各自阻塞跑一次 python+sqlite(4s 上限)。
 // engine-runner 每任务 fresh spawn,进程即任务边界,Map 不会跨任务泄漏。
 const kbContextCache = new Map();
-function fetchKbContext(ctx) {
+function fetchKbContext(ctx, opts = {}) {
   if (process.env.YUTU6_KB_INJECT === '0') return '';  // 关断开关优先于缓存,保证随时可关
-  const cacheKey = String((ctx && ctx.goal) || '').slice(0, 200);
+  const requestedHits = Number(opts.maxHits);
+  const requestedChars = Number(opts.maxChars);
+  const maxHits = Number.isFinite(requestedHits)
+    ? Math.max(0, requestedHits)
+    : ContextBudget.DEFAULTS.kbHits;
+  const maxChars = Number.isFinite(requestedChars)
+    ? Math.max(80, requestedChars)
+    : ContextBudget.DEFAULTS.kbChars;
+  if (maxHits === 0) return '';
+  const cacheKey = `${maxHits}:${maxChars}:${String((ctx && ctx.goal) || '').slice(0, 200)}`;
   if (cacheKey && kbContextCache.has(cacheKey)) return kbContextCache.get(cacheKey);
-  const result = fetchKbContextUncached(ctx);
+  const result = fetchKbContextUncached(ctx, { maxHits, maxChars });
   if (cacheKey) kbContextCache.set(cacheKey, result);
   return result;
 }
-function fetchKbContextUncached(ctx) {
+function fetchKbContextUncached(ctx, opts = {}) {
   try {
     const root = (ctx && ctx.workspaceRoot) || process.cwd();
     const dbFile = path.join(root, 'knowledge', 'kb.sqlite');
@@ -73,9 +86,17 @@ function fetchKbContextUncached(ctx) {
     try { data = JSON.parse(res.stdout.trim().split(/\r?\n/).pop() || '{}'); } catch (_) { return ''; }
     if (!data || !data.ok || !Array.isArray(data.hits) || !data.hits.length) return '';
     const lines = ['# 知识库检索(只读参考:可能含提示词模板/品牌准则/历史优秀案例;按需采用,与本任务无关可忽略)'];
-    for (const h of data.hits.slice(0, KB_INJECT_MAX_HITS)) {
+    const requestedHits = Number(opts.maxHits);
+    const requestedChars = Number(opts.maxChars);
+    const maxHits = Number.isFinite(requestedHits)
+      ? Math.max(0, requestedHits)
+      : ContextBudget.DEFAULTS.kbHits;
+    const maxChars = Number.isFinite(requestedChars)
+      ? Math.max(80, requestedChars)
+      : ContextBudget.DEFAULTS.kbChars;
+    for (const h of data.hits.slice(0, maxHits)) {
       const p = String(h.path || '').slice(0, 140);
-      const t = String(h.text || '').replace(/\s+/g, ' ').trim().slice(0, 420);
+      const t = String(h.text || '').replace(/\s+/g, ' ').trim().slice(0, maxChars);
       if (t) lines.push(`- [${p}] ${t}`);
     }
     if (Array.isArray(data.entities) && data.entities.length) {
@@ -90,17 +111,19 @@ function fetchKbContextUncached(ctx) {
 // 从 shared/reference/lesson-index.json 取 top3 同域教训,在知识库注入块附近拼
 // "# 历史教训(自动注入,与本任务同域的既往坑)" 块,总预算 ≤1200 字。
 // 安全:无命中/索引缺失/任何异常=静默空串,绝不阻断信封;env YUTU6_LESSON_INJECT=0 关闭(默认开)。
-function fetchLessonContext(ctx) {
+function fetchLessonContext(ctx, opts = {}) {
   try {
     return LessonIndex.lessonContextBlock(String((ctx && ctx.goal) || ''), {
       workspaceRoot: (ctx && ctx.workspaceRoot) || process.cwd(),
+      max: opts.maxHits,
+      maxChars: opts.maxChars,
     });
   } catch (_) { return ''; }
 }
 
-// 交接机制 shadow 阶段(拍板①②修正版):指针化只发生在这一层。
+// 交接机制 auto/shadow 阶段(拍板①②修正版):指针化只发生在这一层。
 // envOpts(可选,第三参,向后兼容):{ runner, runsDir, eventlog, taskId, projectId, env }
-// 仅当 YUTU6_HANDOFF_MODE=on 且 runner 是 CLI 族(非 openai_http/tool-harness)且
+// auto 长目标或 YUTU6_HANDOFF_MODE=on,且 runner 是 CLI 族(非 openai_http/tool-harness)时,
 // engine-runs/<taskId>/task.md 存在且指纹匹配时,goal 段替换为「一句话意图+完整路径指针+指纹+先读指令」;
 // 验收表仍完整内联(done-gate 逐字锚点需要);任何读失败回退全文并 emit handoff.fallback。
 function emitHandoffFallback(envOpts, node, reason) {
@@ -121,6 +144,7 @@ function emitHandoffFallback(envOpts, node, reason) {
 function envelopeGoalSection(node, ctx, envOpts) {
   const fullGoal = [`- 目标:${ctx.goal || '(见上下文)'}`];
   if (!envOpts) return fullGoal;
+  if (/^board[_-]/i.test(String(node && node.agent_role || ''))) return fullGoal;
   let decision = null;
   try {
     decision = Handoff.envelopeGoalPointer({
@@ -153,64 +177,109 @@ function buildEnvelope(node, ctx, envOpts) {
   const acceptanceTemplateRef = DoneGate.structuredAcceptanceTemplateReference({
     workspaceRoot: ctx.workspaceRoot || process.cwd(),
   });
+  const nonVisual = ctx.visual_acceptance && ctx.visual_acceptance.required === false;
+  const loopEnabled = !!(ctx.loop_engineering && ctx.loop_engineering.enabled !== false);
+  const machineAcceptance = ctx.acceptance_contract && ctx.acceptance_contract.schema === 'acceptance-contract@1';
+  const previousContext = envOpts && envOpts.reviewDeltaContext
+    ? envOpts.reviewDeltaContext.prepareEnvelope({
+      node,
+      ctx,
+      attempt: envOpts.attempt,
+      dir: envOpts.dir,
+    })
+    : { mode: 'legacy' };
+  const deltaContextActive = previousContext.mode === 'delta' || previousContext.mode === 'fallback';
+  const previousContextValue = deltaContextActive ? previousContext.value : pickPrev(ctx);
+  const previousContextLabel = previousContext.mode === 'delta'
+    ? '上一步差量上下文(供参考)'
+    : (previousContext.mode === 'fallback' ? '上一步脱敏完整回退(供参考)' : '上一步结果(供参考)');
   const outputContract = [];
+  const reviewOutputShape = machineAcceptance
+    ? `{"review":{"pass":false,"severity":"medium","issues":["observed_route=hard_block_expected_route=rework：每项为非空具体问题"],"notes":"...","verification":{"verdict":"false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}],"issue_evidence":[{"issue_index":0,"issue":"observed_route=hard_block_expected_route=rework：与 issues[0] 原文一致","acceptance_id":"机器合同内非视觉验收ID","evidence":"projects/控制台/.../review-binding.md:12","source_evidence":"review前 implementation 已声明的 implementation-failure-receipts.jsonl:行号","source_excerpt":"implementation-failure-receipt@1 JSON 单行原文"}]}}}`
+    : `{"review":{"pass":true,"severity":"low","notes":"...","verification":{"verdict":"true|false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}]}}}`;
   if (node.id === 'orchestrator-plan') {
     outputContract.push(
       `# 结构化输出要求`,
-      `请判断任务 projectId(如 控制台 或 Simulaid),并在最后输出 \`\`\`json 代码块: {"orchestrator":{"projectId":"控制台","summary":"...","acceptance":"..."}}。`,
-      `如果涉及 Starlaid,停止并说明不处理。`,
+      `请判断任务 projectId(如 控制台 或 Simulaid),并在最后输出 \`\`\`json 代码块: {"orchestrator":{"projectId":"控制台","summary":"...","acceptance":[{"text":"逐项验收原文","scope":"project/控制台"}]}}。acceptance 必须是逐项对象数组,禁止输出散文字符串、合并项或自行生成 acceptance_id/source_hash；引擎会按原文和作用域生成稳定身份。`,
       ``,
     );
   } else if (node.id === 'implement') {
     outputContract.push(
       `# 结构化输出要求`,
-      `请在最后输出 \`\`\`json 代码块: {"implementation":{"done":true,"summary":"...","changed_files":[],"receipt":{"taskId":"${ctx.taskId || ctx.id || ''}","specFingerprint":"${ctx.spec_fingerprint || ''}","changedFiles":[],"tests":["node tests/run.js exit 0 或说明未运行原因"],"artifacts":["文件:行 / 截图 / 报告路径"],"verdict":"done","blocked_required_specs":[]},"acceptance_table":[{"point":"逐字复制验收表要点","status":"完成|部分|未完成","evidence":"文件:行 / git diff + 文件 / 截图路径 / 命令 exit 0","notes":"..."}],"logic_chain":{"summary":"...","current_status":"done|blocked|partial","actions":["做了什么"],"evidence":[{"kind":"file|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}],"tests":[{"command":"node tests/run.js","exit_code":0,"summary":"..."}],"conclusion":"..."}}}。`,
+      `请在最后输出 \`\`\`json 代码块: {"implementation":{"done":true,"summary":"...","changed_files":[],"receipt":{"taskId":"${ctx.taskId || ctx.id || ''}","specFingerprint":"${ctx.spec_fingerprint || ''}","changedFiles":[],"tests":["node tests/<专项>.test.js exit 0 或说明未运行原因"],"artifacts":["文件:行 / 截图 / 报告路径"],"verdict":"done","blocked_required_specs":[]},"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成|not_applicable(仅v2非视觉行)","evidence":"文件:行 / git diff + 文件 / 截图路径 / 命令 exit 0","notes":"..."}],"logic_chain":{"summary":"...","current_status":"done|blocked|partial","actions":["做了什么"],"evidence":[{"kind":"file|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}],"tests":[{"command":"node tests/<专项>.test.js","exit_code":0,"summary":"..."}],"conclusion":"..."}}}。`,
       `receipt 是硬性协议回执:必须带 taskId、specFingerprint、changedFiles、tests、artifacts、verdict; changedFiles 必须覆盖 implementation.changed_files。必做规格不能达成时,必须事前写 blocked_required_specs 并有主人批准,否则 done gate 打回。`,
       `验收表模板单一来源:${acceptanceTemplateRef};按模板字段逐行填写,不得改成段落声明。`,
-      `如果任务验收里有结构化验收表,implementation.acceptance_table 必须按表逐行填写:要点逐字复制,状态只能填 完成/部分/未完成;留空、跨过、无证据、证据路径不存在都视为未完成。`,
-      `每行证据必须对得上本行要点;设计对照行必须在 evidence 或 notes 指回同一个 decisions.md:行号,不能所有行复用同一个泛化证据。`,
-      `视觉/UI 类要点必须填可核 peekaboo 图片截图路径(.png/.jpg/.webp/.gif),并填 Codex 对照设计挑错证据;failure.json/截图失败标记只能作为阻塞或降级说明,不能把该行标为 完成;不接受"自验收已归档"这类声明。`,
-      `视觉/UI 截图挑错默认由 Codex 复核;glm-5.2 不能作为最终视觉自验替代。`,
+      `如果任务验收里有结构化验收表,implementation.acceptance_table 必须按表逐行填写:要点逐字复制;普通/视觉行状态只能填 完成/部分/未完成,structured-acceptance@2 的非视觉判定行必须原样填 not_applicable;留空、跨过、无证据、证据路径不存在都视为未完成。`,
+      machineAcceptance ? `本任务带 acceptance-contract@1；每行必须原样回传 text、acceptance_id、source_hash、scope。text 是不可变机器原文；point 只供人读。done gate 禁止从 goal/散文重新拆分或自行改写机器合同。` : null,
+      machineAcceptance ? `若 implement 阶段真实观察到某条 requiredRow 的失败/部分结果，须在 review 前把它写成单行 JSON 回执并由 changed_files/receipt/acceptance_table/logic_chain 声明，同时在 implementation.failure_receipts[] 原样回传并增加 evidence=该 path:line：{"schema":"implementation-failure-receipt@1","acceptance_id":"该行机器ID","source_hash":"该行机器哈希","expected":"该行 text 原文","observed":"与 expected 不同的具体结果","verdict":"fail|partial|blocked"}。不得为全完成行伪造负向回执。` : null,
+      nonVisual
+        ? `本任务 visual_acceptance=not_applicable;优先级仍为 显式用户要求 > human gate > 变更路径 > 任务类型。非视觉行只填 not_applicable + task-envelope:visual_acceptance,不制造截图。`
+        : `验收表含 structured-acceptance@2 时,遵守 visual_acceptance 优先级:显式用户要求 > human gate > 变更路径 > 任务类型;视觉任务标 not_applicable 一律打回。`,
+      `每行证据必须对得上本行要点:evidence/notes 或所引文件的附近片段必须含与本行要点可核对齐的具体术语;若源码/测试标识与验收行语言不一致,必须额外引用包含该要点与结果的持久证据行(如 decisions/structured-acceptance),不能只堆代码行号。设计对照行必须在 evidence 或 notes 指回同一个 decisions.md:行号,不能所有行复用同一个泛化证据。`,
+      nonVisual ? null : `视觉/UI 行必须填可核 peekaboo 图片路径并附 Codex 对照设计挑错;截图失败只能标阻塞/降级,不能标完成;glm-5.2 不能作为最终视觉自验替代。`,
       `logic_chain 是硬性 done gate:必须写清做了什么、当前状态、证据在哪;实现类列 changed_files 并给 diff/test/文件证据,分析类给结论+依据。`,
-      ctx.loop_engineering && ctx.loop_engineering.standards ? `loop engineering 标准: ${JSON.stringify(ctx.loop_engineering.standards)}; 如果上轮 review 给出 critique/skill 改进,本轮必须按该方法重新生成并在 logic_chain.actions 说明。` : null,
+      ctx.loop_engineering && ctx.loop_engineering.standards
+        ? (machineAcceptance
+          ? `loop engineering 标准以本任务机器验收合同的全量 requiredRows 为准;如果上轮 review 给出 critique/skill 改进,本轮必须按该方法重新生成并在 logic_chain.actions 说明。`
+          : `loop engineering 标准: ${JSON.stringify(ctx.loop_engineering.standards)}; 如果上轮 review 给出 critique/skill 改进,本轮必须按该方法重新生成并在 logic_chain.actions 说明。`)
+        : null,
       `证据必须是可核指针,如文件路径/行号、命令和退出码、测试输出摘要、截图路径或分析依据文件;只写"已完成"无效。`,
+      `测试优先跑 changed_files 对应专项;普通任务用 --profile smoke;核心引擎/队列/门禁改动用 --profile lean;发布/人工全检才显式用 --profile full。`,
       `如果任务明确要求不改文件, changed_files 必须为空。`,
       ``,
     );
   } else if (node.id === 'review') {
     outputContract.push(
       `# 结构化输出要求`,
-      `请审查上一步结果,并在最后输出 \`\`\`json 代码块: {"review":{"pass":true,"severity":"low","notes":"...","verification":{"verdict":"true|false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}]}}}。`,
+      `请审查上一步结果,并在最后输出 \`\`\`json 代码块: ${reviewOutputShape}。`,
       `验收表模板单一来源:${acceptanceTemplateRef};review.verification.acceptance_table 必须按同一模板逐行复核,不得用总结声明代替。`,
-      `loop engineering 评估必须补充 review.evaluation: {"score":0.0到1.0,"criteria_scores":[{"id":"S1","score":0.0到1.0,"evidence":"..."}],"gaps":["差距"],"improvement_points":["下一轮具体改进点"]}; score 必须按验收标准逐项核实,不能主观给分。`,
+      loopEnabled ? `loop engineering 已开启:补 review.evaluation(score/criteria_scores/gaps/improvement_points),按全量 requiredRows 给硬证据评分。每个 improvement_points 条目必须逐字出现在 review.critique、review.notes 或 evaluation.gaps 之一；evaluation.gaps 的每个结构化条目也必须逐项原样进入 improvement_points,供独立一致性校验。` : null,
+      deltaContextActive ? `本轮必须核对不可变上下文并输出 review.verification.immutable_context={"goal_sha256":"${previousContext.value.goal_sha256}","spec_fingerprint":"${previousContext.value.spec_fingerprint}","verified":true};任一值不一致必须 pass=false。` : null,
       `pass 必须是布尔值; severity 用 low/medium/high。`,
       `如果任务验收里有结构化验收表,review.verification.acceptance_table 必须逐行复核 implementation.acceptance_table;任一行不是 完成、证据为空、证据不可核、证据对不上,必须 pass=false。`,
+      machineAcceptance ? `本任务带 acceptance-contract@1；复核表必须逐行原样保留 text、acceptance_id、source_hash、scope，不得从自然语言重新匹配或改写机器合同。pass=false 时 issues[] 必须逐项非空，verification.issue_evidence[] 必须逐 issue 覆盖 issue_index、issue 原文、合同内非视觉 acceptance_id、绑定回执 evidence、独立 source_evidence 与 source_excerpt。` : null,
+      machineAcceptance ? `pass=false 时先在 projects/${ctx.projectId || '<projectId>'}/artifacts/ 下落一个 review 绑定回执文件，每个 issue 独占一行并同时写 issue 原文、acceptance_id、requiredRows point 和“核对结果=<该行status>”，再让 issue_evidence.evidence 引用该 path:line。该 evidence 只是 issue→验收行绑定回执；source_evidence 必须指向 review 前已由 implementation.changed_files/receipt/acceptance_table/logic_chain 声明的 implementation-failure-receipt@1 单行 JSON，且该行还须与 implementation.failure_receipts[] 中相同 evidence 的 implement-time 冻结副本逐字段一致，不得与绑定回执同文件。回执必须逐字段绑定同一 requiredRow 的 acceptance_id、source_hash、expected=text 原文，observed 必须是与 expected 不同且逐字出现在 issue 中的具体负向结果，verdict 必须为负向枚举。source_excerpt 必须逐字复制该 JSON 行。普通源码 token、无关前置行、review 临时复述或 review 后改写前置文件，即使 token 与 issue 重叠，也不能充当 source_evidence。` : null,
+      nonVisual
+        ? `非视觉行只接受单一 not_applicable + task-envelope:visual_acceptance。`
+        : `显式视觉要求或 human gate 开启时 not_applicable 一律打回。`,
       `设计对照行必须核实 evidence 或 notes 指回同一个 decisions.md:行号;普通行必须核实证据/备注/文件片段能对上本行要点,不能接受一条证据套所有行。`,
-      `review.verification.acceptance_table 每行 evidence 必须是 done gate 可核指针:用从仓库根可解析的工作区相对完整路径(如 projects/控制台/artifacts/architecture/xxx.md:行),设计对照行须含对应 decisions.md:行号;禁止裸文件名(如 status.md:6、xxx-rfc.md:10)和"git status 确认…"这类纯文字断言——done gate 按完整路径解析存在性,裸名/纯文字一律判证据不可核打回。最稳做法:直接复用 implementation.acceptance_table 同一行已核实通过的完整路径证据。`,
-      `视觉/UI 类必须核实 peekaboo 图片截图路径(.png/.jpg/.webp/.gif)存在,且有 Codex 对照设计挑错证据;failure.json/截图失败标记只能证明截图尝试失败,不能作为该行 完成 证据;不接受"自验收已归档"声明。`,
-      `视觉/UI 截图挑错默认由 Codex 复核;glm-5.2 不能作为最终视觉自验替代。`,
+      `review.verification.acceptance_table 的 evidence 必须用仓库根可解析的完整相对路径/命令;禁止裸文件名和纯文字断言。可直接复用 implementation 对应行的完整证据。`,
+      nonVisual ? null : `视觉/UI 行必须核实 peekaboo 图片存在并有 Codex 对照设计挑错;截图失败不能作为完成证据;glm-5.2 不能作为最终视觉自验替代。`,
+      envOpts && Array.isArray(envOpts.visualInputManifest) && envOpts.visualInputManifest.length
+        ? `运行时已通过 Codex CLI --image 真实附加以下图片:${JSON.stringify(envOpts.visualInputManifest.map(item => ({ path: item.path, sha256: item.sha256 })))}。必须实际逐图观察,并在 review.verification.visual_observations 输出每张图片的 {"path":"原路径","sha256":"原哈希","observation":"具体可见内容与问题"};stat/shasum/sips、尺寸、哈希、文件存在或沿用上轮 critique 不等于看图。无法观察任一图片时必须 pass=false。runtime_visual_input 及其 trace_path/trace_sha256 由 runner 注入,不要自行伪造。`
+        : envOpts && envOpts.visualReviewRequired
+          ? `本轮需要视觉/UI复审,但运行时未能生成可核验的 Codex CLI --image 图片输入轨迹。不得声称已打开图片,也不得仅凭 stat/shasum/sips、尺寸、哈希、文件存在或上轮 critique 形成视觉完成或打回结论;必须 pass=false、verification.verdict=partial,并把视觉验收行标为 部分/未完成,在 notes 明确 blocked: runtime visual tool trace unavailable。`
+          : null,
       `主管复审必须硬核实:对照 implementation.logic_chain 与实际文件/命令/测试;声称改了 X 就核实 X 的文件/diff;声称跑测试就核实测试存在且通过;分析类核实结论是否有依据。`,
-      `如果上一步 implementation.changed_files 非空,必须把每一个 changed_files 路径原样复制到 verification.checked,并在 verification.evidence 为每个路径给出 file/diff/test 证据;目录、日志和生成产物也要逐项写明,不能只写"已核实改动"。`,
+      `如果上一步 implementation.changed_files 或差量上下文 changed_files 非空,必须把每一个 changed_files 路径原样复制到 verification.checked,并在 verification.evidence 为每个路径给出 file/diff/test 证据;目录、日志和生成产物也要逐项写明,不能只写"已核实改动"。`,
       `只有在目标验收项已逐项达成、implementation.done=true、逻辑链完整、必要的 changed_files/diff/截图/验收证据齐全,且 verification.evidence 可核时,才能 pass=true。`,
       `如果目标未达成、证据不足、只是方案草案、无法写盘或需要返工,必须 pass=false 并在 notes 写明打回原因。`,
       ``,
     );
   }
-  const example = structuredOutputExample(node);
-  const kbContext = fetchKbContext(ctx);
-  const lessonContext = fetchLessonContext(ctx);
+  const example = structuredOutputExample(node, { deltaContextActive, previousContext, machineAcceptance });
+  const contextBudget = ContextBudget.policyForNode(node, process.env);
+  const kbContext = contextBudget.enabled
+    ? fetchKbContext(ctx, { maxHits: contextBudget.kbHits, maxChars: contextBudget.kbChars })
+    : '';
+  const lessonContext = contextBudget.enabled
+    ? fetchLessonContext(ctx, { maxHits: contextBudget.lessonHits, maxChars: contextBudget.lessonChars })
+    : '';
   return [
     `# 任务:${node.id}`,
     ctx.taskId ? `- taskId:${ctx.taskId}` : null,
     `- 角色:${node.agent_role || '-'}`,
     ctx.spec_fingerprint ? `- 规格指纹:${ctx.spec_fingerprint}` : null,
+    deltaContextActive ? `- 不可变目标哈希:${previousContext.value.goal_sha256}` : null,
     ctx.projectId ? `- 项目:${ctx.projectId}${ctx.scopedToProject ? ' (scoped_to_project)' : ''}` : null,
+    ctx.visual_acceptance ? `- 视觉验收分类:${JSON.stringify(ctx.visual_acceptance)}` : null,
     ...envelopeGoalSection(node, ctx, envOpts),
-    `- 边界:${ctx.bounds || '不要碰未点名的文件;Starlaid 一律排除'}`,
+    `- 边界:${ctx.bounds || '不要碰未点名的文件;密钥不回显;高危操作先确认'}`,
     `- 输入:${(ctx.inputs || []).join(', ') || '(无)'}`,
     `- 验收:${ctx.acceptance || '产出可验证;带视觉产物须附截图并对照用户证据'}`,
+    machineAcceptance ? `- 机器验收合同:${JSON.stringify(ctx.acceptance_contract)}` : null,
     ctx.orchestrator_plan ? `- 总管拆解:${ctx.orchestrator_plan}` : null,
-    `- 上一步结果(供参考):${JSON.stringify(pickPrev(ctx))}`,
+    `- ${previousContextLabel}:${JSON.stringify(previousContextValue)}`,
     ``,
     ...rolePrompt,
     ...(kbContext ? [kbContext] : []),
@@ -223,9 +292,9 @@ function buildEnvelope(node, ctx, envOpts) {
   ].filter(x => x != null).join('\n');
 }
 
-function structuredOutputExample(node) {
+function structuredOutputExample(node, opts = {}) {
   if (node.id === 'orchestrator-plan') {
-    return { orchestrator: { projectId: '控制台', summary: '...', acceptance: '...' } };
+    return { orchestrator: { projectId: '控制台', summary: '...', acceptance: [{ text: '逐项验收原文', scope: 'project/控制台' }] } };
   }
   if (node.id === 'implement') {
     return {
@@ -237,7 +306,7 @@ function structuredOutputExample(node) {
           taskId: '...',
           specFingerprint: '...',
           changedFiles: [],
-          tests: ['node tests/run.js exit 0'],
+          tests: ['node tests/<专项>.test.js exit 0'],
           artifacts: ['projects/控制台/status.md:1'],
           verdict: 'done',
           blocked_required_specs: [],
@@ -245,8 +314,12 @@ function structuredOutputExample(node) {
         acceptance_table: [
           {
             point: '逐字复制验收表要点',
+            text: '机器合同不可变原文',
+            acceptance_id: 'acc_...',
+            source_hash: 'sha256...',
+            scope: 'project/控制台',
             status: '完成',
-            evidence: 'node tests/run.js exit 0',
+            evidence: 'node tests/<专项>.test.js exit 0',
             notes: '...',
           },
         ],
@@ -257,14 +330,14 @@ function structuredOutputExample(node) {
           evidence: [
             {
               kind: 'test',
-              command: 'node tests/run.js',
+              command: 'node tests/<专项>.test.js',
               exit_code: 0,
               summary: '...',
             },
           ],
           tests: [
             {
-              command: 'node tests/run.js',
+              command: 'node tests/<专项>.test.js',
               exit_code: 0,
               summary: '...',
             },
@@ -275,17 +348,30 @@ function structuredOutputExample(node) {
     };
   }
   if (node.id === 'review') {
+    const machineNegative = opts.machineAcceptance === true;
     return {
       review: {
-        pass: true,
-        severity: 'low',
+        pass: machineNegative ? false : true,
+        severity: machineNegative ? 'medium' : 'low',
+        ...(machineNegative ? { issues: ['observed_route=hard_block_expected_route=rework：具体且可由实现期失败回执核实的问题'] } : {}),
         notes: '...',
         verification: {
-          verdict: 'true',
+          verdict: machineNegative ? 'false' : 'true',
+          ...(opts.deltaContextActive ? {
+            immutable_context: {
+              goal_sha256: opts.previousContext.value.goal_sha256,
+              spec_fingerprint: opts.previousContext.value.spec_fingerprint,
+              verified: true,
+            },
+          } : {}),
           checked: ['implementation.done', 'implementation.logic_chain', 'implementation.acceptance_table'],
           acceptance_table: [
             {
               point: '逐字复制验收表要点',
+              text: '机器合同不可变原文',
+              acceptance_id: 'acc_...',
+              source_hash: 'sha256...',
+              scope: 'project/控制台',
               status: '完成',
               evidence: '复核证据位置',
               notes: '...',
@@ -294,11 +380,23 @@ function structuredOutputExample(node) {
           evidence: [
             {
               kind: 'test',
-              command: 'node tests/run.js',
+              command: 'node tests/<专项>.test.js',
               exit_code: 0,
               summary: '...',
             },
           ],
+          ...(machineNegative ? {
+            issue_evidence: [
+              {
+                issue_index: 0,
+                issue: 'observed_route=hard_block_expected_route=rework：具体且可由实现期失败回执核实的问题',
+                acceptance_id: 'acc_...',
+                evidence: 'projects/控制台/artifacts/review-binding.md:12',
+                source_evidence: 'projects/控制台/artifacts/implementation-failure-receipts.jsonl:1',
+                source_excerpt: '{"schema":"implementation-failure-receipt@1","acceptance_id":"acc_...","source_hash":"sha256...","expected":"机器合同 text 原文","observed":"observed_route=hard_block_expected_route=rework","verdict":"fail"}',
+              },
+            ],
+          } : {}),
         },
       },
     };
@@ -325,7 +423,7 @@ function structuredOutputExample(node) {
 function pickPrev(ctx) {
   const {
     goal, bounds, inputs, acceptance, loop, max_loops, agentPrompts, workspaceRoot,
-    spec_snapshot, attachments,
+    spec_snapshot, attachments, review_delta_state,
     ...rest
   } = ctx;
   return rest;
@@ -412,6 +510,106 @@ function imageMimeFromPath(file) {
 function resolveInputPath(file, opts) {
   if (!file) return null;
   return path.isAbsolute(file) ? file : path.resolve((opts && opts.workdir) || process.cwd(), file);
+}
+
+function isCodexCommandRunner(r) {
+  return Boolean(r && Array.isArray(r.cmd) && r.cmd.length
+    && /(?:^|\/)codex$/.test(String(r.cmd[0]))
+    && r.cmd.some(arg => String(arg) === 'exec'));
+}
+
+function visualReviewRequired(ctx) {
+  return DoneGate.visualAcceptanceRequired(ctx);
+}
+
+function workspaceRelativeImage(file, opts) {
+  const root = path.resolve((opts && opts.workdir) || process.cwd());
+  const absolutePath = resolveInputPath(file, opts);
+  if (!absolutePath || !imageMimeFromPath(absolutePath)) return null;
+  const relative = path.relative(root, absolutePath);
+  if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null;
+  let bytes;
+  try { bytes = fs.readFileSync(absolutePath); } catch (_) { return null; }
+  return {
+    path: relative.split(path.sep).join('/'),
+    absolutePath,
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function buildVisualReviewInputManifest(node, ctx, opts, r) {
+  if (!node || node.id !== 'review' || !isCodexCommandRunner(r)) return [];
+  const visualRows = DoneGate.implementationAcceptanceRows(ctx)
+    .filter(row => DoneGate.visualAcceptancePoint(row && row.point)
+      && !DoneGate.notApplicableVisualRow(row));
+  if (!visualRows.length) return [];
+  const rowText = visualRows.map(row => [row.evidence, row.notes].filter(Boolean).join('\n')).join('\n');
+  const candidates = DoneGate.visualEvidenceImagePaths(rowText, (opts && opts.workdir) || process.cwd())
+    .concat(attachmentImagePaths(ctx));
+  const seen = new Set();
+  const manifest = [];
+  for (const candidate of candidates) {
+    const item = workspaceRelativeImage(candidate, opts);
+    if (!item || seen.has(item.absolutePath)) continue;
+    seen.add(item.absolutePath);
+    manifest.push(item);
+  }
+  return manifest;
+}
+
+function codexVisualInputArgs(manifest) {
+  return (manifest || []).flatMap(item => ['--image', item.absolutePath]);
+}
+
+function commandPromptVia(r, visualInputManifest) {
+  const configured = r.promptVia || 'arg';
+  // codex exec declares --image <FILE>..., so a positional prompt appended
+  // after image flags is consumed as another image path. Keep the images in
+  // argv and send the prompt through stdin for visual runs.
+  if (isCodexCommandRunner(r) && Array.isArray(visualInputManifest) && visualInputManifest.length) {
+    return 'stdin';
+  }
+  return configured;
+}
+
+function writeVisualInputTrace(manifest, opts, runnerId, dir) {
+  if (!Array.isArray(manifest) || !manifest.length) return null;
+  const workspaceRoot = path.resolve((opts && opts.workdir) || process.cwd());
+  const traceFile = path.join(dir, 'visual-input.json');
+  const relativeTrace = path.relative(workspaceRoot, traceFile);
+  if (!relativeTrace || relativeTrace.startsWith(`..${path.sep}`) || path.isAbsolute(relativeTrace)) return null;
+  const images = manifest.map(item => ({ path: item.path, sha256: item.sha256 }));
+  const trace = {
+    schema: 'codex-cli-image-trace-v1',
+    source: 'runner-spawn-argv',
+    tool: 'codex exec --image',
+    runner: runnerId,
+    images,
+  };
+  const bytes = Buffer.from(`${JSON.stringify(trace, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(traceFile, bytes);
+  return {
+    schema: 'codex-cli-image-v1',
+    attached: true,
+    source: trace.source,
+    tool: trace.tool,
+    runner: runnerId,
+    trace_path: relativeTrace.split(path.sep).join('/'),
+    trace_sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    images,
+  };
+}
+
+function unavailableVisualInputReceipt(r, reason) {
+  return {
+    schema: 'codex-cli-image-v1',
+    attached: false,
+    source: 'runner-spawn-argv',
+    tool: 'codex exec --image',
+    runner: r && Array.isArray(r.cmd) ? String(r.cmd[0] || '') : '',
+    reason: reason || 'runtime_visual_tool_trace_unavailable',
+    images: [],
+  };
 }
 
 function buildOpenAiUserContent(prompt, ctx, opts) {
@@ -698,9 +896,10 @@ function emitNodeOutput(opts, node, attempt, stream, text) {
   } catch (_) {}
 }
 
-function runCommandWithOutputEvents(r, prompt, opts, node, attempt, runnerId) {
+function runCommandWithOutputEvents(r, prompt, opts, node, attempt, runnerId, visualInputManifest) {
   const args = [...r.cmd.slice(1)];
-  const promptVia = r.promptVia || 'arg';
+  args.push(...codexVisualInputArgs(visualInputManifest));
+  const promptVia = commandPromptVia(r, visualInputManifest);
   if (promptVia === 'arg') args.push(prompt);
   const timeoutMs = nodeTimeoutSec(opts) * 1000;
   const payload = {
@@ -834,17 +1033,18 @@ child.on('close', (code, signal) => {
   });
 }
 
-function runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners) {
+function runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners, visualInputManifest) {
   if (r.kind === 'openai_http') return runOpenAiHttpSync(r, prompt, opts, ctx);
   if (r.kind === 'openai_http_tool_harness') {
     return runOpenAiToolHarnessSync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
   }
-  return runCommandWithOutputEvents(r, prompt, opts, node, attempt, runnerId);
+  return runCommandWithOutputEvents(r, prompt, opts, node, attempt, runnerId, visualInputManifest);
 }
 
-function runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerId) {
+function runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerId, visualInputManifest) {
   const args = [...r.cmd.slice(1)];
-  const promptVia = r.promptVia || 'arg';
+  args.push(...codexVisualInputArgs(visualInputManifest));
+  const promptVia = commandPromptVia(r, visualInputManifest);
   if (promptVia === 'arg') args.push(prompt);
   return spawnBuffered(r.cmd[0], args, {
     cwd: opts.workdir,
@@ -857,12 +1057,12 @@ function runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerI
   });
 }
 
-async function runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners) {
+async function runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners, visualInputManifest) {
   if (r.kind === 'openai_http') return runOpenAiHttpAsync(r, prompt, opts, ctx);
   if (r.kind === 'openai_http_tool_harness') {
     return runOpenAiToolHarnessAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
   }
-  return runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerId);
+  return runCommandWithOutputEventsAsync(r, prompt, opts, node, attempt, runnerId, visualInputManifest);
 }
 
 async function runOpenAiToolHarnessAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners) {
@@ -921,7 +1121,7 @@ async function runOpenAiToolHarnessAsync(r, prompt, opts, ctx, node, attempt, ru
   });
 }
 
-function resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec }) {
+function resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec, runtimeVisualInput }) {
   const stdout = res.stdout || '';
   const stderr = res.stderr || '';
   fs.writeFileSync(path.join(dir, 'result.md'), stdout);
@@ -944,6 +1144,11 @@ function resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, 
   }
 
   const structured = extractJson(stdout) || {};
+  if (structured.review && structured.review.verification && typeof structured.review.verification === 'object') {
+    // runtime_visual_input is runner-owned evidence. Never trust a model-authored copy.
+    delete structured.review.verification.runtime_visual_input;
+    if (runtimeVisualInput) structured.review.verification.runtime_visual_input = runtimeVisualInput;
+  }
   return {
     vars: structured,
     evidence: { type: 'result', runner: runnerId, path: path.join(dir, 'result.md') },
@@ -1158,17 +1363,66 @@ function makeCliRunner(opts) {
     const dir = path.join(runsDir, `${node.id}-${attempt}${dirTag || ''}`);
     fs.mkdirSync(dir, { recursive: true });
     // 交接机制:runsDir 根即 engine-runs/<taskId>/,handoff task.md/meta.json 寄生在这里;
-    // 只影响 prompt 层(YUTU6_HANDOFF_MODE=on 且 CLI runner 时 goal 指针化),ctx 不动。
+    // 只影响 prompt 层(auto 长目标或 on,且 CLI runner 时 goal 指针化),ctx 不动。
+    const requiresVisualReview = node && node.id === 'review' && visualReviewRequired(ctx);
+    const visualInputManifest = buildVisualReviewInputManifest(node, ctx, opts, r);
+    const runtimeVisualInput = requiresVisualReview
+      ? writeVisualInputTrace(visualInputManifest, opts, runnerId, dir)
+        || unavailableVisualInputReceipt(r, isCodexCommandRunner(r)
+          ? 'no_valid_workspace_visual_evidence_images'
+          : 'selected_runner_cannot_expose_verified_image_input')
+      : null;
+    if (runtimeVisualInput && opts.eventlog) {
+      try {
+        opts.eventlog.emit(runtimeVisualInput.attached ? 'runner.visual_input' : 'runner.visual_input.unavailable', {
+          task: opts.taskId || null,
+          node: node && node.id || null,
+          role: node && node.agent_role || null,
+          attempt,
+          runner: runnerId,
+          attached: runtimeVisualInput.attached,
+          source: runtimeVisualInput.source,
+          tool: runtimeVisualInput.tool,
+          trace_path: runtimeVisualInput.trace_path || null,
+          trace_sha256: runtimeVisualInput.trace_sha256 || null,
+          images: runtimeVisualInput.images,
+          reason: runtimeVisualInput.reason || null,
+          projectId: opts.projectId || null,
+        });
+      } catch (_) {}
+    }
     const prompt = buildEnvelope(node, ctx, {
       runner: r,
       runnerId,
       runsDir,
+      dir,
+      attempt,
       eventlog: opts.eventlog || null,
       taskId: opts.taskId || null,
       projectId: opts.projectId || null,
+      reviewDeltaContext: opts.reviewDeltaContext || null,
+      visualInputManifest,
+      visualReviewRequired: requiresVisualReview,
     });
     fs.writeFileSync(path.join(dir, 'task.md'), prompt);
-    return { resolved, runnerId, r, dir, prompt };
+    const interactionTrace = InteractionTrace.recordPrompt({
+      ctx,
+      node,
+      attempt,
+      runnerId,
+      runner: r,
+      dir,
+      prompt,
+      workdir: opts.workdir,
+      runsDir,
+      queueRoot: opts.queueRoot,
+      queueAgent: opts.queueAgent,
+      queueId: opts.queueId,
+      taskId: opts.taskId,
+      projectId: opts.projectId,
+      eventlog: opts.eventlog,
+    });
+    return { resolved, runnerId, r, dir, prompt, visualInputManifest, runtimeVisualInput, interactionTrace };
   }
 
   // 候选 runnerId 序列:首选(roleMap,不变)+ prefer 降级候选;再按健康信号做稳定重排(受 routeScoreMode 门控)。
@@ -1194,7 +1448,7 @@ function makeCliRunner(opts) {
   }
 
   // runner.call:每次 runner 调用后 emit(role×runner 调用账本地基;洞察#2/#4/#6)。纯观测,不改决策。
-  function emitRunnerCall(node, attempt, runnerId, candidateIndex, latencyMs, res, result) {
+  function emitRunnerCall(node, attempt, runnerId, candidateIndex, latencyMs, res, result, runtimeVisualInput) {
     if (!runnerEventsEnabled || !opts.eventlog) return;
     try {
       opts.eventlog.emit('runner.call', {
@@ -1214,6 +1468,15 @@ function makeCliRunner(opts) {
         trace_id: process.env.YUTU6_TRACE_ID || opts.taskId || null,
         projectId: opts.projectId || null,
         queueId: opts.queueId || null,
+        visual_input: runtimeVisualInput ? {
+          attached: runtimeVisualInput.attached,
+          source: runtimeVisualInput.source,
+          tool: runtimeVisualInput.tool,
+          trace_path: runtimeVisualInput.trace_path || null,
+          trace_sha256: runtimeVisualInput.trace_sha256 || null,
+          images: runtimeVisualInput.images,
+          reason: runtimeVisualInput.reason || null,
+        } : null,
       });
     } catch (_) {}
   }
@@ -1235,6 +1498,19 @@ function makeCliRunner(opts) {
     } catch (_) {}
   }
 
+  function captureReviewDelta(node, ctx, attempt, dir, result) {
+    if (!opts.reviewDeltaContext || result.fail) return;
+    let captured;
+    try {
+      captured = opts.reviewDeltaContext.captureResult({ node, ctx, attempt, dir, result });
+    } catch (error) {
+      captured = { ok: false, reason: String(error && error.message || error || 'review delta capture failed') };
+    }
+    if (captured && captured.ok === false) {
+      result.fail = `review_delta_context: ${captured.reason || 'capture_failed'}`;
+    }
+  }
+
   function cliRunner(node, ctx, attempt) {
     const candidates = candidatesFor(node, attempt);
     const timeoutSec = nodeTimeoutSec(opts);
@@ -1246,12 +1522,22 @@ function makeCliRunner(opts) {
       if (!gate.allowed) { quotaSkipped++; continue; }             // 熔断期内候选:只跳过,不重排
       const prepared = resolveAndPrepare(node, ctx, attempt, candidates[i], i === 0 ? '' : `-fo${i}`);
       if (prepared.fail) { lastFail = prepared.fail; continue; }   // 该候选不可用(如纯文本无 harness)→ 跳下一个
-      const { runnerId, r, dir, prompt } = prepared;
+      const { runnerId, r, dir, prompt, visualInputManifest, runtimeVisualInput, interactionTrace } = prepared;
       executed++;
       const t0 = Date.now();
-      const res = runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
-      const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec });
-      emitRunnerCall(node, attempt, runnerId, i, Date.now() - t0, res, result);
+      const res = runRunnerOnceSync(r, prompt, opts, ctx, node, attempt, runnerId, runners, visualInputManifest);
+      const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec, runtimeVisualInput });
+      const latencyMs = Date.now() - t0;
+      InteractionTrace.recordResult(interactionTrace, {
+        stdout: res.stdout,
+        stderr: res.stderr,
+        result,
+        exitCode: res && Number.isInteger(res.status) ? res.status : null,
+        latencyMs,
+        eventlog: opts.eventlog,
+      });
+      captureReviewDelta(node, ctx, attempt, dir, result);
+      emitRunnerCall(node, attempt, runnerId, i, latencyMs, res, result, runtimeVisualInput);
       noteQuotaOutcome(node, attempt, candidates[i], gate, result);
       if (!result.fail) return result;
       lastFail = result.fail;
@@ -1271,12 +1557,22 @@ function makeCliRunner(opts) {
       if (!gate.allowed) { quotaSkipped++; continue; }
       const prepared = resolveAndPrepare(node, ctx, attempt, candidates[i], i === 0 ? '' : `-fo${i}`);
       if (prepared.fail) { lastFail = prepared.fail; continue; }
-      const { runnerId, r, dir, prompt } = prepared;
+      const { runnerId, r, dir, prompt, visualInputManifest, runtimeVisualInput, interactionTrace } = prepared;
       executed++;
       const t0 = Date.now();
-      const res = await runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners);
-      const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec });
-      emitRunnerCall(node, attempt, runnerId, i, Date.now() - t0, res, result);
+      const res = await runRunnerOnceAsync(r, prompt, opts, ctx, node, attempt, runnerId, runners, visualInputManifest);
+      const result = resultFromRunnerResponse(res, { r, opts, node, attempt, runnerId, dir, timeoutSec, runtimeVisualInput });
+      const latencyMs = Date.now() - t0;
+      InteractionTrace.recordResult(interactionTrace, {
+        stdout: res.stdout,
+        stderr: res.stderr,
+        result,
+        exitCode: res && Number.isInteger(res.status) ? res.status : null,
+        latencyMs,
+        eventlog: opts.eventlog,
+      });
+      captureReviewDelta(node, ctx, attempt, dir, result);
+      emitRunnerCall(node, attempt, runnerId, i, latencyMs, res, result, runtimeVisualInput);
       noteQuotaOutcome(node, attempt, candidates[i], gate, result);
       if (!result.fail) return result;
       lastFail = result.fail;
@@ -1288,4 +1584,4 @@ function makeCliRunner(opts) {
   return cliRunner;
 }
 
-module.exports = { makeCliRunner, buildEnvelope, extractJson, fetchKbContext, fetchLessonContext, resolveRunnerForNode, nodeNeedsWritableRunner };
+module.exports = { makeCliRunner, buildEnvelope, extractJson, fetchKbContext, fetchLessonContext, resolveRunnerForNode, nodeNeedsWritableRunner, buildVisualReviewInputManifest, codexVisualInputArgs };

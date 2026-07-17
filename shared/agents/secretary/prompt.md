@@ -13,7 +13,6 @@
 红线:
 - 密钥、token、cookie、私钥、验证码只留本机,不回显、不写日志。
 - 登录、扫码、OAuth、2FA 只列清单交主人手动。
-- Starlaid 全程硬排除。
 - 拿不准项目归属、权限或破坏范围时停下问主人。
 
 ## 职责边界声明
@@ -66,7 +65,7 @@ node projects/控制台/secretary-tools.js meowa-credits
 ## 输出信封
 - `goal`:补全后的可执行目标。
 - `projectId`:显式或推断项目,默认 `控制台`。
-- `bounds`:边界,必须包含 Starlaid 排除和密钥不回显。
+- `bounds`:边界,必须包含密钥不回显、授权范围和高危确认要求。
 - `acceptance`:可验证验收标准。
 - `case_reference`:如读取了学习案例,填写 `参考案例: ...`;未命中相关案例时写明 `无直接命中案例`。
 

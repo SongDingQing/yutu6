@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const DoneGate = require('./done-gate');
+const AcceptanceContract = require('./acceptance-contract');
 
 const DEFAULT_MAX_ROUNDS = 3;
 const DEFAULT_TARGET_SCORE = 0.85;
@@ -26,7 +27,6 @@ function sha256(text) {
 
 function safeSegment(value, fallback = 'x') {
   const s = String(value || fallback)
-    .replace(/Starlaid|星桥/ig, 'excluded')
     .replace(/[^A-Za-z0-9_.\-\u3400-\u9fff]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
@@ -55,7 +55,6 @@ function relPath(file, root) {
   const resolved = path.isAbsolute(file) ? file : path.resolve(root, file);
   const rel = path.relative(root, resolved).split(path.sep).join('/');
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  if (/Starlaid|星桥/i.test(rel)) return null;
   return rel;
 }
 
@@ -79,12 +78,41 @@ function collectText(value, out = [], depth = 0) {
 }
 
 function deriveStandards(ctx) {
+  let contractRows = [];
+  if (ctx && ctx.acceptance_contract && ctx.acceptance_contract.schema === 'acceptance-contract@1') {
+    try {
+      const validation = AcceptanceContract.validateConsumerRows(
+        ctx.acceptance_contract,
+        ctx.requiredRows,
+        { textDiagnostic: false },
+      );
+      if (validation.ok) contractRows = AcceptanceContract.acceptanceRows(ctx.acceptance_contract);
+    } catch (_) {
+      contractRows = [];
+    }
+  }
+  if (contractRows.length) {
+    return contractRows.map((row, idx) => ({
+      id: `S${idx + 1}`,
+      acceptance_id: row.acceptance_id,
+      source_hash: row.source_hash,
+      text: row.text,
+      weight: Number((1 / contractRows.length).toFixed(6)),
+    }));
+  }
   const raw = String(ctx && ctx.acceptance || ctx && ctx.goal || '').trim();
-  const parts = raw
+  const structuredRows = DoneGate.hasStructuredAcceptanceTable(raw)
+    ? DoneGate.parseStructuredAcceptanceRows(raw)
+      .map(row => String(row && row.point || '').replace(/^任务验收\s*[:：]\s*/i, '').trim())
+      .filter(Boolean)
+    : [];
+  const parts = (structuredRows.length ? structuredRows : raw
     .split(/\n|;|；|。|\.|、|,|，/)
     .map(s => s.replace(/^[-*\d.、\s]+/, '').trim())
-    .filter(Boolean)
-    .slice(0, 8);
+    .filter(item => item
+      && !/^(?:结构化验收表|模板:|验收表协议:|\|?---)/.test(item)
+      && !/^\|.*\|$/.test(item)))
+    .slice(0, 6);
   const standards = parts.length ? parts : ['产出必须有可验证证据', '复审必须逐项核实验收标准'];
   return standards.map((text, idx) => ({
     id: `S${idx + 1}`,
@@ -225,7 +253,7 @@ function ensureSkillFile(skillFile, ctx) {
 function validateSkillPatchWithDoneGate({ ctx, skillRel, backupRel, rollbackRel, workspaceRoot }) {
   const vars = {
     goal: '沉淀 loop engineering skill 改进',
-    acceptance: 'skill patch 必须可回滚、有证据、路径不触及 Starlaid',
+    acceptance: 'skill patch 必须可回滚、有证据、路径在任务授权范围内',
     implementation: {
       done: true,
       summary: `patched ${skillRel}`,
@@ -338,7 +366,14 @@ function createLoopEngineering(opts = {}) {
   function init(ctx, context = {}) {
     if (!enabled || !ctx || typeof ctx !== 'object') return null;
     const existing = existingLoop(ctx);
-    if (existing && existing.enabled !== false) return existing;
+    if (existing && existing.enabled !== false) {
+      const contractStandards = deriveStandards(ctx).filter(item => item.acceptance_id);
+      if (contractStandards.length) {
+        existing.standards = contractStandards;
+        existing.standards_source = 'acceptance-contract@1.requiredRows';
+      }
+      return existing;
+    }
     const loop = Object.assign({
       enabled: true,
       version: 1,
@@ -346,6 +381,9 @@ function createLoopEngineering(opts = {}) {
       target_score: targetScore,
       min_improvement: minImprovement,
       standards: deriveStandards(ctx),
+      standards_source: ctx.acceptance_contract && ctx.acceptance_contract.schema === 'acceptance-contract@1'
+        ? 'acceptance-contract@1.requiredRows'
+        : 'structured-acceptance-or-prose',
       rounds: [],
       best: null,
       converged: false,

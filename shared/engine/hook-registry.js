@@ -1,9 +1,15 @@
 'use strict';
 
+const VALID_MODES = new Set(['active', 'shadow', 'dormant']);
+
 class HookRegistry {
   constructor(opts = {}) {
     this.eventlog = opts.eventlog || null;
     this.hooks = new Map();
+    this.policy = normalizePolicy(opts.policy);
+    this.requireBlockingProvenance = opts.requireBlockingProvenance === true;
+    this.emitDormantEvents = opts.emitDormantEvents === true
+      || process.env.YUTU6_GATE_DORMANT_AUDIT === '1';
   }
 
   register(eventType, hook) {
@@ -14,12 +20,36 @@ class HookRegistry {
     if (!id) throw new Error(`hook id is required for ${type}`);
     const list = this.hooks.get(type) || [];
     if (list.some(item => item.id === id)) throw new Error(`duplicate hook id for ${type}: ${id}`);
-    list.push(Object.assign({
+    const policy = this.policy.get(id) || null;
+    const registered = Object.assign({
       enabled: true,
       priority: 100,
       timeoutMs: 100,
       failureMode: 'warn',
-    }, hook, { id }));
+      mode: 'active',
+      incidentRefs: [],
+    }, hook, { id });
+    if (policy) {
+      registered.mode = policy.mode || registered.mode;
+      registered.incidentRefs = normalizeRefs(policy.incident_refs || policy.incidentRefs || registered.incidentRefs);
+      registered.policyReason = policy.reason || registered.policyReason || null;
+      registered.activation = policy.activation || registered.activation || null;
+      registered.duplicateOf = policy.duplicate_of || policy.duplicateOf || registered.duplicateOf || null;
+      registered.policyClass = policy.class || registered.policyClass || null;
+      if (policy.failure_mode) registered.failureMode = policy.failure_mode;
+      if (policy.timeout_ms != null) registered.timeoutMs = Number(policy.timeout_ms);
+    } else {
+      registered.incidentRefs = normalizeRefs(registered.incidentRefs);
+    }
+    if (registered.enabled === false) registered.mode = 'dormant';
+    if (!VALID_MODES.has(registered.mode)) throw new Error(`invalid hook mode for ${type}/${id}: ${registered.mode}`);
+    if (this.requireBlockingProvenance
+      && registered.mode === 'active'
+      && registered.failureMode === 'block'
+      && registered.incidentRefs.length === 0) {
+      throw new Error(`active blocking hook lacks incidentRefs: ${type}/${id}`);
+    }
+    list.push(registered);
     list.sort((a, b) => Number(a.priority || 100) - Number(b.priority || 100) || a.id.localeCompare(b.id));
     this.hooks.set(type, list);
     return this;
@@ -36,12 +66,47 @@ class HookRegistry {
     let ok = true;
     for (const hook of this.hooks.get(type) || []) {
       const started = Date.now();
-      if (hook.enabled === false) {
-        results.push({ id: hook.id, ok: true, skipped: true, reason: 'disabled' });
+      const mode = hook.mode || (hook.enabled === false ? 'dormant' : 'active');
+      if (hook.enabled === false || mode === 'dormant') {
+        const skipped = {
+          id: hook.id,
+          ok: true,
+          skipped: true,
+          mode: 'dormant',
+          reason: hook.policyReason || 'dormant',
+          incidentRefs: hook.incidentRefs || [],
+          duplicateOf: hook.duplicateOf || null,
+        };
+        results.push(skipped);
+        if (this.emitDormantEvents) {
+          emit(this.eventlog, 'hook.skipped', {
+            hookId: hook.id,
+            eventType: type,
+            mode: skipped.mode,
+            reason: skipped.reason,
+            incidentRefs: skipped.incidentRefs,
+            duplicateOf: skipped.duplicateOf,
+          });
+        }
         continue;
       }
       if (hook.condition && !hook.condition(context)) {
-        results.push({ id: hook.id, ok: true, skipped: true, reason: 'condition_false' });
+        const skipped = {
+          id: hook.id,
+          ok: true,
+          skipped: true,
+          mode,
+          reason: 'condition_false',
+          incidentRefs: hook.incidentRefs || [],
+        };
+        results.push(skipped);
+        emit(this.eventlog, 'hook.skipped', {
+          hookId: hook.id,
+          eventType: type,
+          mode,
+          reason: skipped.reason,
+          incidentRefs: skipped.incidentRefs,
+        });
         continue;
       }
       try {
@@ -52,7 +117,16 @@ class HookRegistry {
         const elapsedMs = Date.now() - started;
         const failureMode = hook.failureMode || 'warn';
         const outputFailed = output && typeof output === 'object' && output.ok === false;
-        const result = { id: hook.id, ok: !outputFailed, elapsedMs, output: output || null };
+        const result = {
+          id: hook.id,
+          ok: !outputFailed,
+          observedOk: !outputFailed,
+          elapsedMs,
+          mode,
+          shadow: mode === 'shadow',
+          incidentRefs: hook.incidentRefs || [],
+          output: output || null,
+        };
         if (outputFailed) {
           result.reason = output.reason || output.error || output.decision || 'hook returned ok=false';
           result.failureMode = failureMode;
@@ -65,40 +139,96 @@ class HookRegistry {
             result.failureMode = failureMode;
           }
         }
-        if (result.ok === false && failureMode === 'block') ok = false;
+        result.observedOk = result.ok !== false;
+        if (mode === 'shadow' && result.ok === false) {
+          result.ok = true;
+          result.shadowFailure = true;
+        }
+        if (result.ok === false && failureMode === 'block' && mode === 'active') ok = false;
         results.push(result);
         emit(this.eventlog, 'hook.executed', {
           hookId: hook.id,
           eventType: type,
           ok: result.ok !== false,
+          observedOk: result.observedOk !== false,
+          mode,
+          shadow: mode === 'shadow',
           elapsedMs,
           timeout: !!result.timeout,
-          failureMode: result.ok === false ? failureMode : undefined,
-          reason: result.ok === false ? result.reason : undefined,
+          failureMode: result.observedOk === false ? failureMode : undefined,
+          reason: result.observedOk === false ? result.reason : undefined,
+          incidentRefs: result.incidentRefs,
         });
+        if (result.observedOk === false) {
+          emit(this.eventlog, 'gate.incident', {
+            gateId: hook.id,
+            eventType: type,
+            mode,
+            blocking: mode === 'active' && failureMode === 'block',
+            reason: result.reason || 'hook validation failed',
+            elapsedMs,
+            incidentRefs: result.incidentRefs,
+          });
+        }
       } catch (e) {
         const elapsedMs = Date.now() - started;
         const failure = {
           id: hook.id,
           ok: false,
+          observedOk: false,
           elapsedMs,
+          mode,
+          shadow: mode === 'shadow',
+          incidentRefs: hook.incidentRefs || [],
           reason: e && e.message || String(e),
           failureMode: hook.failureMode || 'warn',
         };
+        if (mode === 'shadow') {
+          failure.ok = true;
+          failure.shadowFailure = true;
+        }
         results.push(failure);
         emit(this.eventlog, 'hook.executed', {
           hookId: hook.id,
           eventType: type,
-          ok: false,
+          ok: failure.ok !== false,
+          observedOk: false,
+          mode,
+          shadow: mode === 'shadow',
           elapsedMs,
           failureMode: failure.failureMode,
           reason: failure.reason,
+          incidentRefs: failure.incidentRefs,
         });
-        if (failure.failureMode === 'block') ok = false;
+        emit(this.eventlog, 'gate.incident', {
+          gateId: hook.id,
+          eventType: type,
+          mode,
+          blocking: mode === 'active' && failure.failureMode === 'block',
+          reason: failure.reason,
+          elapsedMs,
+          incidentRefs: failure.incidentRefs,
+        });
+        if (failure.failureMode === 'block' && mode === 'active') ok = false;
       }
     }
     return { ok, eventType: type, results };
   }
+}
+
+function normalizeRefs(value) {
+  if (!value) return [];
+  const refs = Array.isArray(value) ? value : [value];
+  return refs.map(item => String(item || '').trim()).filter(Boolean);
+}
+
+function normalizePolicy(value) {
+  const source = value && value.gates && typeof value.gates === 'object'
+    ? value.gates
+    : value && typeof value === 'object'
+      ? value
+      : {};
+  return new Map(Object.entries(source).map(([id, entry]) => [id, entry || {}]));
 }
 
 function emit(eventlog, type, data) {
@@ -107,4 +237,4 @@ function emit(eventlog, type, data) {
   } catch (_) {}
 }
 
-module.exports = { HookRegistry };
+module.exports = { HookRegistry, VALID_MODES };

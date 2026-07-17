@@ -15,12 +15,15 @@
  *      - 自省优化轮换 tools/self-review-rotation.js(+60min ≈06:00,同周自幂等)。
  *      开关:DGH_WEEKLY_CLEANUP_ENABLED / DGH_SELF_REVIEW_ROTATION_ENABLED(默认开),--no-weekly 跳过两者;
  *      延迟:DGH_WEEKLY_CLEANUP_DELAY_MS / DGH_SELF_REVIEW_DELAY_MS(或 --weekly-cleanup-delay-ms / --self-review-delay-ms)。
+ *   6. 可选错峰触发洞察主动推送一次性 runner；默认关闭，且 runner 内仍要求主人五项确认。
+ *      开关:DGH_ACTIVE_PUSH_ENABLED=1；实际延迟唯一来源为 active-push.config.json 已确认的 staggerOffsetMinutes。
+ *      DGH_ACTIVE_PUSH_DELAY_MS / --active-push-delay-ms 只是对照门，值不一致时拒绝触发。
  *
  * 不重复触发:用「北京日期」拼确定性 id(gov-review-YYYYMMDD / qops-harden-YYYYMMDD),
  * 投递前扫描该 agent 全部状态目录(queued/running/paused/done/failed/canceled),
  * 命中即跳过。飞书汇报按标题+正文 hash 去重,内容变化时允许补发。
  *
- * 红线:Starlaid 一律排除;密钥不回显;只做本机 smoke/归档/通知,不做特权修复/不可逆操作。
+ * 红线:密钥不回显;只做本机 smoke/归档/通知,不做特权修复/不可逆操作。
  *
  * 用法:
  *   node tools/daily-governance-hardening.js
@@ -77,6 +80,16 @@ const WEEKLY_CLEANUP_ENABLED = !NO_WEEKLY && envOn(process.env.DGH_WEEKLY_CLEANU
 const SELF_REVIEW_ROTATION_ENABLED = !NO_WEEKLY && envOn(process.env.DGH_SELF_REVIEW_ROTATION_ENABLED);
 const WEEKLY_CLEANUP_DELAY_MS = numericArg('--weekly-cleanup-delay-ms', Number(process.env.DGH_WEEKLY_CLEANUP_DELAY_MS || 45 * 60 * 1000));
 const SELF_REVIEW_DELAY_MS = numericArg('--self-review-delay-ms', Number(process.env.DGH_SELF_REVIEW_DELAY_MS || 60 * 60 * 1000));
+const NO_ACTIVE_PUSH = hasFlag('--no-active-push');
+const ACTIVE_PUSH_ENABLED = !NO_ACTIVE_PUSH && envOn(process.env.DGH_ACTIVE_PUSH_ENABLED, '0');
+const ACTIVE_PUSH_DELAY_RAW = argValue('--active-push-delay-ms') == null
+  ? process.env.DGH_ACTIVE_PUSH_DELAY_MS
+  : argValue('--active-push-delay-ms');
+const ACTIVE_PUSH_DELAY_OVERRIDE_MS = ACTIVE_PUSH_DELAY_RAW == null ? null : Number(ACTIVE_PUSH_DELAY_RAW);
+const ACTIVE_PUSH_CONFIG_FILE = path.join(ROOT, 'active-push.config.json');
+const ACTIVE_PUSH_ROOT_TASK_ID = 'cr-1783674199276-016dc681';
+const ACTIVE_PUSH_ROOT_QUEUE_ID = '016dc681';
+const ACTIVE_PUSH_TASK_ID = 'cr-1783680653360-ee208ddb';
 const MIN_ARCHIVE_BYTES = 512;
 const REPAIR_TICKETS_DIR = path.join(WORKDIR, 'board', 'repair-tickets');
 
@@ -179,12 +192,12 @@ function jobs(DATE) {
         useOrchestrator: false,
         autoApproveHuman: true,
         nodeTimeoutSec: 1500,
-        bounds: 'Starlaid 一律排除;密钥/token 不回显不写盘;登录/授权交主人;不替 CEO 拆解目标、不抢维修员修复;只复盘+经验沉淀,不做不可逆删除或权限放大。',
+        bounds: '密钥/token 不回显不写盘;登录/授权交主人;不替 CEO 拆解目标、不抢维修员修复;只复盘+经验沉淀,不做不可逆删除或权限放大。',
         acceptance: '产出 knowledge/归档/复盘-' + DATE + '.md(当天问题/根因/维修结果/防复发规则/未闭环);经验追加 memory/experience.md(注明日期);最后输出结构化 JSON。',
         goal: [
           `你是监管/复盘智能体的【每日定时复盘】任务(北京时间凌晨5点触发,日期 ${pretty})。`,
           '',
-          '红线(L0):Starlaid 一律排除,不读取/评估/修改;密钥/token/cookie 不回显不写盘;登录/授权交主人;不做不可逆删除或权限放大;不替 CEO 拆解目标,不抢维修员修复。',
+          '红线(L0):密钥/token/cookie 不回显不写盘;登录/授权交主人;不做不可逆删除或权限放大;不替 CEO 拆解目标,不抢维修员修复。',
           '',
           '目标:对过去约 24 小时做系统复盘,并把经验沉淀进 memory。复盘必须有事实、有根因、有未闭环缺口,不能只写空泛总结。',
           '',
@@ -220,14 +233,14 @@ function jobs(DATE) {
         useOrchestrator: false,
         autoApproveHuman: true,
         nodeTimeoutSec: 1200,
-        bounds: 'Starlaid 一律排除;密钥不回显;不做特权维修/不可逆操作;只提可回退硬化建议,不直接改核心引擎(高危改动开维修工单交主人/维修员)。',
+        bounds: '密钥不回显;不做特权维修/不可逆操作;只提可回退硬化建议,不直接改核心引擎(高危改动开维修工单交主人/维修员)。',
         acceptance: '复核 daily-governance-hardening 本机写出的 knowledge/归档/硬化建议-' + DATE + '.md;若当前 runner 无文件系统/命令能力,必须明确 done=false,不能把执行清单或骨架当作已硬化。',
         goal: [
           `你是质量运营/硬化智能体的【每日定时稳定性硬化复核】任务(北京时间凌晨5点触发,日期 ${pretty})。`,
           '',
           '重要:本机可执行 smoke/资源检查由 daily-governance-hardening 工具负责,工具会写 knowledge/归档/硬化建议-' + DATE + '.md 并做产物审计。你负责复核硬化思路、补充可回退建议,不要声称自己执行了无法执行的命令。',
           '',
-          '红线(L0):Starlaid 一律排除;密钥不回显;不做特权维修/不可逆操作;只提可回退的硬化建议,不直接改核心引擎(高危改动交主人/维修员)。',
+          '红线(L0):密钥不回显;不做特权维修/不可逆操作;只提可回退的硬化建议,不直接改核心引擎(高危改动交主人/维修员)。',
           '',
           '复核重点:',
           `1. 查看 knowledge/归档/硬化建议-${DATE}.md 是否有真实 smoke 结果、资源检查和回退建议。`,
@@ -326,6 +339,63 @@ function triggerCanary(DATE, opts = {}) {
   });
   child.unref();
   return { triggered: true, action: 'spawned-detached', pid: child.pid, delayMs, schedule };
+}
+
+// 寄生既有 daily/canary/weekly 调度入口，不创建 setInterval、launchd 或平行 scheduler。
+// 入口显式传严格 scope 布尔门禁；真实外发仍受 active-push.config.json 二次主人确认 gate 约束。
+function triggerActivePush(DATE, opts = {}) {
+  const enabled = opts.enabled == null ? ACTIVE_PUSH_ENABLED : !!opts.enabled;
+  const fallbackDelayMs = Math.max(0, Number(opts.delayMs == null ? 75 * 60 * 1000 : opts.delayMs));
+  const fallbackSchedule = weeklySchedule(DATE, fallbackDelayMs, 'active-push-stagger-avoid-0500-and-insight-scout');
+  if (!enabled) return { triggered: false, action: 'skipped', reason: opts.reason || 'active-push-disabled', schedule: fallbackSchedule };
+  const configFile = opts.configFile || ACTIVE_PUSH_CONFIG_FILE;
+  const ActivePush = require('./insight-active-push');
+  let config = null;
+  let approvedDelayMs = null;
+  let preflightError = null;
+  try {
+    config = opts.config || JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    ActivePush.validateConfig(config);
+    if (!config.enabled) throw new Error('active-push scheduler gate rejected: config.enabled must be true');
+    approvedDelayMs = Number(config.ownerConfirmation.staggerOffsetMinutes) * 60 * 1000;
+  } catch (error) {
+    preflightError = error;
+  }
+  const requestedDelayMs = opts.delayMs == null ? approvedDelayMs : Number(opts.delayMs);
+  if (!preflightError && (!Number.isFinite(requestedDelayMs) || requestedDelayMs !== approvedDelayMs)) {
+    preflightError = new Error(`active-push scheduler gate rejected: override ${requestedDelayMs}ms differs from owner-approved ${approvedDelayMs}ms`);
+  }
+  const delayMs = Number.isFinite(requestedDelayMs) && requestedDelayMs >= 0 ? requestedDelayMs : 0;
+  const lineage = config && config.lineage || {};
+  const rootTaskId = lineage.rootTaskId || ACTIVE_PUSH_ROOT_TASK_ID;
+  const rootQueueId = lineage.rootQueueId || ACTIVE_PUSH_ROOT_QUEUE_ID;
+  const taskId = lineage.taskId || ACTIVE_PUSH_TASK_ID;
+  const schedule = weeklySchedule(DATE, approvedDelayMs == null ? delayMs : approvedDelayMs, 'active-push-stagger-avoid-0500-and-insight-scout');
+  const script = path.join(__dirname, 'insight-active-push.js');
+  const args = [
+    script,
+    '--delay-ms', String(delayMs),
+    '--project-id', '控制台',
+    '--scoped-to-project', 'true',
+    '--root-task-id', String(rootTaskId),
+    '--root-queue-id', String(rootQueueId),
+    '--task-id', String(taskId),
+    '--config', String(configFile),
+    '--activation-requested', 'true',
+  ];
+  const preflightExpectedError = preflightError ? sanitizeOutput(preflightError.message || preflightError, 600) : null;
+  if (opts.dryRun) {
+    return { triggered: false, action: 'would-trigger', command: ['node'].concat(args.map(rel)).join(' '), delayMs, schedule, preflightExpectedError };
+  }
+  const { spawn } = require('child_process');
+  const child = spawn(process.execPath, args, {
+    cwd: WORKDIR,
+    detached: true,
+    stdio: 'ignore',
+    env: process.env,
+  });
+  child.unref();
+  return { triggered: true, action: 'spawned-detached', pid: child.pid, delayMs, schedule, preflightExpectedError };
 }
 
 // 周日判定:DATE 为北京日历日 YYYYMMDD,用 UTC 构造该日历日再取星期,不受本机时区影响。
@@ -501,6 +571,7 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
   const eventCounts = hardening.eventCounts || {};
   const dailyIgnition = hardening.dailyIgnition || [];
   const smokeRepairRows = hardening.smokeRepairTickets && hardening.smokeRepairTickets.failures || [];
+  const pendingRepair = hardening.pendingRepairTickets || { todo: 0, oldest: null };
   const topEvents = Object.entries(eventCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
@@ -510,7 +581,7 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
     `# 硬化建议归档 · ${pretty}`,
     '',
     '> daily-governance-hardening 本机执行器产出。只做可回退 smoke/资源检查/建议,不做特权维修或不可逆操作。',
-    '> 红线遵守:Starlaid 排除;无密钥回显;未处理登录/授权。',
+    '> 红线遵守:无密钥回显;未处理登录/授权。',
     '',
     '## 1. Smoke / 自测结果',
     '',
@@ -546,6 +617,11 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
       ? smokeRepairRows.map(row => `- ${row.name}: ${row.ok ? 'ok' : 'missing-effective-ticket'}; effective=${row.effectiveTickets.length}; ignored=${row.ignoredTickets.length}; created=${row.createdTicketId || 'none'}`).join('\n')
       : '- 本轮 smoke 全绿,无需创建专项维修工单。',
     '',
+    '### 每日悬挂维修工单统计',
+    '',
+    `- status: todo = ${pendingRepair.todo}; oldest=${pendingRepair.oldest ? `${pendingRepair.oldest.id} (${pendingRepair.oldest.ageHours}h, ${pendingRepair.oldest.rel})` : 'none'}`,
+    `- 主动推送失败悬挂 = ${pendingRepair.activePushTodo || 0}; 冷却压制只计 suppressed,不视为解决。`,
+    '',
     '## 4. 可回退硬化建议',
     '',
     failures.length
@@ -575,7 +651,7 @@ function writeHardeningArchive(DATE, hardening, opts = {}) {
     `- [${failures.length ? ' ' : 'x'}] 本机 smoke 有真实执行结果`,
     `- [${failures.length ? ' ' : 'x'}] 硬化归档非空、非骨架`,
     '- [x] 每条硬化建议带风险和回退方式',
-    '- [x] Starlaid 排除、密钥未回显',
+    '- [x] 密钥未回显',
     '',
   ].join('\n');
   if (!opts.dryRun) {
@@ -628,6 +704,7 @@ function runLocalHardening(DATE, opts = {}) {
     eventCounts: summary.counts,
     dailyIgnition: summary.dailyIgnition,
     smokeRepairTickets,
+    pendingRepairTickets: pendingRepairTicketSummary({ repairDir: opts.repairDir || REPAIR_TICKETS_DIR }),
     queues: queueSnapshot(opts.queueRoot || QUEUE_ROOT),
   };
   hardening.archive = writeHardeningArchive(DATE, hardening, opts);
@@ -666,9 +743,30 @@ function readRepairTickets(dir = REPAIR_TICKETS_DIR) {
       file,
       rel: rel(file),
       status,
+      createdAt: (/^\s*-\s*created_at:\s*(.+)$/mi.exec(text) || [])[1] || null,
       text,
     };
   });
+}
+
+function pendingRepairTicketSummary(opts = {}) {
+  const nowMs = Number(opts.nowMs || Date.now());
+  const todo = readRepairTickets(opts.repairDir || REPAIR_TICKETS_DIR)
+    .filter(ticket => /^todo$/i.test(String(ticket.status || '')))
+    .map(ticket => {
+      const createdMs = Date.parse(ticket.createdAt || '');
+      return Object.assign({}, ticket, {
+        createdMs: Number.isFinite(createdMs) ? createdMs : null,
+        ageHours: Number.isFinite(createdMs) ? Math.max(0, Math.floor((nowMs - createdMs) / 3600000)) : null,
+      });
+    })
+    .sort((a, b) => (a.createdMs || Number.MAX_SAFE_INTEGER) - (b.createdMs || Number.MAX_SAFE_INTEGER));
+  const oldest = todo[0] || null;
+  return {
+    todo: todo.length,
+    activePushTodo: todo.filter(ticket => /insight-active-push|active-push|主动推送/.test(ticket.text)).length,
+    oldest: oldest ? { id: oldest.id, rel: oldest.rel, createdAt: oldest.createdAt, ageHours: oldest.ageHours } : null,
+  };
 }
 
 function smokeFailureNeedle(failure) {
@@ -747,7 +845,7 @@ function createSmokeFailureRepairTicket(date, failure, audit, opts = {}) {
     problem,
     evidence,
     expectation: '读取全量断言,定位失败,归因(回归/环境/真 bug),修复或明确豁免,复跑绿后方可结案。',
-    redlines: 'Starlaid 排除;密钥不回显;高危/不可逆操作先给主人确认。',
+    redlines: '密钥不回显;高危/不可逆操作先给主人确认。',
     skipBulletin: 'true',
   });
   const repairTaskId = `repair-lead-smoke-${date}-${fingerprint}`;
@@ -763,7 +861,7 @@ function createSmokeFailureRepairTicket(date, failure, audit, opts = {}) {
         `这是 daily-governance-hardening 按 NR13/NR16 自动创建的 smoke 当前仍红专项票。`,
         '先读失败断言和历史 ticket,定位根因,修复/豁免后复跑绿,再 repair-ticket-complete 结案。',
       ].join('\n'),
-      bounds: '维修主管特权工单; Starlaid 排除; 密钥不回显; 高危/不可逆操作先给主人确认。',
+      bounds: '维修主管特权工单; 密钥不回显; 高危/不可逆操作先给主人确认。',
       acceptance: '必须列出断言定位、根因、修复/豁免、复跑绿证据; 不接受残余债/不相关 done 结案。',
       useOrchestrator: false,
       autoApproveHuman: false,
@@ -926,6 +1024,7 @@ function buildReportBody(audit) {
     `复盘归档: ${audit.archives.governance.ok ? '已产出' : '缺失/无效'} · ${audit.archives.governance.rel}`,
     `硬化归档: ${audit.archives.hardening.ok ? '已产出' : '缺失/无效'} · ${audit.archives.hardening.rel}`,
     `经验沉淀: ${audit.memory.ok ? '已写入 memory' : '未确认'}`,
+    `悬挂维修工单: todo=${audit.pendingRepairTickets.todo}; 主动推送失败=${audit.pendingRepairTickets.activePushTodo}; oldest=${audit.pendingRepairTickets.oldest ? `${audit.pendingRepairTickets.oldest.id}(${audit.pendingRepairTickets.oldest.ageHours}h)` : 'none'}`,
     '',
     '今天具体改进了什么:',
   ];
@@ -965,6 +1064,7 @@ function auditDailyArtifacts(date, opts = {}) {
     trigger,
     archives,
     memory,
+    pendingRepairTickets: pendingRepairTicketSummary({ repairDir: opts.repairDir || REPAIR_TICKETS_DIR, nowMs: opts.nowMs }),
     improvements: improvementItems(date, opts),
     missing,
   };
@@ -1044,6 +1144,9 @@ async function main() {
   const weekly = AUDIT_ONLY
     ? { isSunday: null, action: 'skipped', reason: 'audit-only', jobs: [] }
     : triggerWeeklyGovernance(DATE, { dryRun: DRY_RUN });
+  const activePush = AUDIT_ONLY
+    ? { triggered: false, action: 'skipped', reason: 'audit-only' }
+    : triggerActivePush(DATE, { enabled: ACTIVE_PUSH_ENABLED, delayMs: ACTIVE_PUSH_DELAY_OVERRIDE_MS, dryRun: DRY_RUN });
   const hardening = runLocalHardening(DATE, { dryRun: DRY_RUN, skip: SKIP_LOCAL_HARDENING });
   const audit = NO_AUDIT ? null : await waitForAudit(DATE, {
     waitMs: DRY_RUN ? 0 : AUDIT_WAIT_MS,
@@ -1061,6 +1164,7 @@ async function main() {
     results,
     canary,
     weekly,
+    activePush,
     hardening,
     audit,
     notify,
@@ -1070,7 +1174,7 @@ async function main() {
   if (JSON_OUT) process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   else {
     const status = audit ? (audit.ok ? 'audit=ok' : `audit=missing(${audit.missing.length})`) : 'audit=skipped';
-    process.stdout.write(`[daily-governance-hardening] ${DATE} enqueued=${out.enqueued} skipped=${out.skipped} canary=${canary.action || (canary.triggered ? 'spawned' : 'skipped')} weekly=${weekly.action} ${status}\n`);
+    process.stdout.write(`[daily-governance-hardening] ${DATE} enqueued=${out.enqueued} skipped=${out.skipped} canary=${canary.action || (canary.triggered ? 'spawned' : 'skipped')} weekly=${weekly.action} activePush=${activePush.action} ${status}\n`);
   }
 }
 
@@ -1088,6 +1192,7 @@ module.exports = {
   enqueueDailyJobsStaggered,
   canarySchedule,
   triggerCanary,
+  triggerActivePush,
   beijingWeekday,
   weeklySchedule,
   triggerWeeklyGovernance,
@@ -1096,6 +1201,7 @@ module.exports = {
   dailyJobSchedule,
   auditSmokeFailureRepairTickets,
   effectiveRepairTicketsForFailure,
+  pendingRepairTicketSummary,
   auditDailyArtifacts,
   waitForAudit,
   buildReportBody,

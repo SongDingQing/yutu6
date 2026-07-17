@@ -37,7 +37,7 @@ while :; do
   log "改: $id"
   # 单写:本进程串行处理,天然单写;按任务里的问题清单最小改 public/
   to "$CODEX_TO" codex exec --cd "$WS" --sandbox workspace-write --skip-git-repo-check \
-    "按以下 UI 问题清单,最小改动修 $WS/projects/控制台/public/ 对应页面(保功能、零依赖、不破路由、不碰业务/密钥/Starlaid)。改完即可,无需汇报。问题清单:
+    "按以下 UI 问题清单,最小改动修 $WS/projects/控制台/public/ 对应页面(保功能、零依赖、不破路由、不碰业务/密钥)。改完即可,无需汇报。问题清单:
 $(cat "$claim")" >> "$OUT/dev.log" 2>&1 || log "codex 非零/超时(已跳过): $id"
   mv "$claim" "$DONE/$id" 2>/dev/null || true
 done

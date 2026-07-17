@@ -1,0 +1,95 @@
+{
+  "schema": "yutu6.ahr17-25-test-evidence@1",
+  "taskId": "cr-1784025338751-0e9019b7",
+  "specFingerprint": "35b59850d345d272711034026468716dea4b85efc70ae01e31e62686e622cae7",
+  "baseline": [
+    { "command": "node tests/done-gate.test.js", "exitCode": 0, "summary": "done-gate pass" },
+    { "command": "node tests/protocol-gate.test.js", "exitCode": 0, "summary": "protocol-gate pass" },
+    { "command": "node tests/crash-recovery-idempotency.test.js", "exitCode": 0, "summary": "node replay, wall timeout and atomic recovery pass" },
+    { "command": "node tests/loop-engineering.test.js", "exitCode": 0, "summary": "loop convergence and degraded rollback pass" },
+    { "command": "node tests/queue.test.js", "exitCode": 0, "summary": "legacy status and single steer queue pass" },
+    { "command": "node tests/cli-runner.test.js", "exitCode": 0, "summary": "runner response and JSON extraction pass" },
+    { "command": "node tests/quota-degrade.test.js", "exitCode": 0, "summary": "quota degraded/probe behavior pass" },
+    { "command": "node tests/interaction-trace.test.js", "exitCode": 0, "summary": "current-worktree interaction trace pass" }
+  ],
+  "poc": {
+    "command": "node projects/控制台/tests/ahr-17-25-poc.test.js",
+    "exitCode": 0,
+    "checks": [
+      "production_baseline_frozen",
+      "ahr18_existing_done_and_protocol_contracts_are_not_replaced",
+      "ahr17_explicit_phase_machine_and_atomic_checkpoint",
+      "ahr19_typed_outcome_is_additive_for_old_consumers",
+      "ahr20_step_time_cost_hard_budgets",
+      "ahr21_default_termination_behavior_is_owner_gated",
+      "ahr22_shadow_checkpoint_survives_atomic_write_failure",
+      "ahr23_consecutive_format_error_budget",
+      "ahr24_truncated_tool_call_never_executes",
+      "ahr25_split_queues_default_off_and_ordered_when_experimental",
+      "isolated_network_process_corruption_faults_roll_back_without_pollution",
+      "existing_loop_engineering_degraded_rollback_regression"
+    ],
+    "faults": [
+      {
+        "scenario": "network_partition",
+        "rolledBack": true,
+        "byteExact": true,
+        "healthScoreExcluded": true,
+        "quotaBreakerExcluded": true,
+        "productionEventLedgerExcluded": true,
+        "injectedError": "ENETUNREACH"
+      },
+      {
+        "scenario": "process_crash",
+        "rolledBack": true,
+        "byteExact": true,
+        "healthScoreExcluded": true,
+        "quotaBreakerExcluded": true,
+        "productionEventLedgerExcluded": true,
+        "injectorExitCode": 73
+      },
+      {
+        "scenario": "data_corruption",
+        "rolledBack": true,
+        "byteExact": true,
+        "healthScoreExcluded": true,
+        "quotaBreakerExcluded": true,
+        "productionEventLedgerExcluded": true
+      }
+    ],
+    "degradedRollback": {
+      "stopReason": "degraded_rollback",
+      "restored": ["candidate.txt"]
+    }
+  },
+  "syntax": [
+    { "command": "node --check projects/控制台/quality-ops/ahr-17-25/shadow-harness.js", "exitCode": 0 },
+    { "command": "node --check projects/控制台/tests/ahr-17-25-poc.test.js", "exitCode": 0 }
+  ],
+  "finalRegression": {
+    "passes": [
+      { "command": "node projects/控制台/tests/ahr-17-25-poc.test.js", "exitCode": 0, "summary": "12 checks pass; network/process/corruption restore byte-exact; child crash exit 73 is asserted by the passing parent test" },
+      { "command": "node tests/done-gate.test.js", "exitCode": 0, "summary": "existing environmental done gate remains green" },
+      { "command": "node tests/protocol-gate.test.js", "exitCode": 0, "summary": "existing receipt protocol remains green" },
+      { "command": "node tests/loop-engineering.test.js", "exitCode": 0, "summary": "snapshot and degraded rollback remain green" },
+      { "command": "node tests/stale-running-heartbeat.test.js", "exitCode": 0, "summary": "current engine timeout/heartbeat characterization remains green" }
+    ],
+    "diagnosticOnly": {
+      "command": "node tests/run.js",
+      "exitCode": 1,
+      "summary": "all AHR-adjacent suites pass; repository-wide runner reports two pre-existing failures",
+      "remainingRisks": [
+        "tests/hardening-hooks.test.js:142 expects hook_gate_failed but its fixture is stopped earlier by done_gate_failed changed_files verification",
+        "tests/ceo-serial-lock.test.js:513 misses the 1200ms downstream wake timing assertion"
+      ]
+    }
+  },
+  "visualEvidence": [
+    {
+      "path": "projects/控制台/quality-ops/ahr-17-25/peekaboo-evidence.png",
+      "capture": "Peekaboo 3840x1920 Chrome window",
+      "sha256": "a58408e99505fdd70009e3d17454f16657bb60f323231b8f93283e7fdee0ed14",
+      "review": "projects/控制台/quality-ops/ahr-17-25/codex-visual-review.md"
+    }
+  ]
+}

@@ -17,15 +17,15 @@
 | `governance` 监管 | governance | codex | explicit | 误区库 + attempt 计数 | 反复失败/重大漏洞→复盘→规则(§17) |
 | `board-deepseek` 董事 | board_deepseek | new-api | explicit | 架构/性能/并发指令 + CEO 计划 | DeepSeek 事前评审 |
 | `board-glm52` 董事 | board_glm52 | zhipu-glm | explicit | 架构/性能/并发指令 + CEO 计划 | GLM-5.2 事前评审 |
-| `board-claude` 董事 | board_claude | claude-opus-4-8 | explicit | 架构/性能/并发指令 + CEO 计划 | Claude 事前评审(2026-07-03 补充席位,暂用 Opus-4.8) |
-| `board-opus48` 董事 | board_opus48 | codex | explicit | 架构/性能/并发指令 + CEO 计划 | 唯一 Codex/GPT-5.5 董事,接管历史最终槽并做单轮最终硬阻断裁决 |
+| `board-claude` 董事 | board_claude | claude-fable-5 | explicit | 架构/性能/并发指令 + CEO 计划 | Claude Fable 5 事前评审 |
+| `board-opus48` 董事 | board_opus48 | codex | explicit | 架构/性能/并发指令 + CEO 计划 | 唯一 Codex/GPT-5.6-Sol 董事,接管历史最终槽并做单轮最终硬阻断裁决 |
 | `ui-optimizer` UI 自我优化师 | ui_optimizer | codex(+peekaboo) | explicit | WebUI 页面 + 截图 | Peekaboo 看页→Codex 挑错(流畅性/易读性)→交 codex 修,每 3 分钟一轮 |
 | `frontend-designer` 前端程序员 | frontend_designer | zhipu-glm | explicit | 控制台 `workspace.html` + 前端交接文档 | 控制台专属页面/UI 定位与小步改造方案;系统办公室工位;必要时交 worker_code 落盘 |
 | `gui-desktop-control` 桌面控制 | gui_desktop_control | peekaboo | explicit | 控制台页面/桌面截图与 artifacts | GUI 观察/点击/输入/视觉验收证据;不做业务判断 |
 | `insight-scout` 洞察员 | insight-scout | insight-scout | explicit | board/insights + 公告板候选 | 外部优秀案例扫描来源标识;采纳落地仍走 CEO→主管 |
 | `hr-manager` HR 主管 | hr_manager | codex | explicit | memory + 设计方案 + agent 花名册 + DATA-MAP | 新 agent 四要素把关、查重、分级审批、边界审核、花名册/数据地图维护 |
 | `hr-specialist` HR 专员 | hr_specialist | zhipu-glm | explicit | HR 规格卡 + agent 模板 + 路由/配置 | 按批准规格填模板、注册、建工位、跑 smoke、更新知识定位 |
-| `repair-lead` 维修主管 | repair-lead | claude-code | explicit | 维修工单 + 链路交互记录 + 维修员回报 + 核心代码/测试 | 根因分析、严重度分级、全局排查、分派 codex 维修员、复核结案(2026-07-03 起 Claude Code 接回) |
+| `repair-lead` 维修主管 | repair-lead | codex-privileged | explicit | 维修工单 + 链路交互记录 + 维修员回报 + 核心代码/测试 | 根因分析、严重度分级、全局排查、分派 codex 维修员、复核结案并双通道发送固定 HTML |
 | `repair` 维修员 | repair | repair/codex-privileged | explicit | 维修工单 + 主管派工 brief + 授权范围内核心代码/测试 | 执行主管派发的写码/本机运维/授权/服务救火,回报证据 |
 | `it-engineer` IT 工程师 | it_engineer | zhipu-glm | explicit | `VERSION.json` + version-manager + Git/Gitee 非密配置 + 工程交接索引 | 四段版本号、Gitee commit/push、安全回滚 dry-run/确认流程 |
 
@@ -56,7 +56,7 @@
 2026-06-22 边界审视已把先前只有 `config.roleRouting` 的主要运行时角色补成独立 agent 合约:
 
 - `worker_code`、`worker_narrow`、`reasoning_architect`、`insight-scout`、`gui_desktop_control`、`repair-lead`、`repair` 已有 `agent.json` + `prompt.md`。
-- `board_*` 董事会角色仍是正式 agent;活跃董事为 DeepSeek / GLM-5.2 / Claude(暂用 Opus-4.8,2026-07-03 补充) / Codex(GPT-5.5) 四席。Kimi 董事席已暂停,`board_gpt55` 只保留旧别名兼容,不再作为独立活跃董事。`projects/控制台/config.json:boardReviewControl.enabled=true/maxRounds=1` 表示已恢复为架构/性能/并发事前单轮评审。
+- `board_*` 董事会角色仍是正式 agent;活跃董事为 DeepSeek / GLM-5.2 / Claude Fable 5 / Codex(GPT-5.6-Sol) 四席。Kimi 董事席已暂停,`board_gpt55` 只保留旧别名兼容,不再作为独立活跃董事。`projects/控制台/config.json:boardReviewControl.enabled=true/maxRounds=1` 表示已恢复为架构/性能/并发事前单轮评审。
 - `dev_worker` 自优化开发、`hermes` 通知/桥接目前仍是 UI/runner/外部服务角色,非完整 agent 定义;后续如要队列化,必须走 HR 规格卡。
 
 ## 与其它模块的接口

@@ -155,6 +155,24 @@ function topFaceRatio(image, poly, targetRgb) {
 function main() {
   const htmlPath = projectPath('projects/控制台/public/office-experiment.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
+  const animationPreviewPath = projectPath('projects/控制台/public/office-animation-preview.html');
+  const animationContentPath = projectPath('projects/控制台/public/office-animation-preview-content.html');
+  assert(fs.existsSync(animationPreviewPath), 'standalone animation preview page must exist');
+  assert(fs.existsSync(animationContentPath), 'preserved three-GIF animation content must exist');
+  const animationPreview = fs.readFileSync(animationPreviewPath, 'utf8');
+  const animationContent = fs.readFileSync(animationContentPath, 'utf8');
+
+  assert(html.includes('href="/public/office-animation-preview.html"'), '40-tile page must link to the standalone animation preview');
+  assert(html.includes('办公室·40 地块实验版'), '40-tile page purpose must be explicit');
+  assert(!html.includes('data:image/gif;base64,'), '40-tile page must not load the three embedded GIFs');
+  assert(animationPreview.includes('<h1>总裁动画预览</h1>'), 'animation preview purpose must be explicit');
+  assert(animationPreview.includes('href="/public/office-experiment.html"'), 'animation preview must link back to the 40-tile scene');
+  assert(animationPreview.includes('src="/public/office-animation-preview-content.html"'), 'animation preview must load the preserved content only on demand');
+  assert.strictEqual(count(animationContent, 'data:image/gif;base64,'), 3, 'animation preview must preserve all three embedded GIFs');
+  assert.strictEqual(count(animationContent, '<img'), 3, 'animation preview must preserve the three animation panels');
+  assert(animationContent.includes('状态:打字 idle · 引擎跑任务时播放'), 'typing preview caption must remain');
+  assert(animationContent.includes('状态:看书 idle · 空闲时播放'), 'reading preview caption must remain');
+  assert(animationContent.includes('状态:递交文件 · 秘书交接触发'), 'handoff preview caption must remain');
 
   [
     'chairman-office-experimental.png',

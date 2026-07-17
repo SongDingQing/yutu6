@@ -108,7 +108,6 @@ Should not do directly:
 - Fix business code or UI bugs.
 - Read, print, store, or distribute secrets.
 - Use `git reset --hard`, force-push, delete remote branches, or rewrite history without a separate explicit owner confirmation.
-- Handle Starlaid.
 
 ## Durable Worker Requirement
 

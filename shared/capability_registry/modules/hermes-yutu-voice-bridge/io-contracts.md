@@ -176,6 +176,28 @@ Output:
 - If the task asks to send/upload/return a document/file/report, Hermes tries to send matching document artifacts back to the same Feishu chat after Codex completes.
 - Latest Codex run status is written to `/Users/yutu/.hermes/codex-handoff/latest-status.json` so Hermes can answer whether Codex completed a recent task.
 
+## Yutu6 Owner Decision Card
+
+Input:
+
+- A Feishu interactive button whose `value` contains only:
+  - `yutu6_decision_action`: `approve` or `reject`
+  - `card_id`: the local bulletin decision-card id
+
+Output:
+
+- Feishu replaces the clicked card inline with `已提交批准` or `已提交驳回`; it does not open a browser.
+- Hermes routes the callback to the `codex-handoff` plugin.
+- The plugin reads the card secret only from the local console artifacts, signs the localhost request locally, and calls `/api/decision/<cardId>/<action>`.
+- A short follow-up confirms whether the control console actually accepted the decision.
+
+Security contract:
+
+- Feishu card values must not contain `decisionSecret`, HMAC token, API key, cookie, or other credential.
+- The bridge only permits `http://127.0.0.1` / `localhost` on ports `41218` or `8799`.
+- Typed `/card ...` text is not an authorization source; the plugin requires a real Feishu card callback and, when configured, the owner home chat.
+- Repeated clicks remain idempotent through the control console decision-action ledger.
+
 Document artifact types:
 
 - `.md`

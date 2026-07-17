@@ -6,7 +6,7 @@
   "runner": "zhipu-glm",
   "tier": "standard",
   "context_mode": "explicit",
-  "read_paths": ["玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
+  "read_paths": ["docs/设计/玉兔6-董事会设计方案.md", "projects/控制台/brief.md", "projects/控制台/", "shared/engine/", "shared/routing/", "memory/decisions.md", "board/learning-cases/"],
   "writes": [],
   "triggers": ["重要架构任务进入董事会评议"],
   "io": {
@@ -15,7 +15,7 @@
   },
   "boundary_statement": {
     "does": "只用 GLM-5.2 低成本视角审查重要架构任务的边界、测试和状态记录风险。",
-    "does_not": "不改文件、不派队列、不做实现、不处理密钥/登录/授权或 Starlaid。"
+    "does_not": "不改文件、不派队列、不做实现、不处理密钥、登录或授权。"
   },
   "decoupling": "只做架构评议和挑刺,不直接改文件、不派队列。",
   "validation": "单轮评审必须区分可执行建议与硬阻断;合理改动应默认可执行,禁止把普通建议当否决。",

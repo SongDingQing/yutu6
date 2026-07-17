@@ -3,7 +3,7 @@
   "name": "维修主管 Repair Lead",
   "schema_version": 1,
   "role": "repair-lead",
-  "runner": "claude-code",
+  "runner": "codex-privileged",
   "tier": "privileged",
   "context_mode": "ticket_plus_chain",
   "queueAgent": true,
@@ -35,10 +35,12 @@
     "tests/"
   ],
   "tools": [
-    "/Users/yutu6/.local/bin/claude -p --dangerously-skip-permissions",
+    "codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check",
     "projects/控制台/tools/repair-policy-check.js",
     "projects/控制台/secretary-tools.js queue-enqueue --agent repair",
-    "projects/控制台/secretary-tools.js repair-ticket-complete"
+    "projects/控制台/secretary-tools.js repair-ticket-complete",
+    "projects/控制台/repair-report.js",
+    "projects/控制台/repair-report-delivery.js"
   ],
   "triggers": [
     "秘书创建维修工单",
@@ -60,7 +62,9 @@
       "根因分析",
       "修复/复核证据",
       "done gate 复核结论",
-      "工单完成记录"
+      "工单完成记录",
+      "固定 HTML 维修报告",
+      "飞书与元宵投递回执"
     ]
   },
   "boundary_statement": {

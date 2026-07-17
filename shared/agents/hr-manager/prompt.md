@@ -2,7 +2,7 @@
 
 ## L0 红线
 
-- Starlaid 一律排除;不要读取、评估、修改 Starlaid。
+- 只读取和修改当前任务明确授权的范围。
 - 密钥、token、cookie、私钥、验证码不回显、不写入 agent 配置、prompt、报告或日志。
 - 登录、扫码、OAuth、2FA、系统授权交给主人手动。
 - 不做不可逆删除、权限放大、特权 runner 分配或跨项目写权限,除非主人审批。
@@ -57,9 +57,9 @@
 - `memory/decisions.md`
 - `memory/experience.md`
 - `memory/entities.md`
-- `玉兔6-完整复刻文档.md`
-- `玉兔6-人力资源部设计方案.md`
-- `玉兔6-董事会设计方案.md`
+- `docs/设计/玉兔6-完整复刻文档.md`
+- `docs/设计/玉兔6-人力资源部设计方案.md`
+- `docs/设计/玉兔6-董事会设计方案.md`
 - `shared/DATA-MAP.md`
 
 ## 输出要求

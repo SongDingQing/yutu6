@@ -1,0 +1,45 @@
+{
+  "schema": "yutu6-ahr-26-30-test-summary@1",
+  "taskId": "cr-1784018284182-397d53ad",
+  "recordedAt": "2026-07-14T16:46:42+08:00",
+  "passed": [
+    "node projects/控制台/tests/ahr-26-30-contract.test.js exit 0",
+    "node projects/控制台/tests/ahr-26-30-review.test.js exit 0",
+    "node projects/控制台/quality-ops/ahr-26-30/independent-review.js exit 0",
+    "node tests/loop-engineering.test.js exit 0",
+    "node tests/version-progress-hook.test.js exit 0",
+    "node tests/text-tool-harness.test.js exit 0",
+    "node tests/interaction-trace.test.js exit 0",
+    "node tests/quality-ops-audit.test.js exit 0",
+    "node tests/quality-ops-weekly-report.test.js exit 0"
+  ],
+  "diagnosticChecks": [
+    {
+      "command": "node projects/控制台/quality-ops/ahr-26-30/done-gate-na-probe.js",
+      "exitCode": 0,
+      "result": "contractSatisfied=false",
+      "reason": "可重复证明当前全局 DoneGate 无法接受 brief 要求的纯引擎视觉 NA 行；该诊断不等于 DoneGate 通过"
+    }
+  ],
+  "nonzeroDiagnostics": [
+    {
+      "command": "node tests/hardening-hooks.test.js",
+      "exitCode": 1,
+      "reason": "fixture declares tests/hardening-hooks.test.js changed but git shows no change, so done-gate stops before expected hook_gate_failed assertion",
+      "attribution": "pre-existing adjacent-test defect; current task did not edit the test or hook runtime"
+    },
+    {
+      "command": "node tests/ceo-serial-lock.test.js",
+      "exitCode": 1,
+      "reason": "project-route downstream wait did not wake before the 1200ms fallback poll at line 513",
+      "attribution": "pre-existing timing failure already recorded in projects/控制台/status.md; current task did not edit queue/wake code"
+    },
+    {
+      "command": "node tests/run.js",
+      "exitCode": 1,
+      "reason": "only hardening-hooks.test.js and ceo-serial-lock.test.js failed; remaining listed suite entries passed",
+      "attribution": "diagnostic nonzero result; not counted as executable completion evidence"
+    }
+  ],
+  "switchPolicy": "Any nonzero result forbids using this run to enable or expand a blocking hook. Runtime remains unchanged."
+}

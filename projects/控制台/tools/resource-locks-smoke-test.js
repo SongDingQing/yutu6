@@ -31,6 +31,26 @@ function fakeEventlog() {
   };
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function waitUntil(predicate, label, timeoutMs = 1500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (predicate()) return;
+    await sleep(10);
+  }
+  throw new Error(`timeout waiting for ${label}`);
+}
+
+async function resolveWithin(promise, label, timeoutMs = 1500) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout waiting for ${label}`)), timeoutMs)),
+  ]);
+}
+
 async function expectTimeout(promise, label) {
   let timedOut = false;
   try {
@@ -198,6 +218,94 @@ async function main() {
     await reader.release();
     await engine.release();
 
+    // 事故回归:已有 holder 释放后,更老的冲突 waiter 必须先于后到任务
+    // 获授；同 queueId 的重试换 token 也不能越过它。
+    const fairnessHolder = await ResourceLocks.acquireResourceLease({
+      queueAgent: 'supervisor-控制台',
+      queueId: 'fair-holder',
+      taskId: 'fair-holder-task',
+      role: 'supervisor',
+      resourceDomains: { write: ['queue-state'] },
+    }, {
+      locksRoot,
+      eventlog,
+      timeoutMs: 500,
+      pollMs: 10,
+      leaseMs: 5000,
+      heartbeatMs: 1000,
+      waitAuditIntervalMs: 60 * 1000,
+    });
+    const fairnessOrder = [];
+    const olderPromise = ResourceLocks.acquireResourceLease({
+      queueAgent: 'ceo',
+      queueId: 'fair-older',
+      taskId: 'fair-older-task',
+      role: 'orchestrator',
+      resourceDomains: { write: ['queue-state'] },
+    }, {
+      locksRoot,
+      eventlog,
+      timeoutMs: 1200,
+      pollMs: 10,
+      leaseMs: 5000,
+      heartbeatMs: 1000,
+      waitAuditIntervalMs: 60 * 1000,
+    }).then(lease => {
+      fairnessOrder.push('older');
+      return lease;
+    });
+    const waitersDir = path.join(locksRoot, 'waiters');
+    await waitUntil(() => {
+      try { return fs.readdirSync(waitersDir).filter(file => /\.json$/.test(file)).length === 1; }
+      catch (_) { return false; }
+    }, 'older waiter registration');
+    const olderWaiterFile = path.join(waitersDir, fs.readdirSync(waitersDir).find(file => /\.json$/.test(file)));
+    const firstRequestedAt = JSON.parse(fs.readFileSync(olderWaiterFile, 'utf8')).requested_at;
+    await sleep(35);
+    assert.strictEqual(JSON.parse(fs.readFileSync(olderWaiterFile, 'utf8')).requested_at, firstRequestedAt,
+      'waiter polling must preserve the original fairness timestamp');
+
+    const laterPromise = ResourceLocks.acquireResourceLease({
+      queueAgent: 'supervisor-控制台',
+      queueId: 'fair-later',
+      taskId: 'fair-later-task',
+      role: 'supervisor',
+      resourceDomains: { write: ['queue-state'] },
+    }, {
+      locksRoot,
+      eventlog,
+      timeoutMs: 1200,
+      pollMs: 10,
+      leaseMs: 5000,
+      heartbeatMs: 1000,
+      waitAuditIntervalMs: 60 * 1000,
+    }).then(lease => {
+      fairnessOrder.push('later');
+      return lease;
+    });
+    await waitUntil(() => {
+      try { return fs.readdirSync(waitersDir).filter(file => /\.json$/.test(file)).length === 2; }
+      catch (_) { return false; }
+    }, 'later waiter registration');
+
+    await fairnessHolder.release();
+    const olderLease = await resolveWithin(olderPromise, 'older waiter acquisition');
+    assert.deepStrictEqual(fairnessOrder, ['older'], 'later conflicting waiter must not overtake the older waiter');
+    await sleep(35);
+    assert.deepStrictEqual(fairnessOrder, ['older'], 'later waiter must remain blocked while older waiter holds the domain');
+    await olderLease.release();
+    const laterLease = await resolveWithin(laterPromise, 'later waiter acquisition');
+    assert.deepStrictEqual(fairnessOrder, ['older', 'later']);
+    await laterLease.release();
+
+    const fairnessArbitration = fs.readFileSync(path.join(locksRoot, 'arbitration.jsonl'), 'utf8')
+      .split(/\n/)
+      .filter(Boolean)
+      .map(line => JSON.parse(line))
+      .filter(row => row.action === 'wait' && /^fair-(?:older|later)$/.test(String(row.queueId || '')));
+    assert(fairnessArbitration.length <= 4,
+      `unchanged wait state must be audit-throttled, got ${fairnessArbitration.length} rows`);
+
     writeJson(path.join(locksRoot, 'domains', 'config.json'), {
       domain: 'config',
       readers: [],
@@ -233,6 +341,26 @@ async function main() {
     });
     assert.strictEqual(engineHeartbeatPreferred.source, 'engine_heartbeat_at');
     assert.strictEqual(engineHeartbeatPreferred.stale, true);
+
+    const lockTimeoutFailure = Worker._test.queueWorkerFailureDescriptor(
+      { id: 'lock-timeout' },
+      new Error('resource lock wait timeout after 1800000ms'),
+      123,
+    );
+    assert.deepStrictEqual(lockTimeoutFailure, {
+      kind: 'resource-lock-timeout',
+      taskId: 'resource-lock-timeout-123-lock-timeout',
+      flowId: 'resource-lock-timeout',
+      rawReason: 'resource lock wait timeout after 1800000ms',
+      reportReason: 'resource lock wait timeout after 1800000ms',
+    }, 'resource wait timeout must not be mislabeled as a crashed queue worker');
+    const actualCrashFailure = Worker._test.queueWorkerFailureDescriptor(
+      { id: 'actual-crash' },
+      new Error('TypeError: boom'),
+      456,
+    );
+    assert.strictEqual(actualCrashFailure.kind, 'worker-crash');
+    assert.strictEqual(actualCrashFailure.reportReason, 'queue worker crashed: TypeError: boom');
 
     const pressure = MemoryMaintenance.shouldPurge({
       memory: { ok: true, level: 'critical', availableRatio: 0.03 },

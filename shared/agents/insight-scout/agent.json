@@ -11,6 +11,10 @@
   "system_external": false,
   "read_paths": [
     "board/insights/",
+    "board/learning-cases/agent-harness-research-cases.md",
+    ".agents/skills/agent-harness-research/SKILL.md",
+    "shared/agents/quality-ops/prompt.md",
+    "shared/agents/governance/prompt.md",
     "projects/控制台/artifacts/bulletin/cards.json",
     "shared/capability_registry/",
     "projects/控制台/brief.md"
@@ -22,7 +26,8 @@
   "triggers": [
     "秘书/Cowork 定时研究任务",
     "公告板来源标注为洞察员",
-    "外部优秀案例借鉴扫描"
+    "外部优秀案例借鉴扫描",
+    "Agent harness / ReAct / Reflexion / SWE-bench 深度研究"
   ],
   "io": {
     "inputs": [
@@ -33,7 +38,8 @@
     "outputs": [
       "去重后的借鉴候选",
       "公告板卡片来源",
-      "上游更新复看记录"
+      "上游更新复看记录",
+      "经质量运营与监管复核的深度研究候选账本"
     ]
   },
   "boundary_statement": {
@@ -41,6 +47,6 @@
     "does_not": "不做代码实现、不直接安装依赖、不登录私有源、不替 CEO 或主管决策是否采纳。"
   },
   "decoupling": "当前主要由秘书/Cowork 定时任务驱动,洞察员本身是来源标识和工位角色;采纳与落地仍走 CEO -> 主管 review-loop。",
-  "validation": "候选必须去重、标来源、说明许可证/登录/授权不确定项;不得触碰 Starlaid。",
+  "validation": "候选必须去重、标来源、说明许可证、登录或授权不确定项;不得超出任务范围。",
   "prompt": "prompt.md"
 }

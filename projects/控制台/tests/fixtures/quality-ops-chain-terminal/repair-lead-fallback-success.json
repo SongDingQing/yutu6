@@ -1,0 +1,83 @@
+{
+  "name": "repair-lead-fallback-success",
+  "chain_id": "fixture-repair-lead-fallback",
+  "root_task_id": "fixture-repair-root",
+  "index_events": [
+    {
+      "event": "interaction.started",
+      "at": "2026-07-17T01:00:00.000Z",
+      "chain_id": "fixture-repair-lead-fallback",
+      "trace_id": "fixture-repair-primary",
+      "root_task_id": "fixture-repair-root",
+      "root_queue_agent": "repair-lead",
+      "root_queue_id": "fixture-repair-queue",
+      "task_id": "fixture-repair-root",
+      "node_id": "execute",
+      "agent_role": "repair-lead",
+      "runner_id": "codex-privileged"
+    },
+    {
+      "event": "interaction.finished",
+      "at": "2026-07-17T01:10:00.000Z",
+      "chain_id": "fixture-repair-lead-fallback",
+      "trace_id": "fixture-repair-primary",
+      "root_task_id": "fixture-repair-root",
+      "task_id": "fixture-repair-root",
+      "node_id": "execute",
+      "agent_role": "repair-lead",
+      "runner_id": "codex-privileged",
+      "status": "failed",
+      "content_hash": "fixture-repair-primary-failed"
+    },
+    {
+      "event": "interaction.started",
+      "at": "2026-07-17T01:10:01.000Z",
+      "chain_id": "fixture-repair-lead-fallback",
+      "trace_id": "fixture-repair-fallback",
+      "root_task_id": "fixture-repair-root",
+      "root_queue_agent": "repair-lead",
+      "root_queue_id": "fixture-repair-queue",
+      "task_id": "fixture-repair-root",
+      "node_id": "execute",
+      "agent_role": "repair-lead",
+      "runner_id": "codex"
+    },
+    {
+      "event": "interaction.finished",
+      "at": "2026-07-17T01:15:00.000Z",
+      "chain_id": "fixture-repair-lead-fallback",
+      "trace_id": "fixture-repair-fallback",
+      "root_task_id": "fixture-repair-root",
+      "task_id": "fixture-repair-root",
+      "node_id": "execute",
+      "agent_role": "repair-lead",
+      "runner_id": "codex",
+      "status": "completed",
+      "content_hash": "fixture-repair-fallback-done"
+    }
+  ],
+  "terminal_events": [
+    {
+      "seq": 100,
+      "ts": "2026-07-17T01:15:01.000Z",
+      "type": "task.done",
+      "task": "fixture-repair-root"
+    },
+    {
+      "seq": 101,
+      "ts": "2026-07-17T01:15:02.000Z",
+      "type": "queue.completed",
+      "task": "fixture-repair-root",
+      "queueAgent": "repair-lead",
+      "queueId": "fixture-repair-queue",
+      "ok": true,
+      "status": "done"
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "final_state": "done",
+    "span_failures": ["fixture-repair-primary"],
+    "source_types": ["task.done", "queue.completed"]
+  }
+}

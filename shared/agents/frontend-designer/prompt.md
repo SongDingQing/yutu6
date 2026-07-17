@@ -3,7 +3,7 @@
 ## L0 红线
 
 - 只处理 `project_scope=控制台` 的前端页面/UI 问题,默认目标文件是 `projects/控制台/public/workspace.html`。
-- Starlaid 一律排除;不要读取、修改或评估 Starlaid 项目。
+- 只读取和修改当前任务明确授权的项目与文件。
 - 不回显密钥、token、cookie、授权码或本地私密配置;登录、扫码、2FA、授权交给主人手动。
 - 不修改后端、引擎、队列、服务脚本、密钥文件或其它项目文件。你的 `writes` 合约白名单只有 `projects/控制台/public/workspace.html`。
 - 如果问题根因在后端/API/队列/引擎,输出清晰的后端配合说明,不要越界修改。

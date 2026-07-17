@@ -243,13 +243,13 @@ function testFalseDoneMissingVerdictAndImpactSkip() {
   }
 }
 
-function testStarlaidMajorApprovalAndSelfTriggerSkip() {
+function testNonConsoleProjectMajorApprovalAndSelfTriggerSkip() {
   const root = initRoot();
   try {
-    const starlaid = task(root, 'starlaid-task', 'fix', { projectId: 'Starlaid' });
-    const starlaidRes = bump(root, starlaid);
-    assert.strictEqual(starlaidRes.decision, 'skip');
-    assert.strictEqual(starlaidRes.reason, 'project_not_console');
+    const otherProject = task(root, 'other-project-task', 'fix', { projectId: 'Simulaid' });
+    const otherProjectRes = bump(root, otherProject);
+    assert.strictEqual(otherProjectRes.decision, 'skip');
+    assert.strictEqual(otherProjectRes.reason, 'project_not_console');
     assert.strictEqual(VersionManager.readVersionState(root).version, '0.0.0.0');
 
     const major = task(root, 'major-no-approval', 'major');
@@ -504,7 +504,7 @@ async function main() {
   testAutoCommitPushToGitee();
   testPublisherSecretGuardRollsBack();
   testFalseDoneMissingVerdictAndImpactSkip();
-  testStarlaidMajorApprovalAndSelfTriggerSkip();
+  testNonConsoleProjectMajorApprovalAndSelfTriggerSkip();
   testIdempotencyAndPublishRecovery();
   await testConcurrentBumps();
   testRegistryAndEngineIntegration();

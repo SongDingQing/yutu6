@@ -10,10 +10,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process'); // [B-1 去同步阻塞] spawnSync 已全部移除
+const RuntimeSettings = require('./runtime-settings');
+const RUNTIME_SETTINGS_BOOT = RuntimeSettings.applyRuntimeSettingsToEnv({ logger: console });
 const EventLog = require('../../shared/engine/eventlog');
 const Q = require('../../shared/engine/queue');
 const QueueOrganizer = require('../../shared/engine/queue-organizer');
 const QueueAutoMerge = require('./queue-automerge');
+const RoleBoundaryRouting = require('./role-boundary-routing');
 const LocateAnything = require('./locate-anything-service');
 const SecretaryTools = require('./secretary-tools');
 const LlmUsage = require('./llm-usage');
@@ -22,12 +25,31 @@ const VersionManager = require('./tools/version-manager');
 const RuntimePaths = require('./runtime-paths');
 const InsightScoutRepos = require('./insight-scout-repos');
 const DecisionToken = require('./decision-token');
+const DirectCompletionOverride = require('./direct-completion-override');
+const MeowaAssetDecisions = require('./meowa-asset-decisions');
+const RepairCloseoutHandshake = require('./repair-closeout-handshake');
+const RepairClaimNoop = require('./repair-claim-noop');
+const BulletinOutputRedaction = require('./bulletin-output-redaction');
+const AcceptanceHandoff = require('./acceptance-handoff');
 // [B-1 去同步阻塞] 异步 sqlite / JSONL 增量游标 / 目录签名 async 版(稳定性拍板)
 const AsyncUnblock = require('./async-unblock');
 
 const ROOT = __dirname;
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
-const PORT = process.env.PORT || cfg.port || 8787;
+const PORT = Number(process.env.PORT || cfg.port || 8787);
+function normalizeAliasPorts(value, primaryPort = PORT) {
+  const source = Array.isArray(value) ? value : String(value == null ? '' : value).split(',');
+  return [...new Set(source
+    .map(item => Number(String(item).trim()))
+    .filter(port => Number.isInteger(port) && port > 0 && port <= 65535 && port !== Number(primaryPort)))];
+}
+// 显式 PORT 用于测试/临时验收时不继承生产别名；需要别名可同时传 CONSOLE_ALIAS_PORTS。
+const ALIAS_PORTS = normalizeAliasPorts(
+  process.env.CONSOLE_ALIAS_PORTS != null
+    ? process.env.CONSOLE_ALIAS_PORTS
+    : (process.env.PORT != null && Number(process.env.PORT) !== Number(cfg.port) ? [] : (cfg.aliasPorts || [])),
+  PORT,
+);
 const HOST = '127.0.0.1';
 const WORKDIR = path.resolve(ROOT, cfg.workdir || '.');
 const ARTIFACTS_ROOT = process.env.CONSOLE_ARTIFACTS_DIR
@@ -48,9 +70,34 @@ const QUEUE_WORKER_LOG_DIR = path.join(ARTIFACTS_ROOT, 'queue-workers');
 const TASK_ATTACHMENT_DIR = path.join(ARTIFACTS_ROOT, 'task-attachments');
 const BULLETIN_DIR = path.join(ARTIFACTS_ROOT, 'bulletin');
 const BULLETIN_FILE = path.join(BULLETIN_DIR, 'cards.json');
+const SAFE_RESTART_HELPER = path.join(ROOT, 'tools', 'restart-console-safe.js');
+const RESTART_BARRIER_FILE = path.join(ARTIFACTS_ROOT, 'console-restart', '.restart-request.lock');
+const SETTINGS_CSRF_COOKIE = 'yutu6_console_csrf';
+const SETTINGS_CSRF_TOKEN = crypto.randomBytes(32).toString('hex');
+const RESTART_COOLDOWN_MS = 30000;
+let restartRequestState = { locked: false, lastAcceptedAt: 0, helperPid: null };
 // 飞书决策卡真回调(拍板 Q12):默认开;DECISION_CALLBACK_ENABLED=0 可整体关闭 /api/decision 端点
 const DECISION_CALLBACK_ENABLED = process.env.DECISION_CALLBACK_ENABLED !== '0';
 const DECISION_ACTIONS_FILE = path.join(BULLETIN_DIR, 'decision-actions.json');
+function createDirectCompletionReceiptAuthority() {
+  const privateKeyEnv = DirectCompletionOverride.AUTHORITY_PRIVATE_KEY_ENV;
+  const configured = String(process.env[privateKeyEnv] || '').trim();
+  let privateKey;
+  try {
+    privateKey = configured
+      ? crypto.createPrivateKey({ key: Buffer.from(configured, 'base64'), format: 'der', type: 'pkcs8' })
+      : crypto.generateKeyPairSync('ed25519').privateKey;
+  } catch (_) {
+    throw new Error('direct completion override signing authority is invalid');
+  } finally {
+    // 私钥只在 server 模块闭包中保留，禁止随 process.env 继承给 queue/engine/LLM runner。
+    delete process.env[privateKeyEnv];
+  }
+  const publicKey = crypto.createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('base64');
+  process.env[DirectCompletionOverride.AUTHORITY_PUBLIC_KEY_ENV] = publicKey;
+  return Object.freeze({ privateKey, publicKey });
+}
+const DIRECT_COMPLETION_RECEIPT_AUTHORITY = createDirectCompletionReceiptAuthority();
 const PEEKABOO_BASELINE_DIR = path.join(ARTIFACTS_ROOT, 'peekaboo-baseline');
 const NEW_API_BASE = (process.env.NEW_API_BASE || 'http://localhost:3000').replace(/\/+$/, '');
 const NEW_API_DB = process.env.NEW_API_DB || path.join(ARTIFACTS_ROOT, 'new-api', 'data', 'one-api.db');
@@ -95,6 +142,8 @@ const MAX_IMAGE_TOTAL_BYTES = Math.max(MAX_IMAGE_BYTES, parseInt(process.env.MAX
 const TASK_BOARD_HISTORY_LIMIT = 50;
 const TASK_BOARD_EVENT_LIMIT = Math.max(300, parseInt(process.env.TASK_BOARD_EVENT_LIMIT || '1200', 10) || 1200);
 const TASK_BOARD_CACHE_MS = Math.max(0, parseInt(process.env.TASK_BOARD_CACHE_MS || '1000', 10) || 1000);
+const QUEUE_OVERVIEW_CACHE_MS = Math.max(0, parseInt(process.env.QUEUE_OVERVIEW_CACHE_MS || '1500', 10) || 1500);
+const QUEUE_AGENT_CACHE_MS = Math.max(0, parseInt(process.env.QUEUE_AGENT_CACHE_MS || '5000', 10) || 5000);
 const LLM_USAGE_CACHE_MS = Math.max(0, parseInt(process.env.LLM_USAGE_CACHE_MS || '60000', 10) || 60000);
 // [B-1 去同步阻塞] /api/task-board 事件改 byte-offset 增量缓存;设 0 回退旧的每请求全量尾读
 const TASK_BOARD_EVENTS_INCREMENTAL = process.env.TASK_BOARD_EVENTS_INCREMENTAL !== '0';
@@ -125,6 +174,9 @@ let autoOptimizerTimer = null;
 let scheduledPageReviewTimer = null;
 let insightScoutReposTimer = null;
 let taskBoardCache = null;
+let queueOverviewCache = null;
+let configuredQueueAgentsCache = null;
+let terminalQueueHistoryCache = null;
 let llmUsageCache = null;
 function appendHistory(entry) { try { fs.mkdirSync(path.dirname(HISTORY), { recursive: true }); fs.appendFileSync(HISTORY, JSON.stringify(entry) + '\n'); } catch (_) {} }
 function readHistory(n) { try { return fs.readFileSync(HISTORY, 'utf8').trim().split('\n').filter(Boolean).slice(-n).reverse().map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { return []; } }
@@ -206,16 +258,19 @@ function readJsonlTail(file, limit = 5000, tailBytes = 4 * 1024 * 1024, opts = {
   }
 }
 
+const workspaceEventCursor = AsyncUnblock.createJsonlTailCursor({
+  file: ENGINE_EVENTS,
+  maxItems: 500,
+  tailBytes: 768 * 1024,
+  maxIncrementBytes: 4 * 1024 * 1024,
+  parseLine: line => parseJsonlLine(line, { compactLargeOutput: true, maxOutputLineBytes: 6000 }),
+});
+
 function readEvents(afterSeq, n) {
   try {
     const after = Number(afterSeq || 0);
     const limit = Math.max(1, Math.min(Number(n || 120), 500));
-    const events = readJsonlTail(
-      ENGINE_EVENTS,
-      Math.max(limit * 4, 80),
-      Math.min(768 * 1024, Math.max(128 * 1024, limit * 1600)),
-      { compactLargeOutput: true, maxOutputLineBytes: 6000 }
-    );
+    const events = workspaceEventCursor.read(Math.max(limit * 4, 80));
     return events.filter(ev => (ev.seq || 0) > after).slice(-limit);
   } catch (_) { return []; }
 }
@@ -401,6 +456,164 @@ function readJson(req, res, cb) {
   req.on('end', () => { let b; try { b = JSON.parse(data || '{}'); } catch { return json(res,400,{error:'坏 JSON'}); } cb(b); });
 }
 
+function requestHostName(req) {
+  const raw = String(req && req.headers && req.headers.host || '').trim().toLowerCase();
+  if (raw.startsWith('[')) {
+    const end = raw.indexOf(']');
+    return end >= 0 ? raw.slice(1, end) : '';
+  }
+  return raw.split(':')[0];
+}
+
+function isLoopbackAddress(value) {
+  const address = String(value || '').trim().toLowerCase();
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+function runtimeApiLocalError(req) {
+  const headers = req && req.headers || {};
+  if (headers.forwarded != null || headers['x-forwarded-for'] != null) return 'proxy forwarding headers are not allowed';
+  if (!isLoopbackAddress(req && req.socket && req.socket.remoteAddress)) return 'loopback client required';
+  if (!new Set(['localhost', '127.0.0.1', '::1']).has(requestHostName(req))) return 'localhost Host required';
+  return '';
+}
+
+function csrfCookieValue(req) {
+  const raw = String(req && req.headers && req.headers.cookie || '');
+  for (const part of raw.split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === SETTINGS_CSRF_COOKIE) return decodeURIComponent(rest.join('=') || '');
+  }
+  return '';
+}
+
+function csrfMatches(req) {
+  const cookie = csrfCookieValue(req);
+  const header = String(req && req.headers && req.headers['x-console-csrf'] || '');
+  if (!/^[a-f0-9]{64}$/.test(cookie) || !/^[a-f0-9]{64}$/.test(header)) return false;
+  const expected = Buffer.from(SETTINGS_CSRF_TOKEN);
+  const cookieBuf = Buffer.from(cookie);
+  const headerBuf = Buffer.from(header);
+  return cookieBuf.length === expected.length && headerBuf.length === expected.length
+    && crypto.timingSafeEqual(cookieBuf, expected) && crypto.timingSafeEqual(headerBuf, expected);
+}
+
+function setSettingsCsrfCookie(res) {
+  res.setHeader('Set-Cookie', `${SETTINGS_CSRF_COOKIE}=${SETTINGS_CSRF_TOKEN}; Path=/; SameSite=Strict; Max-Age=86400`);
+}
+
+function runtimeSettingsResponse() {
+  return Object.assign({ ok: true }, RuntimeSettings.runtimeSettingsState(RUNTIME_SETTINGS_BOOT.engineMaxConcurrency));
+}
+
+function isJsonRequest(req) {
+  return /^application\/json(?:\s*;|$)/i.test(String(req && req.headers && req.headers['content-type'] || ''));
+}
+
+function handleRuntimeSettings(req, res) {
+  const localError = runtimeApiLocalError(req);
+  if (localError) return json(res, 403, { ok: false, error: localError });
+  if (req.method === 'GET') {
+    setSettingsCsrfCookie(res);
+    return json(res, 200, runtimeSettingsResponse());
+  }
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method not allowed' });
+  if (!isJsonRequest(req)) return json(res, 415, { ok: false, error: 'application/json required' });
+  if (!csrfMatches(req)) return json(res, 403, { ok: false, error: 'CSRF validation failed' });
+  readJson(req, res, body => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, 400, { ok: false, error: 'settings body must be an object' });
+    const keys = Object.keys(body);
+    if (keys.length !== 1 || keys[0] !== 'engineMaxConcurrency') return json(res, 400, { ok: false, error: 'unknown or missing settings field' });
+    const n = body.engineMaxConcurrency;
+    const bounds = RuntimeSettings.concurrencyBounds();
+    if (!Number.isInteger(n) || n < bounds.min || n > bounds.max) {
+      return json(res, 400, { ok: false, error: `engineMaxConcurrency must be an integer in ${bounds.min}..${bounds.max}` });
+    }
+    RuntimeSettings.saveRuntimeSettings(n)
+      .then(() => json(res, 200, Object.assign(runtimeSettingsResponse(), { saved: true })))
+      .catch(error => json(res, error && error.code === 'SETTINGS_LOCK_TIMEOUT' ? 409 : 500, {
+        ok: false,
+        error: error && error.code === 'SETTINGS_LOCK_TIMEOUT' ? 'settings are busy; retry later' : 'settings save failed; previous config was preserved',
+      }));
+  });
+}
+
+function canonicalRunningTasks() {
+  const running = [];
+  for (const agent of configuredQueueAgents()) {
+    let state;
+    try { state = Q.list(QUEUE_ROOT, agent.id); } catch (_) { continue; }
+    for (const entry of state.running || []) running.push({ agent: agent.id, id: String(entry && entry.id || '') });
+  }
+  return running;
+}
+
+function scheduleSafeConsoleRestart(opts = {}) {
+  const now = Number(opts.now) || Date.now();
+  if (restartRequestState.locked) return { ok: false, code: 409, error: 'restart request is already being scheduled' };
+  const elapsed = now - restartRequestState.lastAcceptedAt;
+  if (restartRequestState.lastAcceptedAt && elapsed < RESTART_COOLDOWN_MS) {
+    return { ok: false, code: 429, error: 'restart request is cooling down', retryAfterSec: Math.ceil((RESTART_COOLDOWN_MS - elapsed) / 1000) };
+  }
+  restartRequestState.locked = true;
+  let barrierCreated = false;
+  try {
+    fs.mkdirSync(path.dirname(RESTART_BARRIER_FILE), { recursive: true });
+    try {
+      fs.writeFileSync(RESTART_BARRIER_FILE, `${JSON.stringify({ pid: process.pid, requestedAt: new Date(now).toISOString() })}\n`, { flag: 'wx', mode: 0o600 });
+      barrierCreated = true;
+    } catch (error) {
+      if (!error || error.code !== 'EEXIST') throw error;
+      let ageMs = Infinity;
+      try { ageMs = Date.now() - fs.statSync(RESTART_BARRIER_FILE).mtimeMs; } catch (_) {}
+      if (ageMs <= 2 * 60 * 1000) {
+        restartRequestState.locked = false;
+        return { ok: false, code: 409, error: 'restart barrier is already active' };
+      }
+      try { fs.unlinkSync(RESTART_BARRIER_FILE); } catch (_) {}
+      fs.writeFileSync(RESTART_BARRIER_FILE, `${JSON.stringify({ pid: process.pid, requestedAt: new Date(now).toISOString() })}\n`, { flag: 'wx', mode: 0o600 });
+      barrierCreated = true;
+    }
+    const spawnFn = opts.spawnFn || spawn;
+    const child = spawnFn(process.execPath, [SAFE_RESTART_HELPER], {
+      cwd: ROOT,
+      detached: true,
+      stdio: 'ignore',
+      env: {
+        HOME: require('os').homedir(),
+        PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+        CONSOLE_ARTIFACTS_DIR: ARTIFACTS_ROOT,
+      },
+    });
+    if (!child || !Number(child.pid)) throw new Error('restart helper did not start');
+    if (typeof child.unref === 'function') child.unref();
+    restartRequestState = { locked: false, lastAcceptedAt: now, helperPid: child.pid };
+    engineLog().emit('console.restart.scheduled', { helperPid: child.pid, cooldownMs: RESTART_COOLDOWN_MS });
+    return { ok: true, code: 202, scheduled: true, cooldownSec: Math.ceil(RESTART_COOLDOWN_MS / 1000) };
+  } catch (_) {
+    if (barrierCreated) try { fs.unlinkSync(RESTART_BARRIER_FILE); } catch (_) {}
+    restartRequestState.locked = false;
+    return { ok: false, code: 500, error: 'safe restart helper could not be scheduled' };
+  }
+}
+
+function handleConsoleRestart(req, res) {
+  const localError = runtimeApiLocalError(req);
+  if (localError) return json(res, 403, { ok: false, error: localError });
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method not allowed' });
+  if (!isJsonRequest(req)) return json(res, 415, { ok: false, error: 'application/json required' });
+  if (!csrfMatches(req)) return json(res, 403, { ok: false, error: 'CSRF validation failed' });
+  readJson(req, res, body => {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length) {
+      return json(res, 400, { ok: false, error: 'restart accepts no parameters' });
+    }
+    const running = canonicalRunningTasks();
+    if (running.length) return json(res, 409, { ok: false, error: 'running tasks must finish before restart', runningCount: running.length });
+    const result = scheduleSafeConsoleRestart();
+    return json(res, result.code, result);
+  });
+}
+
 function safeAgent(s) {
   const agent = decodeURIComponent(String(s || ''));
   return /^[\p{L}\p{N}_-]+$/u.test(agent) ? agent : null;
@@ -509,6 +722,68 @@ function prepareTaskForEnqueue(task, body) {
     ? objectAttachments
     : (body && (body.attachments || body.images)));
   return taskWithSavedAttachments(task, rawAttachments);
+}
+
+function routePreparedQueueEnqueue(requestedAgent, preparedTask) {
+  return RoleBoundaryRouting.routeEnqueue(requestedAgent, preparedTask, {
+    workspaceRoot: WORKDIR,
+    projectsDir: path.join(WORKDIR, 'projects'),
+    queueRoot: QUEUE_ROOT,
+  });
+}
+
+function assertRepairCloseoutFence(requestedAgent, preparedTask, queueId) {
+  if (requestedAgent !== 'repair') return;
+  const manager = RepairCloseoutHandshake.createManager({
+    queueRoot: QUEUE_ROOT,
+    eventlog(type, payload) { engineLog().emit(type, payload); },
+  });
+  // 路由判定前先执行既有 durable closeout fence。若同源工单正在/已经收口，
+  // 必须保持原 409 语义，不能借“验签失败回落 CEO”绕过收口屏障。
+  manager.enqueueWithFence({ agent: requestedAgent, task: preparedTask, queueId }, () => null);
+}
+
+function emitScopedQueueRoute(route, requestedAgent, entry, source) {
+  const assessment = route && route.assessment;
+  if (!assessment || !assessment.applies) return;
+  const task = route.task && typeof route.task === 'object' ? route.task : {};
+  if (assessment.accepted) {
+    engineLog().emit('route.scoped_bypass.accepted', {
+      queueAgent: route.agent,
+      queueId: entry.id,
+      projectId: assessment.projectId,
+      rootQueueAgent: assessment.rootQueueAgent,
+      rootQueueId: assessment.rootQueueId,
+      rootTaskId: assessment.rootTaskId,
+      ticketId: assessment.ticketId,
+      issuerRole: assessment.issuerRole,
+      issuerQueueId: assessment.issuerQueueId,
+      issuerTaskId: assessment.issuerTaskId,
+      source,
+    });
+    engineLog().emit('edge.take', {
+      task: assessment.rootTaskId,
+      from: assessment.issuerRole,
+      to: route.agent,
+      projectId: assessment.projectId,
+      rootQueueAgent: assessment.rootQueueAgent,
+      rootQueueId: assessment.rootQueueId,
+      rootTaskId: assessment.rootTaskId,
+      source: 'scoped-bypass',
+    });
+    return;
+  }
+  engineLog().emit('route.scoped_bypass.fallback', {
+    requestedQueueAgent: requestedAgent,
+    queueAgent: route.agent,
+    queueId: entry.id,
+    projectId: task.projectId || null,
+    rootQueueAgent: task.rootQueueAgent || null,
+    rootQueueId: task.rootQueueId || null,
+    rootTaskId: task.rootTaskId || null,
+    reason: assessment.reason,
+    source,
+  });
 }
 
 function pidAlive(pid) {
@@ -671,7 +946,7 @@ function listProjects() {
   const dir = path.join(WORKDIR, 'projects');
   try {
     return fs.readdirSync(dir)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(dir, name)).isDirectory(); }
         catch (_) { return false; }
@@ -699,6 +974,10 @@ function disabledQueueAgentIds() {
 }
 
 function configuredQueueAgents() {
+  const now = Date.now();
+  if (configuredQueueAgentsCache && QUEUE_AGENT_CACHE_MS > 0 && now - configuredQueueAgentsCache.at < QUEUE_AGENT_CACHE_MS) {
+    return configuredQueueAgentsCache.value;
+  }
   const disabled = disabledQueueAgentIds();
   const roleIds = Object.keys(cfg.roleRouting || {}).filter(safeAgent);
   const ids = ['ceo', ...roleIds.filter(id => id !== 'orchestrator' && !disabled.has(id))];
@@ -707,7 +986,7 @@ function configuredQueueAgents() {
     const dir = path.join(QUEUE_ROOT, 'queues');
     for (const agent of fs.readdirSync(dir)) if (isQueueAgentDirName(agent) && !disabled.has(agent) && !ids.includes(agent)) ids.push(agent);
   } catch (_) {}
-  return [...new Set(ids)].map(id => {
+  const value = [...new Set(ids)].map(id => {
     const projectMatch = String(id).match(/^supervisor-(.+)$/);
     const projectId = projectMatch ? projectMatch[1] : null;
     const roleKey = id === 'memory-officer' ? 'memory_officer' : id;
@@ -720,6 +999,8 @@ function configuredQueueAgents() {
       : (((cfg.roleRouting || {})[roleKey] || {}).label || id)),
   });
   });
+  configuredQueueAgentsCache = { at: now, value };
+  return value;
 }
 
 function workerPidFileState(pidFile, agent) {
@@ -799,13 +1080,16 @@ function ensureQueueWorker(agent, opts = {}) {
   const fd = fs.openSync(path.join(QUEUE_WORKER_LOG_DIR, `${safe}.log`), 'a');
   let child;
   try {
+    const workerEnv = RuntimePaths.applyRuntimeEnv(Object.assign({}, process.env, {
+      QUEUE_AGENT: safe,
+      QUEUE_WORKER_PERSISTENT: PERSISTENT_QUEUE_AGENTS.has(safe) ? '1' : '0',
+      // P0-A:生产 worker 默认开启 done gate 真执行/真比对(可用环境变量显式置 0 关闭)
+      YUTU6_DONE_GATE_EXECUTE: process.env.YUTU6_DONE_GATE_EXECUTE || '1',
+    }));
+    delete workerEnv[DirectCompletionOverride.AUTHORITY_PRIVATE_KEY_ENV];
     child = spawn(RuntimePaths.nodeBin(), [path.join(ROOT, 'ceo-worker.js'), '--agent', safe], {
       cwd: ROOT,
-      env: RuntimePaths.applyRuntimeEnv(Object.assign({}, process.env, {
-        QUEUE_AGENT: safe,
-        // P0-A:生产 worker 默认开启 done gate 真执行/真比对(可用环境变量显式置 0 关闭)
-        YUTU6_DONE_GATE_EXECUTE: process.env.YUTU6_DONE_GATE_EXECUTE || '1',
-      })),
+      env: workerEnv,
       detached: true,
       stdio: ['ignore', fd, fd],
     });
@@ -830,8 +1114,7 @@ function ensureWorkersForBacklog() {
   } catch (_) {}
   for (const agent of seen) {
     try {
-      const s = Q.list(QUEUE_ROOT, agent);
-      if (PERSISTENT_QUEUE_AGENTS.has(agent) || s.queued.length || s.running.length) ensureQueueWorker(agent);
+      if (PERSISTENT_QUEUE_AGENTS.has(agent) || Q.hasWork(QUEUE_ROOT, agent)) ensureQueueWorker(agent);
     } catch (_) {}
   }
 }
@@ -998,7 +1281,7 @@ function autoOptimizerTask(stamp, reason) {
       '',
       '硬门禁(只此一项可中止本轮):',
       '- 先运行 `node projects/控制台/tools/auto-optimizer-preflight.js --json`; 如果返回 idle=false,立即停止:只写跳过报告,不要截图、不要改文件、不要发飞书。',
-      '- 只处理 `projects/控制台/` 与控制台工作区页面; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。',
+      '- 只处理 `projects/控制台/` 与控制台工作区页面; 密钥不回显; 登录/授权交主人手动。',
       '',
       '⚠️ 铁律(老板 2026-06-25 明确):',
       '- **绝不允许"本轮无需改动/没什么问题/一切正常"这类结论。** 任何真实 UI 永远有可改进处。说"没问题"= 没认真挑 = 失职。preflight 通过(idle=true)的本轮,必须真挑出问题并落地至少 1 处小改。',
@@ -1018,7 +1301,7 @@ function autoOptimizerTask(stamp, reason) {
       '{"implementation":{"done":true,"summary":"挑出哪些问题 + 本轮改了什么 + 洞察评估","changed_files":[]}}',
       '```',
     ].join('\n'),
-    bounds: '空闲自动优化; 有其他 queued/running 任务时停止不抢占(preflight); 只处理 projects/控制台/; 锁屏时以源码审查为准不停摆; Starlaid 排除; 密钥不回显; 登录/授权交主人手动。',
+    bounds: '空闲自动优化; 有其他 queued/running 任务时停止不抢占(preflight); 只处理 projects/控制台/; 锁屏时以源码审查为准不停摆; 密钥不回显; 登录/授权交主人手动。',
     acceptance: 'preflight idle=true 时必须真挑错(≥3条,源码证据)并落地≥1处小改,严禁"无需改动"结论; 评估洞察员洞察并采纳有益UI项; 报告列全部问题+改动+洞察结论; 飞书progress卡附截图(锁屏无图可省图但仍要报告); 事件日志可追踪。',
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -1223,7 +1506,7 @@ function scheduledPageReviewTask(agent, reviewId, reason, signature) {
       '',
       '空闲硬门:',
       '- 本评审是低优先级任务,不得抢业务队列;一旦预检发现除本评审双 agent 外存在 queued/running,立即停止。',
-      '- 只处理控制台页面评审;Starlaid 一律排除;密钥、token、cookie、验证码不回显、不写入截图说明或报告。',
+      '- 只处理控制台页面评审;密钥、token、cookie、验证码不回显、不写入截图说明或报告。',
       '',
       '截图/隐私/存储规则:',
       `- 截图和报告只写入 \`${paths.base}/\`;不要上传外部服务。`,
@@ -1241,7 +1524,7 @@ function scheduledPageReviewTask(agent, reviewId, reason, signature) {
       '{"implementation":{"done":true,"summary":"本轮评审产出/或跳过原因","changed_files":["' + paths.report + '","' + paths.issues + '"],"logic_chain":{"summary":"...","current_status":"done","actions":["完成页面评审"],"evidence":[{"kind":"file","path":"' + paths.report + '","summary":"评审报告"}],"tests":[],"conclusion":"..."}}}',
       '```',
     ].join('\n'),
-    bounds: '低优先级定时页面评审;仅空闲时运行;只处理 projects/控制台/ 页面评审;Starlaid 排除;密钥不回显;登录/授权交主人手动。',
+    bounds: '低优先级定时页面评审;仅空闲时运行;只处理 projects/控制台/ 页面评审;密钥不回显;登录/授权交主人手动。',
     acceptance: `预检空闲后才评审;报告落 ${paths.report}; issue 候选落 ${paths.issues} 并打 review/interaction 或 review/architecture;不直接派修。`,
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -1751,7 +2034,7 @@ function handleEngineRun(res, body) {
     flowId,
     role: body.role || 'orchestrator',
     goal,
-    bounds: body.bounds || '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+    bounds: body.bounds || '只处理本任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
     inputs: Array.isArray(prepared.task.inputs) ? prepared.task.inputs : [],
     attachments: prepared.attachments,
     acceptance: body.acceptance || '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图',
@@ -1802,7 +2085,7 @@ function defaultBulletinCards() {
         flowId: 'project-route',
         projectId: '控制台',
         goal: '调研并部署 LocateAnything-3B，形成可被控制台/Peekaboo 调用的视觉定位服务；先确认 NVIDIA 非商用许可与本机用途边界，不要擅自接入生产。',
-        bounds: '只处理控制台视觉定位增强；Starlaid 一律排除；密钥不回显；外部下载或授权需要说明。',
+        bounds: '只处理控制台视觉定位增强；密钥不回显；外部下载或授权需要说明。',
         acceptance: '给出部署路径、调用方式、许可证风险说明；如已接通，提供一次截图定位冒烟结果。',
         useOrchestrator: true,
         autoApproveHuman: true
@@ -1821,7 +2104,7 @@ function defaultBulletinCards() {
         flowId: 'project-route',
         projectId: '控制台',
         goal: '完成 Peekaboo 基线测试：校准 agent key 走 new-api，跑一轮截图与点击冒烟，并把截图产物展示到控制台工作区界面。',
-        bounds: '只动控制台与 Peekaboo 本地配置；Starlaid 一律排除；密钥不回显；不删除已有产物。',
+        bounds: '只动控制台与 Peekaboo 本地配置；密钥不回显；不删除已有产物。',
         acceptance: 'Peekaboo 截图和点击测试都有记录；工作区能看到相关产物入口或状态。',
         useOrchestrator: true,
         autoApproveHuman: true
@@ -1841,7 +2124,7 @@ function readBulletinCards() {
   ensureBulletinFile();
   try {
     const cards = JSON.parse(fs.readFileSync(BULLETIN_FILE, 'utf8'));
-    return Array.isArray(cards) ? cards.filter(Boolean) : [];
+    return Array.isArray(cards) ? cards.filter(card => card && typeof card === 'object').map(card => Object.assign({}, card, { kind: 'bulletin' })) : [];
   } catch (_) {
     return [];
   }
@@ -1936,7 +2219,7 @@ function normalizeBulletinPayload(body, target, project, title, desc) {
   if (project && !payload.projectId) payload.projectId = project;
   if (payload.useOrchestrator == null) payload.useOrchestrator = target === 'ceo';
   if (payload.autoApproveHuman == null) payload.autoApproveHuman = true;
-  if (!payload.bounds) payload.bounds = '只处理本公告板任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
+  if (!payload.bounds) payload.bounds = '只处理本公告板任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
   if (!payload.acceptance) payload.acceptance = '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图';
   return payload;
 }
@@ -1952,6 +2235,7 @@ function normalizeBulletinCard(body) {
   const rawId = body.id ? safeBulletinId(body.id) : null;
   if (body.id && !rawId) throw new Error('坏公告卡 id');
   return {
+    kind: 'bulletin',
     id: rawId || `bb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
     title: title.slice(0, 140),
     desc: desc.slice(0, 1200),
@@ -1974,7 +2258,14 @@ function removeBulletinCardAt(cards, idx, sourceOverride) {
   return card;
 }
 
-function enableBulletinCardAt(cards, idx) {
+function isRemovableTodoBulletin(card) {
+  return !!card
+    && card.kind === 'bulletin'
+    && (card.status === 'todo' || card.status === '待拍板')
+    && !card.queueId;
+}
+
+function enableBulletinCardAt(cards, idx, options = {}) {
   const card = cards[idx];
   const id = card.id;
   const target = safeAgent(card.target || 'ceo');
@@ -2001,16 +2292,79 @@ function enableBulletinCardAt(cards, idx) {
     return { code: 200, body: { ok:true, already:true, card, queueStatus: queueEntryStatus(target, card.queueId) } };
   }
   const payload = card.payload && typeof card.payload === 'object'
-    ? card.payload
+    ? Object.assign({}, card.payload)
     : normalizeBulletinPayload(card, target, card.project || '', card.title || id, card.desc || '');
-  const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, target, payload, { idem: `bulletin:${id}`, eventlog: engineLog(), source: 'bulletin' });
+  const overrideRequest = DirectCompletionOverride.requestForCard(card);
+  let overrideReceipt = null;
+  let enqueueId = null;
+  if (overrideRequest && options.ownerDecisionVerified !== true) {
+    engineLog().emit('done_gate.direct_manual_override_rejected', {
+      bulletinId: id,
+      queueAgent: target,
+      queueId: null,
+      reason: 'direct completion override requires signed owner decision callback',
+      stage: 'bulletin.enable',
+    });
+    return {
+      code: 403,
+      body: {
+        ok: false,
+        error: '人工覆盖必须通过已签名的主人决策按钮批准',
+        card,
+      },
+    };
+  }
+  if (overrideRequest && options.ownerDecisionVerified === true) {
+    enqueueId = crypto.randomBytes(4).toString('hex');
+    overrideReceipt = DirectCompletionOverride.issueQueueBoundReceipt({
+      artifactsRoot: ARTIFACTS_ROOT,
+      queueAgent: target,
+      queueId: enqueueId,
+      card,
+      action: 'approve',
+      decisionToken: options.ownerDecisionToken,
+      signingPrivateKey: options.signingPrivateKey,
+      approvedAt: options.approvedAt || nowIso(),
+    });
+    if (typeof options.recordVerifiedDecision !== 'function') {
+      throw new Error('direct completion override requires durable owner decision action before enqueue');
+    }
+    options.recordVerifiedDecision({
+      queueAgent: target,
+      queueId: enqueueId,
+      receipt: overrideReceipt.receipt,
+    });
+    payload.manual_completion_override_receipt_id = overrideReceipt.receipt.receiptId;
+    delete payload.manual_completion_override;
+    delete payload.manualCompletionOverride;
+    delete payload.manual_completion_override_request;
+    delete payload.manualCompletionOverrideRequest;
+  }
+  const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, target, payload, {
+    idem: `bulletin:${id}`,
+    id: enqueueId || undefined,
+    autoMerge: overrideReceipt ? false : undefined,
+    eventlog: engineLog(),
+    source: 'bulletin',
+  });
   card.status = 'enabled';
   card.enabled_at = nowIso();
   card.queueId = entry.id;
+  if (overrideReceipt) card.manualCompletionOverrideReceiptId = overrideReceipt.receipt.receiptId;
   cards[idx] = card;
   writeBulletinCards(cards);
   engineLog().emit('bulletin.enabled', { bulletinId: id, queueAgent: target, queueId: entry.id, goal: queueTaskText(entry.task), source: card.source || null });
   engineLog().emit('queue.enqueued', { queueAgent: target, queueId: entry.id, priority: entry.priority, goal: queueTaskText(entry.task), source: 'bulletin', bulletinId: id });
+  if (overrideReceipt) {
+    engineLog().emit('done_gate.direct_manual_override_receipt_issued', {
+      bulletinId: id,
+      receiptId: overrideReceipt.receipt.receiptId,
+      queueAgent: target,
+      queueId: entry.id,
+      verification: overrideReceipt.receipt.verification,
+    });
+  }
+  invalidateQueueReadCaches();
   ensureQueueWorker(target);
   return { code: 200, body: { ok:true, card, entry, queueStatus: queueEntryStatus(target, entry.id) } };
 }
@@ -2073,30 +2427,114 @@ function handleDecisionCallback(req, res, match, u) {
     }
     const title = String((card && card.title) || (done && done.title) || id);
     if (done) {
-      return decisionHtml(res, 200, '已处理过', `「${title}」此前已${done.action === 'approve' ? '批准' : '驳回'}(${done.at}),本次点击不再重复执行。`);
+      const doneLabel = done.decisionKind === 'meowa_asset'
+        ? (done.action === 'approve' ? '采纳' : '不采纳')
+        : (done.decisionKind === RepairCloseoutHandshake.OWNER_DECISION_KIND
+          ? (done.action === 'approve' ? '批准强制只读收口' : '决定继续等待')
+          : (done.action === 'approve' ? '批准' : '驳回'));
+      return decisionHtml(res, 200, '已处理过', `「${title}」此前已${doneLabel}(${done.at}),本次点击不再重复执行。`);
     }
     if (!card) return decisionHtml(res, 404, '决策卡不存在', `「${title}」可能已在控制台被处理或删除。`);
     if (card.status === 'enabled') {
       return decisionHtml(res, 200, '已处理过', `「${title}」已在控制台启用执行,本次点击不再重复执行。`);
     }
     let queueId = null;
-    if (action === 'approve') {
-      const r = enableBulletinCardAt(cards, idx);
+    let decisionKind = null;
+    let assetId = null;
+    let receiptId = null;
+    let decisionActionPreRecorded = false;
+    const persistDecisionAction = (extra = {}) => {
+      actions[id] = Object.assign({
+        action,
+        at: extra.at || nowIso(),
+        title: title.slice(0, 140),
+        target: card.target || null,
+        queueId: extra.queueId == null ? queueId : extra.queueId,
+        decisionKind: extra.decisionKind == null ? decisionKind : extra.decisionKind,
+        assetId: extra.assetId == null ? assetId : extra.assetId,
+        receiptId: extra.receiptId == null ? receiptId : extra.receiptId,
+        secret, // 只留在本地留痕文件,用于重复点击的幂等校验;不写事件、不回显日志
+        via: 'feishu-card',
+      }, extra);
+      writeDecisionActions(actions);
+    };
+    if (RepairCloseoutHandshake.isOwnerDecisionCard(card)) {
+      const r = RepairCloseoutHandshake.applyOwnerDecisionCard({
+        queueRoot: ARTIFACTS_ROOT,
+        workdir: WORKDIR,
+        card,
+        action,
+        token,
+        eventlog(type, payload) { engineLog().emit(type, payload); },
+      });
+      if (!r.ok) return decisionHtml(res, 500, '决策执行失败', '维修结案拍板回执未生效，请回控制台处理。');
+      decisionKind = RepairCloseoutHandshake.OWNER_DECISION_KIND;
+      receiptId = r.receipt && r.receipt.receiptId || null;
+      removeBulletinCardAt(cards, idx, action === 'approve' ? 'repair-closeout-force-approved' : 'repair-closeout-keep-waiting');
+    } else if (MeowaAssetDecisions.isMeowaAssetCard(card)) {
+      const r = MeowaAssetDecisions.applyDecision({ artifactsRoot: ARTIFACTS_ROOT, card, action, eventlog: engineLog() });
+      if (!r.ok) return decisionHtml(res, 500, '决策执行失败', String(r.error || 'Meowa 素材审核未生效,请回控制台处理。'));
+      decisionKind = 'meowa_asset';
+      assetId = r.asset && r.asset.assetId || card.assetId || null;
+      removeBulletinCardAt(cards, idx, action === 'approve' ? 'meowa-asset-approved' : 'meowa-asset-rejected');
+    } else if (action === 'approve') {
+      const approvedAt = nowIso();
+      const r = enableBulletinCardAt(cards, idx, {
+        ownerDecisionVerified: true,
+        ownerDecisionToken: token,
+        signingPrivateKey: DIRECT_COMPLETION_RECEIPT_AUTHORITY.privateKey,
+        approvedAt,
+        recordVerifiedDecision(meta) {
+          const receipt = meta.receipt;
+          persistDecisionAction({
+            at: approvedAt,
+            queueId: meta.queueId,
+            decisionKind: DirectCompletionOverride.DECISION_KIND,
+            receiptId: receipt.receiptId,
+            receiptAuthorityId: receipt.authorityId,
+            receiptSignature: receipt.signature,
+            verification: 'hmac-sha256-decision-card',
+          });
+          decisionActionPreRecorded = true;
+        },
+      });
       if (!(r.body && r.body.ok)) return decisionHtml(res, r.code || 500, '决策执行失败', String((r.body && r.body.error) || '批准未生效,请回控制台处理。'));
       queueId = (r.body.entry && r.body.entry.id) || null;
+      if (DirectCompletionOverride.requestForCard(card)) {
+        decisionKind = DirectCompletionOverride.DECISION_KIND;
+        receiptId = r.body.card && r.body.card.manualCompletionOverrideReceiptId || null;
+      }
     } else {
       removeBulletinCardAt(cards, idx, 'feishu-decision-reject');
     }
-    actions[id] = {
-      action,
-      at: nowIso(),
-      title: title.slice(0, 140),
-      target: card.target || null,
-      queueId,
-      secret, // 只留在本地留痕文件,用于重复点击的幂等校验;不写事件、不回显日志
-    };
-    writeDecisionActions(actions);
-    engineLog().emit('decision.card.actioned', { bulletinId: id, action, title: title.slice(0, 140), target: card.target || null, queueId, via: 'feishu-card' });
+    if (!decisionActionPreRecorded) persistDecisionAction();
+    engineLog().emit('decision.card.actioned', { bulletinId: id, action, title: title.slice(0, 140), target: card.target || null, queueId, decisionKind, assetId, receiptId, via: 'feishu-card' });
+    if (decisionKind === RepairCloseoutHandshake.OWNER_DECISION_KIND) {
+      return decisionHtml(
+        res,
+        200,
+        action === 'approve' ? '已批准强制收口' : '已决定继续等待',
+        action === 'approve'
+          ? `「${title}」已生成主人拍板回执；请重试 repair-ticket-complete，系统将保留未确认子任务 warning。`
+          : `「${title}」已记录继续等待；未经新的有效主人回执不会强制结案。`,
+      );
+    }
+    if (decisionKind === 'meowa_asset') {
+      return decisionHtml(
+        res,
+        200,
+        action === 'approve' ? '已采纳' : '已不采纳',
+        action === 'approve' ? `「${title}」已采纳,素材已按 ledger 接入正式路径。` : `「${title}」已不采纳,素材未接入正式路径,可按 ledger 重做。`,
+      );
+    }
+    if (decisionKind === DirectCompletionOverride.DECISION_KIND) {
+      return decisionHtml(
+        res,
+        200,
+        '已批准人工覆盖',
+        `「${title}」已生成绑定执行队列的主人回执；只有该队列生成的 taskId 可使用，普通 payload 自称 owner 不会生效。`,
+      );
+    }
     return decisionHtml(
       res,
       200,
@@ -2114,7 +2552,7 @@ function handleBulletin(req, res, match) {
   if (match[1] && !id) return json(res, 400, { ok:false, error:'坏公告卡 id' });
 
   if (req.method === 'GET' && !id && !action) {
-    return json(res, 200, { ok:true, cards: readBulletinCards() });
+    return json(res, 200, BulletinOutputRedaction.sanitize({ ok:true, cards: readBulletinCards() }));
   }
   if (req.method !== 'POST') return json(res, 405, { ok:false, error:'method not allowed' });
 
@@ -2127,22 +2565,32 @@ function handleBulletin(req, res, match) {
         cards.unshift(card);
         writeBulletinCards(cards);
         engineLog().emit('bulletin.added', { bulletinId: card.id, target: card.target, title: card.title, source: card.source || null });
-        return json(res, 200, { ok:true, card });
+        return json(res, 200, BulletinOutputRedaction.sanitize({ ok:true, card }));
       }
       if (!id || !action) return json(res, 400, { ok:false, error:'坏公告板路径' });
       const idx = cards.findIndex(c => c.id === id);
       if (idx < 0) return json(res, 404, { ok:false, error:'公告卡不存在' });
 
       if (action === 'remove') {
+        if (!isRemovableTodoBulletin(cards[idx])) {
+          return json(res, 400, { ok:false, error:'only todo bulletin cards can be removed' });
+        }
         const card = removeBulletinCardAt(cards, idx);
-        return json(res, 200, { ok:true, card });
+        return json(res, 200, BulletinOutputRedaction.sanitize({ ok:true, card }));
       }
       if (action !== 'enable') return json(res, 404, { ok:false, error:'未知公告板操作' });
 
       const r = enableBulletinCardAt(cards, idx);
-      return json(res, r.code, r.body);
+      return json(res, r.code, BulletinOutputRedaction.sanitize(r.body));
     } catch (e) {
-      return json(res, 500, { ok:false, error:e.message });
+      const fenced = e && e.code === 'REPAIR_CLOSEOUT_ENQUEUE_FENCED';
+      return json(res, fenced ? 409 : 500, {
+        ok: false,
+        error: e.message,
+        code: fenced ? e.code : undefined,
+        ticketId: fenced ? e.ticketId : undefined,
+        queueId: fenced ? e.queueId : undefined,
+      });
     }
   });
 }
@@ -2154,13 +2602,14 @@ function handleQueue(req, res, match) {
   if (!agent) return json(res, 400, { ok:false, error:'坏 agent' });
 
   if (req.method === 'GET' && !id && !action) {
-    try { return json(res, 200, Object.assign({ ok:true }, Q.list(QUEUE_ROOT, agent))); }
+    try { return json(res, 200, Object.assign({ ok:true }, queueStateForApi(agent))); }
     catch (e) { return json(res, 500, { ok:false, error:e.message }); }
   }
   if (req.method !== 'POST') return json(res, 405, { ok:false, error:'method not allowed' });
 
   readJson(req, res, body => {
     try {
+      invalidateQueueReadCaches();
       if (isSecretaryQueueWrite(body)) {
         return rejectSecretaryQueueWrite(res);
       }
@@ -2174,16 +2623,32 @@ function handleQueue(req, res, match) {
         let prepared;
         try { prepared = prepareTaskForEnqueue(task, body); }
         catch (e) { return json(res, 400, { ok:false, error:e.message }); }
-        const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, agent, prepared.task, {
+        const enqueueId = customId || crypto.randomBytes(4).toString('hex');
+        assertRepairCloseoutFence(agent, prepared.task, enqueueId);
+        const route = routePreparedQueueEnqueue(agent, prepared.task);
+        const targetAgent = route.agent;
+        prepared.task = route.task;
+        const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, targetAgent, prepared.task, {
           priority,
           idem: body.idem,
-          id: customId,
+          id: enqueueId,
           eventlog: engineLog(),
           source: 'api-queue',
         });
-        engineLog().emit('queue.enqueued', { queueAgent: agent, queueId: entry.id, priority: entry.priority, goal: queueTaskText(entry.task), attachments: prepared.attachments.length || undefined });
-        ensureQueueWorker(agent);
-        return json(res, 200, { ok:true, entry });
+        emitScopedQueueRoute(route, agent, entry, 'api-queue');
+        engineLog().emit('queue.enqueued', {
+          queueAgent: targetAgent,
+          queueId: entry.id,
+          priority: entry.priority,
+          goal: queueTaskText(entry.task),
+          attachments: prepared.attachments.length || undefined,
+          requestedQueueAgent: targetAgent === agent ? undefined : agent,
+          rootQueueAgent: prepared.task && prepared.task.rootQueueAgent || null,
+          rootQueueId: prepared.task && prepared.task.rootQueueId || null,
+          rootTaskId: prepared.task && prepared.task.rootTaskId || null,
+        });
+        ensureQueueWorker(targetAgent);
+        return json(res, 200, { ok:true, entry, queueAgent: targetAgent, requestedQueueAgent: agent, scopedBypass: route.assessment });
       }
       if (!id || !action) return json(res, 400, { ok:false, error:'坏队列路径' });
 
@@ -2203,9 +2668,30 @@ function handleQueue(req, res, match) {
         if (priority === null) return json(res, 400, { ok:false, error:'priority 必须是 0-99 的整数' });
         result = setQueuePriorityLocal(agent, id, priority, queueControlMeta(body, 'priority', 'console-server:queue-api'));
         if (result.ok) engineLog().emit('queue.priority_set', { queueAgent: agent, queueId: id, priority, actor: 'ceo' });
+      } else if (action === 'repair-closeout-noop-steer') {
+        if (agent !== 'repair') return json(res, 400, { ok:false, error:'该结构化引导仅允许 repair 队列' });
+        result = RepairClaimNoop.issueStructuredSteer({
+          workdir: WORKDIR,
+          artifactsRoot: ARTIFACTS_ROOT,
+          queueRoot: QUEUE_ROOT,
+          queueAgent: agent,
+          queueId: id,
+          ticketId: body.ticketId || body.ticket_id,
+          issuer: 'console-server:repair-closeout-noop',
+          steerQueue: (root, target, queueId, msg) => Q.steer(root, target, queueId, msg),
+          emit: (type, detail) => engineLog().emit(type, detail),
+        });
+        if (!result.ok) return json(res, 409, { ok:false, error:result.reason, result });
+        ensureQueueWorker(agent);
       } else if (action === 'steer') {
         const msg = String(body.msg || body.message || body.steer || '').trim();
         if (!msg) return json(res, 400, { ok:false, error:'空引导' });
+        if (RepairClaimNoop.advertisesStructuredSteer(msg)) {
+          return json(res, 400, {
+            ok:false,
+            error:'结构化 repair no-op 引导必须使用 repair-closeout-noop-steer 入口，由服务端生成来源回执',
+          });
+        }
         result = Q.steer(QUEUE_ROOT, agent, id, msg);
         if (result) engineLog().emit('queue.steered', { queueAgent: agent, queueId: id, msg: msg.slice(0, 500) });
       } else if (action === 'pause') {
@@ -2217,6 +2703,27 @@ function handleQueue(req, res, match) {
           engineLog().emit('queue.resumed', { queueAgent: agent, queueId: id });
           ensureQueueWorker(agent);
         }
+      } else if (action === 'acceptance-handoff-recover') {
+        const confirmation = body.confirmation || {};
+        result = AcceptanceHandoff.recoverPausedQueueReview({
+          workspaceRoot: WORKDIR,
+          artifactsRoot: ARTIFACTS_ROOT,
+          queueRoot: QUEUE_ROOT,
+          queueAgent: agent,
+          queueId: id,
+          taskId: body.taskId || confirmation.task_id,
+          correctedDownstreamContract: body.correctedDownstreamContract || body.corrected_downstream_contract || null,
+          confirmation,
+          eventlog: engineLog(),
+        });
+        if (!result.ok) return json(res, 409, { ok:false, error:result.reason, result });
+        engineLog().emit('queue.resumed', {
+          queueAgent: agent,
+          queueId: id,
+          task: body.taskId || confirmation.task_id || null,
+          source: 'acceptance-handoff-recovery',
+        });
+        ensureQueueWorker(agent);
       } else if (action === 'cancel') {
         result = cancelQueueItemLocal(agent, id, { reason: body.reason || '', actor: 'ceo', requestedBy: queueWriteSource(body) || null, source: 'console-server:queue-api:cancel' });
         if (result.ok) engineLog().emit('queue.canceled', { queueAgent: agent, queueId: id, actor: 'ceo' });
@@ -2224,7 +2731,14 @@ function handleQueue(req, res, match) {
       if (!result || result.ok === false) return json(res, 404, Object.assign({ ok:false, error:'队列项不存在或不可操作' }, result || {}));
       return json(res, 200, { ok:true, result });
     } catch (e) {
-      return json(res, 500, { ok:false, error:e.message });
+      const fenced = e && e.code === 'REPAIR_CLOSEOUT_ENQUEUE_FENCED';
+      return json(res, fenced ? 409 : 500, {
+        ok: false,
+        error: e.message,
+        code: fenced ? e.code : undefined,
+        ticketId: fenced ? e.ticketId : undefined,
+        queueId: fenced ? e.queueId : undefined,
+      });
     }
   });
 }
@@ -2556,6 +3070,7 @@ function handleQueueBatch(req, res, match) {
 
   readJson(req, res, body => {
     try {
+      invalidateQueueReadCaches();
       if (isSecretaryQueueWrite(body)) {
         return rejectSecretaryQueueWrite(res);
       }
@@ -2654,19 +3169,37 @@ function applyCeoQueueControl(body) {
     let prepared;
     try { prepared = prepareTaskForEnqueue(task, body); }
     catch (e) { return { status: 400, body: { ok:false, error:e.message } }; }
-    const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, agent, prepared.task, {
+    const enqueueId = customId || crypto.randomBytes(4).toString('hex');
+    assertRepairCloseoutFence(agent, prepared.task, enqueueId);
+    const route = routePreparedQueueEnqueue(agent, prepared.task);
+    const targetAgent = route.agent;
+    prepared.task = route.task;
+    const entry = QueueAutoMerge.enqueue(QUEUE_ROOT, targetAgent, prepared.task, {
       priority,
       idem: body.idem,
-      id: customId,
+      id: enqueueId,
       eventlog: engineLog(),
       source: 'ceo-queue-control',
     });
     attachQueueControl(entry, meta, { priority });
-    const file = queueEntryFiles(agent, entry.id).queued;
+    const file = queueEntryFiles(targetAgent, entry.id).queued;
     if (file) writeJsonFileAtomic(file, entry);
-    engineLog().emit('queue.enqueued', { queueAgent: agent, queueId: entry.id, priority: entry.priority, goal: queueTaskText(entry.task), actor: 'ceo', requestedBy: meta.requestedBy, source: meta.source });
-    ensureQueueWorker(agent);
-    return { status: 200, body: { ok:true, entry } };
+    emitScopedQueueRoute(route, agent, entry, 'ceo-queue-control');
+    engineLog().emit('queue.enqueued', {
+      queueAgent: targetAgent,
+      queueId: entry.id,
+      priority: entry.priority,
+      goal: queueTaskText(entry.task),
+      actor: 'ceo',
+      requestedBy: meta.requestedBy,
+      source: meta.source,
+      requestedQueueAgent: targetAgent === agent ? undefined : agent,
+      rootQueueAgent: prepared.task && prepared.task.rootQueueAgent || null,
+      rootQueueId: prepared.task && prepared.task.rootQueueId || null,
+      rootTaskId: prepared.task && prepared.task.rootTaskId || null,
+    });
+    ensureQueueWorker(targetAgent);
+    return { status: 200, body: { ok:true, entry, queueAgent: targetAgent, requestedQueueAgent: agent, scopedBypass: route.assessment } };
   }
 
   if (action === 'organize') {
@@ -2758,10 +3291,18 @@ function handleCeoQueueControl(req, res) {
   if (req.method !== 'POST') return json(res, 405, { ok:false, error:'method not allowed' });
   readJson(req, res, body => {
     try {
+      invalidateQueueReadCaches();
       const out = applyCeoQueueControl(body || {});
       return json(res, out.status, out.body);
     } catch (e) {
-      return json(res, 500, { ok:false, error:e.message });
+      const fenced = e && e.code === 'REPAIR_CLOSEOUT_ENQUEUE_FENCED';
+      return json(res, fenced ? 409 : 500, {
+        ok: false,
+        error: e.message,
+        code: fenced ? e.code : undefined,
+        ticketId: fenced ? e.ticketId : undefined,
+        queueId: fenced ? e.queueId : undefined,
+      });
     }
   });
 }
@@ -2789,6 +3330,58 @@ function queueRunningStartedAt(entry) {
     if (Number.isFinite(t)) return raw;
   }
   return '';
+}
+
+function queueApiRunningEntry(entry) {
+  const out = Object.assign({}, entry || {});
+  const startedAt = queueRunningStartedAt(out);
+  if (startedAt) out.started_at = startedAt;
+  else if (!out.started_at) out.started_at = '';
+  return out;
+}
+
+function queueStateForApi(agent, sourceState) {
+  const state = sourceState || Q.list(QUEUE_ROOT, agent);
+  return Object.assign({}, state, {
+    running: (state.running || []).map(queueApiRunningEntry),
+  });
+}
+
+function invalidateQueueReadCaches() {
+  queueOverviewCache = null;
+  taskBoardCache = null;
+}
+
+function queueOverviewSnapshot() {
+  const now = Date.now();
+  if (queueOverviewCache && QUEUE_OVERVIEW_CACHE_MS > 0 && now - queueOverviewCache.at < QUEUE_OVERVIEW_CACHE_MS) {
+    return Object.assign({}, queueOverviewCache.value, { cached: true });
+  }
+  const agents = configuredQueueAgents();
+  const states = agents.map(agent => {
+    try { return { agent: agent.id, state: queueStateForApi(agent.id) }; }
+    catch (_) { return { agent: agent.id, state: { agent: agent.id, queued: [], running: [], paused: [], done: 0, failed: 0, canceled: 0 } }; }
+  });
+  const value = {
+    generated_at: nowIso(),
+    agents,
+    states,
+    queues: Object.fromEntries(states.map(item => [item.agent, item.state])),
+    cached: false,
+  };
+  queueOverviewCache = { at: now, value };
+  return value;
+}
+
+function handleQueueOverview(res) {
+  const snapshot = queueOverviewSnapshot();
+  return json(res, 200, {
+    ok: true,
+    generated_at: snapshot.generated_at,
+    cached: snapshot.cached,
+    queueAgents: snapshot.agents,
+    queues: snapshot.queues,
+  });
 }
 
 function taskBoardRoleLabel(role, node) {
@@ -2923,6 +3516,7 @@ function taskBoardProgressForEvent(ev, goal) {
   if (type === 'board.review.round.start') return { text: `董事会评议中(第 ${ev.round || 1}/${ev.maxRounds || 1} 轮)`, state: 'run' };
   if (type === 'board.review.round.end') return { text: `董事会第 ${ev.round || 1} 轮完成 · ${ev.issueCount || 0} 条挑刺`, state: ev.continue ? 'run' : 'done' };
   if (type === 'board.review.approved') return { text: `董事会评议通过,默认执行 · ${ev.rounds || 1}/${ev.maxRounds || 1} 轮`, state: 'done' };
+  if (type === 'board.review.quorum_lost') return { text: `董事缺席过半 · ${ev.absentCount || 0}/${ev.directorCount || 0} · 等主人拍板`, state: 'wait' };
   if (type === 'board.review.await_owner') return { text: `董事会需主人拍板 · ${ev.bulletinId || ev.decisionId || ''}`, state: 'wait' };
   if (type === 'node.output') {
     if (!String(ev.text || ev.output || ev.delta || '').trim()) return null;
@@ -3246,8 +3840,12 @@ function childTaskIdsForRoot(index, root) {
 function buildCeoNodeChain(root, cardStatus, index, action) {
   const rootTaskId = root.taskId;
   const childTaskIds = childTaskIdsForRoot(index, root);
-  if (action && action.taskId && !childTaskIds.includes(action.taskId) && action.taskId !== rootTaskId) childTaskIds.push(action.taskId);
-  const childTaskId = childTaskIds[0] || '';
+  const actionTaskId = action && action.taskId && action.taskId !== rootTaskId ? action.taskId : '';
+  if (actionTaskId && !childTaskIds.includes(actionTaskId)) childTaskIds.push(actionTaskId);
+  // A root may retain events from prior retries or sibling tasks. The active
+  // queue action is the authoritative child for this card; stale children must
+  // not backfill completion into the current implementation/review chain.
+  const childTaskId = actionTaskId || childTaskIds[0] || '';
   const nodes = [];
   const add = (id, label, status, role, meta = {}) => {
     const node = Object.assign({
@@ -3272,12 +3870,19 @@ function buildCeoNodeChain(root, cardStatus, index, action) {
   const review = childTaskId ? nodeStateForTask(index, childTaskId, 'review') : { status: 'pending', role: 'supervisor' };
   const reviewOutcome = childTaskId ? taskBoardReviewOutcome(index, childTaskId, review, implement) : { rework: false, count: 0 };
   const childStarted = childTaskId && (taskHasEvent(index, childTaskId, 'task.created') || implement.status !== 'pending' || review.status !== 'pending');
+  const supervisorFinished = childTaskId && !reviewOutcome.rework && (
+    taskHasEvent(index, childTaskId, 'task.done') || review.status === 'done'
+  );
   const hasProjectChild = !!childTaskId || routed;
   if (hasProjectChild || cardStatus === 'queued') {
     let supervisorStatus = 'pending';
-    if (childStarted) supervisorStatus = 'done';
-    else if (routed || ceoStatus === 'done') supervisorStatus = 'waiting';
-    add('supervisor-route', '主管', supervisorStatus, 'supervisor', { taskId: childTaskId || rootTaskId, node: 'supervisor' });
+    let supervisorStatusText = '';
+    if (supervisorFinished) supervisorStatus = 'done';
+    else if (childStarted) {
+      supervisorStatus = 'waiting';
+      supervisorStatusText = '⏳已接单';
+    } else if (routed || ceoStatus === 'done') supervisorStatus = 'waiting';
+    add('supervisor-route', '主管', supervisorStatus, 'supervisor', { taskId: childTaskId || rootTaskId, node: 'supervisor', statusText: supervisorStatusText });
 
     let implementStatus = implement.status;
     let implementStatusText = implement.statusText;
@@ -3302,15 +3907,22 @@ function buildCeoNodeChain(root, cardStatus, index, action) {
     add('review', '复审', reviewStatus, 'supervisor', { taskId: childTaskId, node: 'review', statusText: reviewStatusText, rework: reviewOutcome.rework || undefined, reworkCount: reviewOutcome.count || undefined, reworkSource: reviewOutcome.source || undefined });
   }
 
-  for (const taskId of [rootTaskId, ...childTaskIds].filter(Boolean)) {
+  for (const taskId of [rootTaskId, childTaskId].filter(Boolean)) {
     for (const ev of index.eventsByTask.get(taskId) || []) {
-      if (!/^node\.(start|end|fail)$/.test(ev.type) || ['orchestrator-plan', 'implement', 'review'].includes(ev.node)) continue;
+      if (!/^node\.(start|end|fail|absent)$/.test(ev.type) || ['orchestrator-plan', 'implement', 'review'].includes(ev.node)) continue;
       const state = nodeStateForTask(index, taskId, ev.node);
       const id = `${taskId}:${ev.node}`;
       if (nodes.some(n => n.id === id)) continue;
       add(id, taskBoardRoleLabel(state.role, ev.node), state.status, state.role, { taskId, node: ev.node });
     }
   }
+
+  // Board review is a pre-CEO gate. Preserve the actual execution order in the
+  // task chain: board -> CEO plan -> supervisor -> implement -> review.
+  const ceoNodes = nodes.filter(node => node.id === 'ceo-plan');
+  const boardNodes = nodes.filter(node => node.id !== 'ceo-plan' && isBoardRole(node.role, node.node));
+  const executionNodes = nodes.filter(node => node.id !== 'ceo-plan' && !isBoardRole(node.role, node.node));
+  nodes.splice(0, nodes.length, ...boardNodes, ...ceoNodes, ...executionNodes);
 
   let runningSeen = false;
   for (const node of nodes) {
@@ -3373,7 +3985,30 @@ function terminalQueueEntryTime(entry) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function terminalQueueHistorySignature(agents) {
+  const parts = [];
+  for (const agent of agents || []) {
+    const agentId = agent && agent.id || agent;
+    if (!agentId) continue;
+    const dir = path.join(QUEUE_ROOT, 'queues', agentId);
+    for (const status of ['done', 'failed', 'canceled']) {
+      const statusDir = path.join(dir, status);
+      try {
+        const st = fs.statSync(statusDir);
+        parts.push(`${agentId}:${status}:${Math.floor(st.mtimeMs)}:${st.size}`);
+      } catch (_) {
+        parts.push(`${agentId}:${status}:missing`);
+      }
+    }
+  }
+  return parts.join('|');
+}
+
 function readTerminalQueueHistory(agents, index, limit = TASK_BOARD_HISTORY_LIMIT) {
+  const signature = terminalQueueHistorySignature(agents);
+  if (terminalQueueHistoryCache && terminalQueueHistoryCache.limit === limit && terminalQueueHistoryCache.signature === signature) {
+    return terminalQueueHistoryCache.rows;
+  }
   const candidateLimit = Math.max(limit * 4, 80);
   const candidates = [];
   const pushCandidate = (agentId, status, statusDir, file) => {
@@ -3421,11 +4056,13 @@ function readTerminalQueueHistory(agents, index, limit = TASK_BOARD_HISTORY_LIMI
     if (rows.length >= limit * 2) break;
   }
   rows.sort((a, b) => (b.time || 0) - (a.time || 0));
-  return rows.slice(0, limit).map(row => {
+  const result = rows.slice(0, limit).map(row => {
     const out = Object.assign({}, row);
     delete out.time;
     return out;
   });
+  terminalQueueHistoryCache = { signature, limit, rows: result };
+  return result;
 }
 
 function handleCeoTaskBoard(res) {
@@ -3435,11 +4072,9 @@ function handleCeoTaskBoard(res) {
     }
     const events = readTaskBoardEvents(TASK_BOARD_EVENT_LIMIT);
     const index = buildTaskBoardIndex(events);
-    const agents = configuredQueueAgents();
-    const queueStates = agents.map(agent => {
-      try { return { agent: agent.id, state: Q.list(QUEUE_ROOT, agent.id) }; }
-      catch (_) { return { agent: agent.id, state: { queued: [], running: [], paused: [] } }; }
-    });
+    const queueSnapshot = queueOverviewSnapshot();
+    const agents = queueSnapshot.agents;
+    const queueStates = queueSnapshot.states;
 
     const activeCandidates = [];
     for (const { agent, state } of queueStates) {
@@ -3466,7 +4101,7 @@ function handleCeoTaskBoard(res) {
       }
     }
 
-    const ceoState = Q.list(QUEUE_ROOT, 'ceo');
+    const ceoState = queueSnapshot.queues.ceo || { queued: [], running: [], paused: [], done: 0, failed: 0, canceled: 0 };
     for (const item of ceoState.running || []) {
       const qkey = queueKey('ceo', item.id);
       const taskId = item.taskId || item.task && item.task.taskId || index.queueToTask.get(qkey) || '';
@@ -3927,11 +4562,18 @@ const handler = (req, res) => {
     return res.end();
   }
   if (req.method === 'GET' && u.pathname === '/api/health') {
+    const memory = process.memoryUsage();
     return json(res, 200, {
       ok: true,
       pid: process.pid,
       uptimeSec: Math.round(process.uptime()),
       ts: new Date().toISOString(),
+      memory: {
+        rssBytes: memory.rss,
+        heapUsedBytes: memory.heapUsed,
+        heapTotalBytes: memory.heapTotal,
+        externalBytes: memory.external,
+      },
     });
   }
   if (req.method === 'GET' && u.pathname === '/api/version') return handleVersion(res);
@@ -3989,15 +4631,18 @@ const handler = (req, res) => {
     });
     return;
   }
+  if (u.pathname === '/api/settings/runtime') return handleRuntimeSettings(req, res);
+  if (u.pathname === '/api/console/restart') return handleConsoleRestart(req, res);
   const bulletinMatch = u.pathname.match(/^\/api\/bulletin(?:\/([^/]+)\/(enable|remove))?$/);
   if (bulletinMatch) return handleBulletin(req, res, bulletinMatch);
   // 飞书决策卡按钮回调(拍板 Q12):点按钮即拍板;token 校验失败一律不执行
   const decisionMatch = u.pathname.match(/^\/api\/decision\/([^/]+)\/(approve|reject)$/);
   if (decisionMatch) return handleDecisionCallback(req, res, decisionMatch, u);
   if (u.pathname === '/api/ceo/queue-control') return handleCeoQueueControl(req, res);
+  if (req.method === 'GET' && u.pathname === '/api/queues/overview') return handleQueueOverview(res);
   const queueBatchMatch = u.pathname.match(/^\/api\/queue\/([^/]+)\/(batch-cancel|merge|organize)$/);
   if (queueBatchMatch) return handleQueueBatch(req, res, queueBatchMatch);
-  const queueMatch = u.pathname.match(/^\/api\/queue\/([^/]+)(?:\/([^/]+)\/(jump|reorder|priority|setPriority|set-priority|steer|pause|resume|cancel))?$/);
+  const queueMatch = u.pathname.match(/^\/api\/queue\/([^/]+)(?:\/([^/]+)\/(jump|reorder|priority|setPriority|set-priority|steer|pause|resume|acceptance-handoff-recover|cancel))?$/);
   if (queueMatch) return handleQueue(req, res, queueMatch);
   if (req.method === 'GET' && u.pathname === '/api/probe') return probe(res, u.searchParams.get('runner'));
   if (req.method === 'GET' && u.pathname === '/api/llm-usage/overview') return handleLlmUsageOverview(res, u);
@@ -4045,23 +4690,28 @@ const handler = (req, res) => {
 
 // 同时监听 IPv4(127.0.0.1)和 IPv6(::1)本地回环 —— mac 上 localhost 常优先走 ::1,
 // 只绑一个会出现"服务在跑但浏览器连不上"。两个都绑,仍然只对本机,不对外网。
-function boot(host, primary) {
+function boot(port, host, required) {
   const s = http.createServer(handler);
   s.on('error', e => {
-    if (e.code === 'EADDRINUSE' && primary) { console.error(`\n  ✗ 端口 ${PORT} 已被占用。换端口重启:PORT=8890 bash start.sh\n`); process.exit(1); }
-    else if (primary) console.error(`  ${host} 监听失败: ${e.message}`);
+    if (e.code === 'EADDRINUSE' && required) { console.error(`\n  ✗ 端口 ${port} 已被占用。换端口重启:PORT=8890 bash start.sh\n`); process.exit(1); }
+    else if (host === '127.0.0.1') console.error(`  ${host}:${port} 兼容监听失败: ${e.message}`);
     // 非主(::1)失败静默:有些机器没开 IPv6
   });
-  s.listen(PORT, host, () => console.log(`  ✓ 监听 ${host.includes(':') ? '[' + host + ']' : host}:${PORT}`));
+  s.listen(port, host, () => console.log(`  ✓ 监听 ${host.includes(':') ? '[' + host + ']' : host}:${port}`));
+  return s;
 }
 async function start() {
   console.log('\n  玉兔6 控制台启动中…');
+  console.log(`  运行设置: ENGINE_MAX_CONCURRENCY=${RUNTIME_SETTINGS_BOOT.engineMaxConcurrency} (${RUNTIME_SETTINGS_BOOT.source})`);
   console.log(`  工作目录(runner 在此执行):${WORKDIR}`);
   console.log(`  runners: ${Object.keys(cfg.runners).join(', ')}`);
   await selfCleanRuntimeArtifacts();
-  boot('127.0.0.1', true);
-  boot('::1', false);
+  for (const port of [PORT, ...ALIAS_PORTS]) {
+    boot(port, '127.0.0.1', port === PORT);
+    boot(port, '::1', false);
+  }
   console.log(`  打开 → http://localhost:${PORT}  或  http://127.0.0.1:${PORT}   (Ctrl+C 退出)\n`);
+  if (ALIAS_PORTS.length) console.log(`  兼容地址 → ${ALIAS_PORTS.map(port => `http://127.0.0.1:${port}`).join('  ')}\n`);
   const timer = setTimeout(() => {
     try {
       ensureWorkersForBacklog();
@@ -4103,12 +4753,16 @@ module.exports = {
   selfCleanRuntimeArtifacts,
   checkScheduledPageReviewNonBlocking,
   _test: {
+    applyCeoQueueControl,
+    routePreparedQueueEnqueue,
     computePageReviewSignature,
     computePageReviewSignatureAsync,
     refreshPageSignatureCache,
     readTaskBoardEvents,
     readTaskBoardEventsFull,
     taskBoardEventCursor,
+    workspaceEventCursor,
+    readEvents,
     sqliteJson,
     sqliteJsonCache,
     newApiUsageFromDb,
@@ -4124,6 +4778,13 @@ module.exports = {
     buildCeoTaskCard,
     buildCeoNodeChain,
     buildTaskBoardIndex,
+    queueRunningStartedAt,
+    queueApiRunningEntry,
+    queueStateForApi,
+    queueOverviewSnapshot,
+    handleQueueOverview,
+    invalidateQueueReadCaches,
+    terminalQueueHistorySignature,
     nodeStateForTask,
     taskBoardStatusLabel,
     taskBoardProgressForEvent,
@@ -4131,7 +4792,21 @@ module.exports = {
     isQueueAgentDirName,
     enableBulletinCardAt,
     removeBulletinCardAt,
+    isRemovableTodoBulletin,
     handleDecisionCallback,
     readDecisionActions,
+    normalizeAliasPorts,
+    aliasPorts: ALIAS_PORTS,
+    runtimeApiLocalError,
+    csrfMatches,
+    runtimeSettingsResponse,
+    canonicalRunningTasks,
+    scheduleSafeConsoleRestart,
+    handleRuntimeSettings,
+    handleConsoleRestart,
+    resetRestartRequestState() {
+      restartRequestState = { locked: false, lastAcceptedAt: 0, helperPid: null };
+      try { fs.unlinkSync(RESTART_BARRIER_FILE); } catch (_) {}
+    },
   },
 };

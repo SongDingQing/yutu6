@@ -1,0 +1,99 @@
+{
+  "schema": "yutu6-gate-policy@1",
+  "updated_at": "2026-07-16T00:00:00.000Z",
+  "owner": "quality_ops",
+  "default_mode": "dormant",
+  "principle": "Only incident-backed or foundational gates may block. Duplicate and unproven gates stay dormant; observational gates stay shadow.",
+  "gates": {
+    "engine.done_gate": {
+      "kind": "primary",
+      "mode": "active",
+      "blocking": true,
+      "class": "completion-integrity",
+      "reason": "Prevents false completion by requiring implementation, hard review evidence, protocol consistency and task-scoped proof.",
+      "incident_refs": [
+        "projects/控制台/artifacts/done-gate-audit-2026-06-23.md",
+        "board/repair-tickets/auto-20260622182621-92d857a28bf118c5.md"
+      ],
+      "activation": "Always active for review-loop completion.",
+      "review_after_days_without_hit": 90
+    },
+    "engine.direct_completion_conflict": {
+      "kind": "primary",
+      "mode": "shadow",
+      "blocking": false,
+      "class": "completion-integrity",
+      "reason": "Observe legacy result/implementation/review schema conflicts before owner-approved fail-closed activation; explicit false signals are already blocked by the primary direct completion gate.",
+      "incident_refs": [
+        "projects/控制台/artifacts/engine-runs/cr-1784019435832-74298708/execute-1/result.redacted.md",
+        "projects/控制台/artifacts/engine-runs/cr-1784020905877-d6be4147/execute-1/result.redacted.md"
+      ],
+      "activation": "Shadow by default; change to active only after owner approval and conflict-ledger review.",
+      "review_after_days_without_hit": 30
+    },
+    "console.done_gate_meta": {
+      "kind": "hook",
+      "mode": "active",
+      "blocking": true,
+      "class": "completion-integrity",
+      "reason": "Cheap invariant that task.true_done can only follow a passing primary DoneGate verdict.",
+      "incident_refs": [
+        "projects/控制台/artifacts/done-gate-audit-2026-06-23.md"
+      ],
+      "activation": "Always active for task.true_done; no model call and near-zero runtime cost.",
+      "review_after_days_without_hit": 90
+    },
+    "console.protocol_gate": {
+      "kind": "hook",
+      "mode": "dormant",
+      "blocking": false,
+      "class": "duplicate-check",
+      "duplicate_of": "engine.done_gate",
+      "reason": "Primary DoneGate already calls ProtocolGate.validateCompletionProtocol before task.true_done.",
+      "incident_refs": [
+        "projects/控制台/artifacts/done-gate-audit-2026-06-23.md"
+      ],
+      "activation": "Reactivate in shadow only if the primary DoneGate stops invoking ProtocolGate or an incident proves post-gate mutation.",
+      "review_after_days_without_hit": 30
+    },
+    "console.hard_regression_coverage": {
+      "kind": "hook",
+      "mode": "dormant",
+      "blocking": false,
+      "class": "duplicate-check",
+      "duplicate_of": "engine.done_gate",
+      "reason": "Primary DoneGate already validates incident-specific hard regression coverage; repeating it after true_done has produced no blocks.",
+      "incident_refs": [
+        "projects/控制台/artifacts/done-gate-audit-2026-06-23.md",
+        "board/repair-tickets/auto-20260623020730-e485207314349a23.md"
+      ],
+      "activation": "Reactivate in shadow only after a hard-regression bypass incident.",
+      "review_after_days_without_hit": 30
+    },
+    "engine.loop_engineering_convergence": {
+      "kind": "hook",
+      "mode": "dormant",
+      "blocking": false,
+      "class": "duplicate-check",
+      "duplicate_of": "engine.done_gate",
+      "reason": "Primary DoneGate already validates loop_engineering evidence when that feature is enabled.",
+      "incident_refs": [
+        "projects/控制台/artifacts/self-reflection-optimizer/insight-50-review-20260716.md"
+      ],
+      "activation": "Reactivate in shadow only if loop completion moves outside primary DoneGate.",
+      "review_after_days_without_hit": 30
+    },
+    "console.version_progress": {
+      "kind": "hook",
+      "mode": "active",
+      "blocking": true,
+      "class": "release-integrity",
+      "reason": "True completion with trusted releaseImpact must update the auditable version ledger exactly once.",
+      "incident_refs": [
+        "board/repair-tickets/auto-20260622182621-92d857a28bf118c5.md"
+      ],
+      "activation": "Runs only after true completion; missing or manual releaseImpact remains a non-bumping manual path.",
+      "review_after_days_without_hit": 90
+    }
+  }
+}

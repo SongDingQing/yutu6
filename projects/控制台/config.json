@@ -1,9 +1,135 @@
 {
   "port": 41218,
+  "aliasPorts": [8799],
   "baseUrl": "http://127.0.0.1:41218",
   "workdir": "../..",
   "includeHistory": true,
   "historyMax": 6,
+  "runnerTimeoutFailoverFence": {
+    "schema": "console-runner-timeout-failover-fence@1",
+    "enabled": false,
+    "envOverride": "YUTU6_RUNNER_TIMEOUT_FAILOVER_FENCE",
+    "terminationGraceMs": 750,
+    "settleTimeoutMs": 1500,
+    "settlePollMs": 50,
+    "postSettleMonitorMs": 200,
+    "internalTimeoutLeadMs": 100,
+    "maxUninterruptibleGraceMs": 1000,
+    "dirtyWorktreeMtimeMonitor": true,
+    "promotionApproval": {
+      "status": "pending",
+      "supervisorReviewed": false,
+      "ownerApproved": false,
+      "approvedBy": null,
+      "approvedAt": null
+    },
+    "fallbackPolicy": "process tree unconfirmed => manual intervention or read-only diagnostic only; writable fallback requires confirmed settlement plus a newly acquired taskId lease",
+    "rollback": "keep enabled=false or unset YUTU6_RUNNER_TIMEOUT_FAILOVER_FENCE; the existing shared cli-runner failover path remains unchanged",
+    "promotionGate": "config enablement, supervisor review, explicit owner approval and environment gate are all required"
+  },
+  "reviewDeltaContext": {
+    "schema": "console-review-delta-context@1",
+    "enabled": false,
+    "shadowEnabled": false,
+    "projectAllowlist": ["控制台"],
+    "flowAllowlist": ["review-loop"],
+    "promotionApproval": {
+      "status": "pending",
+      "supervisorReviewed": false,
+      "ownerApproved": false,
+      "approvedBy": null,
+      "approvedAt": null
+    },
+    "fallbackSource": "same-version atomic full-context.redacted.md assembled from task.redacted.md, result.redacted.md and review-history redacted artifacts",
+    "rollback": "set enabled=false or CONSOLE_REVIEW_DELTA_CONTEXT=0; legacy pickPrev(ctx) serialization remains the inactive path",
+    "promotionGate": "shadow comparison, supervisor review and explicit owner approval are required before active prompt replacement"
+  },
+  "implementCheckpointExperiment": {
+    "schema": "implement-checkpoint-experiment@1",
+    "enabled": false,
+    "allowAllExperimentTasks": false,
+    "taskAllowlist": [],
+    "projectAllowlist": ["控制台"],
+    "roleAllowlist": ["worker_code"],
+    "nodeAllowlist": ["implement"],
+    "maxResume": 1,
+    "fullRerunFallback": true,
+    "sampleIntervalMs": 5000,
+    "maxIoOverheadRatio": 0.05,
+    "intervalMs": 60000,
+    "changeBytesThreshold": 65536,
+    "checkpointTtlMs": 7200000,
+    "lockLeaseMs": 120000,
+    "lockWaitMs": 5000,
+    "lockPollMs": 100,
+    "maxCumulativeTokens": 180000,
+    "resumeTokenReserve": 60000,
+    "promotionApproval": {
+      "status": "pending",
+      "supervisorReviewed": false,
+      "ownerApproved": false,
+      "approvedBy": null,
+      "approvedAt": null
+    },
+    "rollback": "set enabled=false or CONSOLE_IMPLEMENT_CHECKPOINT_EXPERIMENT=0; the unchanged full runner remains the fallback",
+    "promotionGate": "supervisor review plus explicit owner approval required before any default/global enablement"
+  },
+  "knowledgeRouting": {
+    "schema": "console-knowledge-routing@1",
+    "enabled": false,
+    "eligibleRoles": [
+      "quality_ops",
+      "worker_code",
+      "worker_narrow",
+      "it_engineer",
+      "frontend_designer",
+      "secretary",
+      "memory_officer",
+      "insight-scout"
+    ],
+    "excludedNodes": ["review", "orchestrator-plan"],
+    "maxInjected": 2,
+    "maxChars": 600,
+    "queryTimeoutMs": 4000,
+    "gate": {
+      "initialThreshold": 0.55,
+      "minimumSemanticConfidence": 0.35,
+      "baselineTopN": 1
+    },
+    "stats": {
+      "mode": "async_append_only_jsonl",
+      "ledger": "projects/控制台/artifacts/knowledge-routing/usage.jsonl",
+      "dedupeKey": "query_id + template_id + fragment_id",
+      "concurrency": "cross_process_lock_then_single_append",
+      "lockWaitMs": 10000,
+      "lockPollMs": 5,
+      "staleLockMs": 30000
+    },
+    "dynamicRouting": {
+      "enabled": false,
+      "minimumHits": 20,
+      "windowSize": 50,
+      "adoptionRateThreshold": 0.2,
+      "noContributionRateThreshold": 0.75,
+      "recoveryAdoptionRate": 0.45,
+      "adjustmentStep": 0.05,
+      "minimumThreshold": 0.35,
+      "maximumThreshold": 0.8,
+      "requiredStableWindows": 3,
+      "cooldownMs": 604800000,
+      "activationDelayMs": 86400000,
+      "stateFile": "projects/控制台/artifacts/knowledge-routing/route-state.json"
+    },
+    "promotionApproval": {
+      "status": "pending",
+      "supervisorReviewed": false,
+      "ownerApproved": false,
+      "approvedBy": null,
+      "approvedAt": null
+    },
+    "rollback": "set enabled=false or CONSOLE_KNOWLEDGE_ROUTING=0; shared/engine legacy injection remains unchanged while this candidate is inactive",
+    "promotionGate": "knowledge gate and dynamic route adjustment require supervisor review plus explicit owner approval; environment may only kill-switch, never bypass approval"
+  },
   "roleRouting": {
     "secretary": {
       "label": "秘书",
@@ -72,7 +198,7 @@
     },
     "repair-lead": {
       "label": "维修主管 / Codex 特权",
-      "runner": "claude-code",
+      "runner": "codex-privileged",
       "execution": {
         "canWriteFiles": true,
         "canRunCommands": true,
@@ -124,7 +250,7 @@
     },
     "board_deepseek": {
       "label": "董事 · DeepSeek",
-      "runner": "new-api",
+      "runner": "deepseek-board-direct",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
@@ -132,22 +258,22 @@
     },
     "board_glm52": {
       "label": "董事 · GLM-5.2",
-      "runner": "zhipu-glm",
+      "runner": "zhipu-board-direct",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
       }
     },
     "board_claude": {
-      "label": "董事 · Claude(暂用 Opus-4.8)",
-      "runner": "claude-opus-4-8",
+      "label": "董事 · Claude Fable 5",
+      "runner": "claude-fable-5",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
       }
     },
     "board_opus48": {
-      "label": "董事 · Codex/GPT-5.5",
+      "label": "董事 · Codex/GPT-5.6-Sol",
       "runner": "codex"
     }
   },
@@ -446,6 +572,26 @@
       },
       "note": "2026-07-03 老板拍板:维修主管由 Claude Code 接回(原 codex-privileged 期间系 2026-06-30 Claude CLI 401 临时移交,认证已恢复)。高危/不可逆仍先给主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
     },
+    "claude-fable-5": {
+      "label": "Claude Fable 5(董事会)",
+      "cmd": [
+        "/Users/yutu6/.local/bin/claude",
+        "-p",
+        "--model",
+        "claude-fable-5",
+        "--permission-mode",
+        "plan",
+        "--allowedTools",
+        "Read,Grep,Glob",
+        "--no-session-persistence"
+      ],
+      "promptVia": "arg",
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "note": "2026-07-14 老板拍板:Claude 董事使用 Fable 5。只做董事会事前评议,仅开放只读工具,不承接实现任务。"
+    },
     "claude-opus-4-8": {
       "label": "Claude Opus-4.8(董事会)",
       "cmd": [
@@ -462,7 +608,7 @@
         "canWriteFiles": true,
         "canRunCommands": true
       },
-      "note": "2026-07-03 老板拍板:补充董事会成员,暂用 Opus-4.8。仅董事会评议(text_only),不承接实现任务。"
+      "note": "历史兼容 runner:Claude 董事已于 2026-07-14 切换到 claude-fable-5,本 runner 不再自动路由。"
     },
     "codex": {
       "label": "Codex",
@@ -536,6 +682,44 @@
         "privileged": true,
         "desktopControl": "peekaboo-cli"
       }
+    },
+    "deepseek-board-direct": {
+      "label": "DeepSeek(董事专用直连)",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "https://api.deepseek.com/v1",
+      "tokenFile": "/Users/yutu6/.config/yutu6-secrets/secrets.env",
+      "tokenKey": "DEEPSEEK_API_KEY",
+      "model": "deepseek-chat",
+      "maxTokens": 4096,
+      "temperature": 0.25,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "systemPrompt": "你是玉兔6董事会 DeepSeek 评议董事。只做重要架构任务的严格挑刺和风险识别,不要回显任何密钥或本地 token。",
+      "note": "董事会专用官方 OpenAI 兼容直连;不依赖本地 Docker/new-api。key 直接读取统一保险库 ~/.config/yutu6-secrets/secrets.env,避免运行位副本漂移。"
+    },
+    "zhipu-board-direct": {
+      "label": "GLM-5.2(董事专用 Coding Plan 直连)",
+      "kind": "openai_http",
+      "cmd": [
+        "__openai_http__"
+      ],
+      "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "tokenFile": "/Users/yutu6/.config/yutu6-secrets/secrets.env",
+      "tokenKey": "ZHIPU_API_KEY",
+      "model": "glm-5.2",
+      "maxTokens": 4096,
+      "temperature": 0.35,
+      "execution": {
+        "canWriteFiles": false,
+        "canRunCommands": false
+      },
+      "systemPrompt": "你是玉兔6董事会 GLM-5.2 评议董事。只做事前架构风险审查,不改文件,不回显任何密钥或本地 token。",
+      "note": "董事会专用 GLM Coding Plan 端点直连;不依赖本地 Docker/new-api/zhipu-proxy。key 直接读取统一保险库 ~/.config/yutu6-secrets/secrets.env,避免项目运行副本漂移。"
     },
     "new-api": {
       "label": "DeepSeek(new-api)",

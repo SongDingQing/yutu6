@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const Q = require('../../shared/engine/queue');
+const InsightsMaintenance = require('../../board/insights/scripts/maintain-insights');
 
 const AGENT = 'insight-scout';
 const DEFAULT_INTERVAL_MS = 4 * 60 * 60 * 1000;
@@ -13,6 +14,7 @@ const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 const TOPICS = [
   { id: 'multi-agent-orchestration', label: '多智能体编排 / 任务 DAG / 交接协议' },
+  { id: 'agent-harness', label: 'Agent harness / ReAct / Reflexion / SWE-bench / 质量监管' },
   { id: 'queue-engine', label: '任务队列引擎 / 调度可靠性 / 失败处置' },
   { id: 'agent-tools-skills', label: 'AI agent 工具 / skills / 能力库治理' },
   { id: 'llm-gateway', label: 'LLM 网关 / 成本质量路由 / 可观测' },
@@ -253,18 +255,24 @@ function taskText(task) {
 
 function makeTask(slot, opts = {}) {
   const topic = opts.topic || topicForSlot(slot);
+  const agentHarnessTopic = topic.id === 'agent-harness';
   const id = safeId(opts.id || `insight-scout-repos-${slot.key}`, `insight-${slot.key}`);
   const goal = [
     `你是洞察员 insight-scout 的每 4 小时自动借鉴扫描任务。slot=${slot.key}, 北京时间窗口起点=${slot.startAt}, 主题=${topic.label}。`,
     '',
     '必须遵守:',
-    '- Starlaid/星桥 全程排除,不要读取、分析、派生或推荐 Starlaid 相关内容。',
     '- 不登录、不处理 OAuth/扫码/2FA/token,不回显密钥。',
     '- 不安装依赖、不改运行代码;洞察员只产出借鉴分析和公告板候选。',
     '',
     '工作步骤:',
-    '1. 先依据 `board/insights/seen-repos.json`、`board/insights/borrowed-libs.md`、`board/insights/insights.md` 的既有记录做去重,避免重复推荐相同 URL。',
+    '1. 先依据 `board/insights/seen-repos.json` 的 repos URL 列表、`board/insights/borrowed-libs.md`、`board/insights/insights.md` 热区做去重,避免重复推荐相同 URL。',
+    '   - `insights.md` 只保留最近 4 个批次;不要把 `references/archive-*.md` 整卷读入上下文。',
+    '   - 只有需要核对旧仓库/旧 slot/旧标题时,才用 `rg "<URL或仓库名>" board/insights/references/` 定位命中归档并只读相关小节。',
     '2. 围绕本轮主题找 2-3 个公开优秀案例,记录 URL、许可证/授权不确定项、可借鉴点和迁移边界。',
+    ...(agentHarnessTopic ? [
+      '   - 本轮为 agent harness 轻扫:先读 `.agents/skills/agent-harness-research/SKILL.md`,优先复看指定的教程/论文/官方仓库;仍遵守 2-3 个案例上限。',
+      '   - 只有主人点名“深研/全面”时才切换 15-50 条候选模式,避免定时扫描放大 token 消耗。',
+    ] : []),
     '3. 如果当前 runner 没有联网/WebSearch 能力,必须明确 `network_status=unavailable` 或 `limited`,不要虚构实时 star、commit 或 release;可基于既有 watch 清单做复看/整理建议。',
     '4. 输出内容应沉淀为 `board/insights/insights.md` 的一节;只有分析出明确、低风险、该进入 CEO 取舍的行动时,才生成公告板卡。',
     '5. 最终只输出一个 `json` 代码块;不要在 JSON 外另写正文、结构化验收表、预览或总结,避免输出过长导致 JSON 截断。',
@@ -312,11 +320,13 @@ function makeTask(slot, opts = {}) {
         topicLabel: topic.label,
         source: 'insight-scout-repos',
       },
-      bounds: '洞察员定时研究; Starlaid/星桥 一律排除; 密钥不回显; 不登录不授权; 不安装依赖不改运行代码; 只写 board/insights 与公告板候选。',
+      bounds: '洞察员定时研究; 密钥不回显; 不登录不授权; 不安装依赖不改运行代码; 只写 board/insights 与公告板候选。',
       inputs: [
         'board/insights/seen-repos.json',
         'board/insights/borrowed-libs.md',
         'board/insights/insights.md',
+        'board/insights/references/archive-index.md(按需)',
+        ...(agentHarnessTopic ? ['.agents/skills/agent-harness-research/SKILL.md'] : []),
       ],
       resourceDomains: {
         read: ['insights'],
@@ -386,11 +396,6 @@ function normalizeInsightOutput(output) {
   return raw;
 }
 
-function containsExcludedProject(text) {
-  const s = String(text || '');
-  return /(?:Starlaid|星桥)/i.test(s) && !/(?:排除|不涉及|无关|不处理)/.test(s);
-}
-
 function normalizeRepoUrl(url) {
   const s = String(url || '').trim();
   if (!/^https:\/\/github\.com\/[^/\s]+\/[^/\s#?]+/i.test(s)) return '';
@@ -412,22 +417,11 @@ function githubUrlsFromText(text) {
 
 function updateSeenRepos(file, urls) {
   const clean = Array.from(new Set((urls || []).map(normalizeRepoUrl).filter(Boolean)));
-  if (!clean.length) return { updated: false, added: [] };
   const data = readJsonWithCorruptBackup(file, {});
-  const repos = Array.isArray(data.repos) ? data.repos.slice() : [];
-  const known = new Set(repos.map(normalizeRepoUrl).filter(Boolean));
-  const added = [];
-  for (const url of clean) {
-    if (known.has(url)) continue;
-    known.add(url);
-    repos.push(url);
-    added.push(url);
-  }
-  if (!added.length) return { updated: false, added: [] };
-  data.repos = repos;
-  data.updated_at = nowIso();
-  writeJsonAtomic(file, data);
-  return { updated: true, added };
+  const slim = InsightsMaintenance.slimSeenReposData(data, { urlsToAdd: clean, nowIso: nowIso() });
+  if (!slim.changed) return { updated: false, added: [] };
+  writeJsonAtomic(file, slim.data);
+  return { updated: true, added: slim.added };
 }
 
 function appendInsights(file, marker, header, markdown) {
@@ -449,6 +443,29 @@ function appendInsights(file, marker, header, markdown) {
   return { appended: true, bytes: Buffer.byteLength(block) };
 }
 
+function fingerprintText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\s\u3000]+/g, ' ')
+    .replace(/[，。；：、,.!?！？;:()[\]{}"'`]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cardFingerprint(card) {
+  if (!card || typeof card !== 'object') return '';
+  const payload = card.payload && typeof card.payload === 'object' ? card.payload : {};
+  const material = [
+    card.target || payload.target || 'ceo',
+    card.project || payload.projectId || '控制台',
+    card.title,
+    payload.goal || card.goal || card.desc || card.description,
+  ].map(fingerprintText).join('\n');
+  return material.trim()
+    ? crypto.createHash('sha256').update(material).digest('hex')
+    : '';
+}
+
 function normalizeCard(card, defaults = {}) {
   if (!card || typeof card !== 'object') return null;
   const title = String(card.title || '').trim().slice(0, 140);
@@ -459,8 +476,7 @@ function normalizeCard(card, defaults = {}) {
   const source = '洞察员';
   const goal = String(card.goal || `${title}${desc ? '\n\n' + desc : ''}`).trim();
   const baseId = safeId(card.id || `insight-${crypto.createHash('sha1').update([defaults.slot || '', title, goal].join('\n')).digest('hex').slice(0, 10)}`);
-  if (containsExcludedProject([title, desc, goal, project].join('\n'))) return null;
-  return {
+  const normalized = {
     id: baseId,
     title,
     desc,
@@ -472,16 +488,27 @@ function normalizeCard(card, defaults = {}) {
       flowId: target === 'ceo' ? 'project-route' : 'agent-once',
       projectId: project,
       goal,
-      bounds: '只处理本洞察员公告板候选; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 是否采纳由 CEO/主管决定。',
+      bounds: '只处理本洞察员公告板候选; 密钥不回显; 登录/授权交主人手动; 是否采纳由 CEO/主管决定。',
       acceptance: '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
       useOrchestrator: target === 'ceo',
       autoApproveHuman: true,
+      // 自动洞察默认只做一次普通生成/复核，不进入多轮 loop engineering。
+      // 真正的运行时改造仍由主人启用后走现有 CEO/董事会/主管门禁。
+      loopEngineering: false,
+      insightWorkload: {
+        schemaVersion: 1,
+        mode: String(defaults.mode || 'light'),
+        proposalOnly: true,
+      },
     },
     status: 'todo',
     created_at: nowIso(),
     enabled_at: null,
     queueId: null,
   };
+  normalized.insight_fingerprint = cardFingerprint(normalized);
+  normalized.payload.insightWorkload.fingerprint = normalized.insight_fingerprint;
+  return normalized;
 }
 
 function appendBulletinCards(file, cards, defaults = {}) {
@@ -490,6 +517,7 @@ function appendBulletinCards(file, cards, defaults = {}) {
   const existing = readJsonWithCorruptBackup(file, []);
   const list = Array.isArray(existing) ? existing : [];
   const ids = new Set(list.map(card => card && card.id).filter(Boolean));
+  const fingerprints = new Set(list.map(card => card && (card.insight_fingerprint || cardFingerprint(card))).filter(Boolean));
   const added = [];
   const skipped = [];
   for (const card of normalized) {
@@ -497,7 +525,12 @@ function appendBulletinCards(file, cards, defaults = {}) {
       skipped.push({ id: card.id, reason: 'duplicate-id' });
       continue;
     }
+    if (card.insight_fingerprint && fingerprints.has(card.insight_fingerprint)) {
+      skipped.push({ id: card.id, reason: 'duplicate-content', fingerprint: card.insight_fingerprint });
+      continue;
+    }
     ids.add(card.id);
+    if (card.insight_fingerprint) fingerprints.add(card.insight_fingerprint);
     list.unshift(card);
     added.push(card);
   }
@@ -522,7 +555,6 @@ function applyInsightScoutOutput(opts = {}) {
   const seenReposFile = path.join(workspaceRoot, 'board', 'insights', 'seen-repos.json');
   const bulletinFile = path.join(artifactsRoot, 'bulletin', 'cards.json');
   const analysis = String(output.analysis_markdown || output.analysisMarkdown || '').trim();
-  if (containsExcludedProject(analysis)) return { ok: false, reason: 'analysis contains excluded Starlaid reference' };
   const header = [
     `## ${new Date().toISOString().slice(0, 10)} · 自动洞察(${slot || 'manual'}${topic ? ` · ${topic}` : ''})`,
     '',
@@ -532,14 +564,28 @@ function applyInsightScoutOutput(opts = {}) {
   // 防"凭训练知识堆链接"污染语料与去重库;limited(部分联网,可能有真实内容)放行。
   const net = String(output.network_status || output.networkStatus || '').toLowerCase();
   const degraded = net === 'unavailable';
-  const insights = degraded
-    ? { appended: false, reason: `network-${net || 'unknown'}-skipped` }
-    : appendInsights(insightsFile, marker, header, analysis);
-  const repos = degraded
-    ? { updated: false, added: [], skipped: `network-${net}` }
-    : updateSeenRepos(seenReposFile, []
+  let insights;
+  let repos;
+  let maintenance = null;
+  if (degraded) {
+    insights = { appended: false, reason: `network-${net || 'unknown'}-skipped` };
+    repos = { updated: false, added: [], skipped: `network-${net}` };
+  } else {
+    const locked = InsightsMaintenance.withInsightsLock(path.dirname(insightsFile), () => {
+      const nextInsights = appendInsights(insightsFile, marker, header, analysis);
+      const nextRepos = updateSeenRepos(seenReposFile, []
         .concat(output.seen_repos || output.seenRepos || [])
         .concat(githubUrlsFromText(analysis)));
+      const nextMaintenance = InsightsMaintenance.maintainInsightsLayout({
+        workspaceRoot,
+        lock: false,
+      });
+      return { insights: nextInsights, repos: nextRepos, maintenance: nextMaintenance };
+    }, { reason: 'insight-scout-append' });
+    insights = locked.insights;
+    repos = locked.repos;
+    maintenance = locked.maintenance;
+  }
   const bulletin = appendBulletinCards(bulletinFile, output.bulletin_cards || output.bulletinCards || [], { slot });
   const result = {
     ok: true,
@@ -554,6 +600,7 @@ function applyInsightScoutOutput(opts = {}) {
       added: bulletin.added.map(card => ({ id: card.id, title: card.title, target: card.target, source: card.source })),
       skipped: bulletin.skipped,
     },
+    maintenance,
     files: {
       insights: rel(workspaceRoot, insightsFile),
       seenRepos: rel(workspaceRoot, seenReposFile),
@@ -570,6 +617,7 @@ function applyInsightScoutOutput(opts = {}) {
       insightsAppended: !!insights.appended,
       bulletinAdded: result.bulletin.added.length,
       seenReposAdded: repos.added.length,
+      archivedBatches: maintenance && maintenance.insights ? maintenance.insights.archived : 0,
       files: result.files,
     });
   }
@@ -591,9 +639,9 @@ module.exports = {
   extractInsightScoutOutputFromText,
   _test: {
     normalizeCard,
+    cardFingerprint,
     appendBulletinCards,
     updateSeenRepos,
-    containsExcludedProject,
     looseInsightScoutBlock,
     githubUrlsFromText,
     readJsonWithCorruptBackup,

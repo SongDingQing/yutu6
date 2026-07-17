@@ -1,0 +1,147 @@
+{
+  "name": "route-fail-then-success",
+  "chain_id": "fixture-route-fail-then-success",
+  "root_task_id": "fixture-root-route",
+  "index_events": [
+    {
+      "event": "interaction.started",
+      "at": "2026-07-17T00:00:00.000Z",
+      "chain_id": "fixture-route-fail-then-success",
+      "trace_id": "fixture-route-primary",
+      "root_task_id": "fixture-root-route",
+      "root_queue_agent": "ceo",
+      "root_queue_id": "fixture-root-queue",
+      "task_id": "fixture-root-route",
+      "node_id": "board",
+      "agent_role": "board_glm52",
+      "runner_id": "primary"
+    },
+    {
+      "event": "interaction.finished",
+      "at": "2026-07-17T00:00:01.000Z",
+      "chain_id": "fixture-route-fail-then-success",
+      "trace_id": "fixture-route-primary",
+      "root_task_id": "fixture-root-route",
+      "task_id": "fixture-root-route",
+      "node_id": "board",
+      "agent_role": "board_glm52",
+      "runner_id": "primary",
+      "status": "failed",
+      "content_hash": "fixture-primary-failed"
+    },
+    {
+      "event": "interaction.started",
+      "at": "2026-07-17T00:00:02.000Z",
+      "chain_id": "fixture-route-fail-then-success",
+      "trace_id": "fixture-route-child-success",
+      "root_task_id": "fixture-root-route",
+      "root_queue_agent": "ceo",
+      "root_queue_id": "fixture-root-queue",
+      "task_id": "fixture-supervisor-task",
+      "node_id": "review",
+      "agent_role": "supervisor",
+      "runner_id": "codex"
+    },
+    {
+      "event": "interaction.finished",
+      "at": "2026-07-17T00:00:03.000Z",
+      "chain_id": "fixture-route-fail-then-success",
+      "trace_id": "fixture-route-child-success",
+      "root_task_id": "fixture-root-route",
+      "task_id": "fixture-supervisor-task",
+      "node_id": "review",
+      "agent_role": "supervisor",
+      "runner_id": "codex",
+      "status": "completed",
+      "content_hash": "fixture-child-success"
+    }
+  ],
+  "terminal_events": [
+    {
+      "seq": 10,
+      "ts": "2026-07-17T00:00:04.000Z",
+      "type": "project.route.failed",
+      "task": "fixture-root-route",
+      "status": "failed",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue",
+      "downstreamQueueAgent": "supervisor-控制台",
+      "downstreamQueueId": "fixture-supervisor-queue",
+      "downstreamTaskId": "fixture-supervisor-task"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-07-17T00:00:05.000Z",
+      "type": "task.failed",
+      "task": "fixture-root-route",
+      "rootTaskId": "fixture-root-route"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-07-17T00:00:06.000Z",
+      "type": "queue.completed",
+      "task": "fixture-root-route",
+      "queueAgent": "ceo",
+      "queueId": "fixture-root-queue",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue",
+      "ok": false,
+      "status": "failed"
+    },
+    {
+      "seq": 15,
+      "ts": "2026-07-17T00:00:07.000Z",
+      "type": "queue.completed",
+      "task": "fixture-supervisor-task",
+      "queueAgent": "supervisor-控制台",
+      "queueId": "fixture-supervisor-queue",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue",
+      "ok": false,
+      "status": "failed"
+    },
+    {
+      "seq": 20,
+      "ts": "2026-07-17T00:00:08.000Z",
+      "type": "project.route.done",
+      "task": "fixture-root-route",
+      "status": "done",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue",
+      "downstreamQueueAgent": "supervisor-控制台",
+      "downstreamQueueId": "fixture-supervisor-queue",
+      "downstreamTaskId": "fixture-supervisor-task"
+    },
+    {
+      "seq": 21,
+      "ts": "2026-07-17T00:00:09.000Z",
+      "type": "task.done",
+      "task": "fixture-root-route",
+      "rootTaskId": "fixture-root-route"
+    },
+    {
+      "seq": 22,
+      "ts": "2026-07-17T00:00:10.000Z",
+      "type": "queue.completed",
+      "task": "fixture-root-route",
+      "queueAgent": "ceo",
+      "queueId": "fixture-root-queue",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue",
+      "ok": true,
+      "status": "done"
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "final_state": "done",
+    "span_failures": ["fixture-route-primary"],
+    "node_terminal_event_count": 1,
+    "source_types": ["project.route.done", "task.done", "queue.completed"]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "console-process-receipt-hook@1",
+  "enabled": false,
+  "supervisorReviewed": false,
+  "ownerApproved": false,
+  "allowedActionNames": [
+    "bash",
+    "claude",
+    "codex",
+    "git",
+    "hermes",
+    "mock",
+    "node",
+    "npm",
+    "npx",
+    "openai_http",
+    "peekaboo",
+    "pnpm",
+    "python",
+    "python3",
+    "quality_ops_ingest",
+    "quality_ops_schedule",
+    "quality_ops_weekly",
+    "sh",
+    "tool_harness",
+    "yarn",
+    "zsh"
+  ],
+  "allowedEvidencePrefixes": [
+    "board/",
+    "memory/",
+    "projects/",
+    "shared/",
+    "templates/",
+    "tests/"
+  ],
+  "maxSummaryChars": 8192,
+  "rollback": "keep enabled=false; the existing interaction trace and v1 process-summary remain unchanged",
+  "promotionGate": "requires an independent supervisor review and explicit owner approval before enabled may become true"
+}

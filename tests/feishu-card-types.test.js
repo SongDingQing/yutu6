@@ -19,7 +19,7 @@ function dryRun(args) {
   const line = String(res.stdout || '').split(/\r?\n/).find(l => l.startsWith('DRY_RUN '));
   assert(line, `应有 DRY_RUN 输出: stdout=${res.stdout} stderr=${res.stderr}`);
   const outer = JSON.parse(line.slice('DRY_RUN '.length));
-  return { msg_type: outer.msg_type, content: JSON.parse(outer.content) };
+  return { msg_type: outer.msg_type, content: JSON.parse(outer.content), file: outer.file || null };
 }
 
 function testText() {
@@ -40,18 +40,46 @@ function testProgress() {
   assert.strictEqual(action.actions[0].url, 'https://example.com/c');
 }
 
-function testDecision() {
+function testDecisionNativeActions() {
+  const actions = JSON.stringify([
+    {
+      label: '批准继续',
+      type: 'primary',
+      value: { yutu6_decision_action: 'approve', card_id: 'board-decision-test' },
+    },
+    {
+      label: '驳回取消',
+      type: 'danger',
+      value: { yutu6_decision_action: 'reject', card_id: 'board-decision-test' },
+    },
+    { label: '打开控制台', type: 'default', url: 'http://localhost:8787/workspace' },
+  ]);
   const { msg_type, content } = dryRun([
     '--type', 'decision', '--title', '是否clone元宵', '--body', '在GitHub不在gitee',
-    '--buttons', '现在clone|http://localhost:8787/d/yes;;等重装|http://localhost:8787/d/wait',
+    '--actions-json', actions,
   ]);
   assert.strictEqual(msg_type, 'interactive', '决策应为 interactive 卡片');
   assert.strictEqual(content.header.template, 'orange', '决策卡橙头');
   assert(/需决策/.test(content.header.title.content), '头部应标“需决策”');
   const action = content.elements.find(e => e.tag === 'action');
-  assert(action && action.actions.length === 2, '应有 2 个决策按钮');
+  assert(action && action.actions.length === 3, '应有 3 个操作按钮');
   assert.strictEqual(action.actions[0].type, 'primary', '首按钮应 primary');
-  assert.strictEqual(action.actions[1].type, 'default', '次按钮 default');
+  assert.strictEqual(action.actions[1].type, 'danger', '驳回按钮应 danger');
+  assert.deepStrictEqual(action.actions[0].value, {
+    yutu6_decision_action: 'approve',
+    card_id: 'board-decision-test',
+  });
+  assert.strictEqual(action.actions[0].url, undefined, '原生决策按钮不得含 URL');
+  assert.strictEqual(action.actions[2].url, 'http://localhost:8787/workspace');
+}
+
+function testDecisionLegacyLinks() {
+  const { content } = dryRun([
+    '--type', 'decision', '--title', '兼容旧按钮', '--body', '旧调用仍可用',
+    '--buttons', '现在clone|http://localhost:8787/d/yes;;等重装|http://localhost:8787/d/wait',
+  ]);
+  const action = content.elements.find(e => e.tag === 'action');
+  assert(action && action.actions.length === 2);
   assert.strictEqual(action.actions[0].url, 'http://localhost:8787/d/yes');
 }
 
@@ -60,11 +88,31 @@ function testUnknownTypeFallsBackText() {
   assert.strictEqual(msg_type, 'text', '未知类型回退为 text');
 }
 
+function testHtmlAttachment() {
+  const fs = require('fs');
+  const os = require('os');
+  const file = path.join(os.tmpdir(), `repair-report-${process.pid}.html`);
+  fs.writeFileSync(file, '<!doctype html><title>private report body</title>');
+  try {
+    const result = dryRun(['--type', 'progress', '--title', '维修完成', '--body', '见附件', '--file', file, '--uuid', 'repair-ticket-test']);
+    assert.strictEqual(result.msg_type, 'interactive');
+    assert(result.file && result.file.exists, 'dry run should validate attachment existence');
+    assert.strictEqual(result.file.name, path.basename(file));
+    const note = result.content.elements.find(e => e.tag === 'note' && /附件/.test(e.elements[0].content));
+    assert(note, 'card should disclose the attachment filename');
+    assert(!JSON.stringify(result).includes('private report body'), 'dry run must not print attachment contents');
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+}
+
 function main() {
   testText();
   testProgress();
-  testDecision();
+  testDecisionNativeActions();
+  testDecisionLegacyLinks();
   testUnknownTypeFallsBackText();
+  testHtmlAttachment();
   console.log(JSON.stringify({ pass: true, suite: 'feishu-card-types' }));
 }
 

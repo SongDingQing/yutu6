@@ -11,7 +11,12 @@ const crypto = require('crypto');
 const Q = require('../../shared/engine/queue');
 const EventLog = require('../../shared/engine/eventlog');
 const QueueAutoMerge = require('./queue-automerge');
+const RoleBoundaryRouting = require('./role-boundary-routing');
 const VersionManager = require('./tools/version-manager');
+const RepairReport = require('./repair-report');
+const RepairReportDelivery = require('./repair-report-delivery');
+const RepairCloseoutHandshake = require('./repair-closeout-handshake');
+const BulletinOutputRedaction = require('./bulletin-output-redaction');
 
 const ROOT = __dirname;
 const WORKDIR = process.env.CONSOLE_WORKDIR
@@ -37,6 +42,7 @@ const YUTU_REMINDER = path.join(process.env.HOME || '/Users/yutu6', '.codex', 'm
 const FEISHU_NOTIFY = path.join(WORKDIR, 'shared', 'agents', 'ui-optimizer', 'notify-feishu.sh');
 const MEMORY_OFFICER_AGENT = 'memory-officer';
 const IT_ENGINEER_AGENT = 'it_engineer';
+const { redactMemoryCandidate } = require('./memory-redaction');
 const OWNER_AUTO_NOTIFY_STATE = path.join(QUEUE_ROOT, 'owner-auto-notify-state.json');
 const OWNER_AUTO_NOTIFY_COOLDOWN_MS = Math.max(0, parseInt(process.env.OWNER_AUTO_NOTIFY_COOLDOWN_MS || String(30 * 60 * 1000), 10) || (30 * 60 * 1000));
 const FEISHU_NOTIFY_RATE_WINDOW_MS = Math.max(60 * 1000, parseInt(process.env.FEISHU_NOTIFY_RATE_WINDOW_MS || String(10 * 60 * 1000), 10) || (10 * 60 * 1000));
@@ -440,11 +446,12 @@ function removeRepairBulletinCards(ticketId, source = 'repair-ticket-complete') 
   return removed;
 }
 
-function redactMemoryCandidate(text, max = 4000) {
-  return String(text || '')
-    .replace(/(Bearer\s+)[A-Za-z0-9._-]+/g, '$1[REDACTED]')
-    .replace(/((?:api[_-]?key|token|secret|password)[A-Za-z0-9_ -]*[=:]\s*)[^\s,'"}]+/ig, '$1[REDACTED]')
-    .slice(0, max);
+function matchingRepairBulletinCards(ticketId) {
+  const safe = safeTicketId(ticketId);
+  if (!safe) return [];
+  return readBulletinCards().filter(card => card && (
+    card.id === `repair-${safe}` || repairTicketIdFromBulletinCard(card) === safe
+  ));
 }
 
 function repairMemoryQueueId(ticketId) {
@@ -493,9 +500,9 @@ function enqueueRepairMemoryReview(ticketId, ticketFile, result, stamp) {
       '1. 若完成结果中的"泛化判断"为可泛化模式,把「问题模式 → 根因 → 解法/预防/自动化建议」写入或合并到 `memory/experience.md`。',
       '2. 若包含"项目技术映射",把 `项目 → 技术/方案 → 文件路径/用途` 写入或合并到 `memory/entities.md`。',
       '3. 一次性个案默认不入库;已有记忆冲突时更新/合并,不要堆流水账。',
-      '4. 只写 `memory/`;不要直接写 `knowledge/`、`kb.sqlite` 或 ingest 管道。Starlaid 排除,密钥不回显。',
+      '4. 只写 `memory/`;不要直接写 `knowledge/`、`kb.sqlite` 或 ingest 管道。密钥不回显。',
     ].join('\n'),
-    bounds: '只做长期记忆提炼;只写 memory/; Starlaid 一律排除; 密钥/token/验证码不写入、不回显; 不改 knowledge/ 管道。',
+    bounds: '只做长期记忆提炼;只写 memory/; 密钥/token/验证码不写入、不回显; 不改 knowledge/ 管道。',
     inputs: [relFile, 'memory/experience.md', 'memory/entities.md', 'memory/INDEX.md'],
     acceptance: '可泛化维修经验进入 memory/experience.md; 项目技术映射进入 memory/entities.md; 一次性信息不流水账; 无密钥泄露。',
     useOrchestrator: false,
@@ -632,7 +639,7 @@ function buildContextText() {
     toolLines,
     !SECRETARY_CONTEXT_FULL && omittedToolCount > 0 ? `- 其余 ${omittedToolCount} 个低频工具已省略;需要时运行 SECRETARY_CONTEXT_MODE=full node projects/控制台/secretary-tools.js context-text 查看。` : null,
     '',
-    '工具红线:不回显密钥/token/cookie; Starlaid 排除; 外部登录/OAuth/扫码交给主人。',
+    '工具红线:不回显密钥/token/cookie; 外部登录/OAuth/扫码交给主人。',
     '定位:前台 Cowork 负责深度交互/规格/可视化; 后台 secretary 负责补背景、路由、派单、队列/公告板运营; 维修员负责秘书够不到的本机特权运维工单。',
   ].join('\n');
 }
@@ -712,17 +719,36 @@ function notify(args = {}) {
   const body = rate.body;
   const image = args.image || args.imagePath || args.image_path || '';
   const imagePath = image ? path.resolve(process.cwd(), String(image)) : '';
+  const file = args.file || args.filePath || args.file_path || '';
+  const filePath = file ? path.resolve(process.cwd(), String(file)) : '';
+  const uuidSeed = String(args.uuid || args.idempotencyKey || args.idempotency_key || '').trim();
   const buttonLabel = String(args.buttonLabel || args.button_label || args.button || '').trim();
   const buttonUrl = String(args.buttonUrl || args.button_url || args.url || '').trim();
   // 三类交互(任务11):text=提问/对话(默认) / progress=进展卡片 / decision=决策按钮卡片
   const typeRaw = String(args.type || args.kind || 'text').trim().toLowerCase();
   const type = ['text', 'progress', 'decision'].includes(typeRaw) ? typeRaw : 'text';
-  // 决策多按钮: 传 "label|url;;label|url" 或数组 [{label,url}]
+  // 兼容 URL 按钮；原生飞书回调使用 actions:[{label,value,type}|{label,url,type}]。
   let buttons = '';
   if (Array.isArray(args.buttons)) {
     buttons = args.buttons.filter(b => b && b.url).map(b => `${String(b.label || '打开').replace(/[|;]/g, ' ')}|${b.url}`).join(';;');
   } else if (typeof args.buttons === 'string') {
     buttons = args.buttons.trim();
+  }
+  let actionsJson = '';
+  if (Array.isArray(args.actions)) {
+    const actions = args.actions.slice(0, 5).map(action => {
+      if (!action || typeof action !== 'object') return null;
+      const label = String(action.label || '操作').replace(/[\r\n]/g, ' ').slice(0, 30);
+      const type = ['default', 'primary', 'danger'].includes(String(action.type || '').toLowerCase())
+        ? String(action.type).toLowerCase()
+        : 'default';
+      if (action.value && typeof action.value === 'object' && !Array.isArray(action.value)) {
+        return { label, type, value: action.value };
+      }
+      if (action.url) return { label, type, url: String(action.url).slice(0, 500) };
+      return null;
+    }).filter(Boolean);
+    if (actions.length) actionsJson = JSON.stringify(actions);
   }
   const { spawnSync } = require('child_process');
   if (!rate.allowed) {
@@ -750,8 +776,11 @@ function notify(args = {}) {
   }
   const cli = [FEISHU_NOTIFY, '--type', type, '--title', title, '--body', body];
   if (imagePath) cli.push('--image', imagePath);
+  if (filePath) cli.push('--file', filePath);
+  if (uuidSeed) cli.push('--uuid', uuidSeed);
   if (buttonUrl) cli.push('--button-label', buttonLabel || '打开', '--button-url', buttonUrl);
   if (buttons) cli.push('--buttons', buttons);
+  if (actionsJson) cli.push('--actions-json', actionsJson);
   const res = spawnSync('bash', cli, {
     cwd: WORKDIR,
     encoding: 'utf8',
@@ -771,8 +800,9 @@ function notify(args = {}) {
     rateSummary: !!rate.summary,
     merged: rate.merged || 0,
     image: imagePath ? displayPath(imagePath) : null,
+    file: filePath ? displayPath(filePath) : null,
     button: buttonUrl ? { label: (buttonLabel || '打开').slice(0, 30), url: buttonUrl.slice(0, 300) } : null,
-    buttons: buttons ? buttons.split(';;').length : 0,
+    buttons: actionsJson ? JSON.parse(actionsJson).length : (buttons ? buttons.split(';;').length : 0),
     stdout: stdout.trim(),
     stderr: stderr.trim(),
   };
@@ -781,6 +811,7 @@ function notify(args = {}) {
       title: result.title,
       type,
       image: result.image,
+      file: result.file,
       button: !!result.button,
       buttons: result.buttons,
       code: result.code,
@@ -794,16 +825,48 @@ function notify(args = {}) {
 function normalizeTask(args) {
   const goal = String(args.goal || args.message || '').trim();
   if (!goal) throw new Error('queue-enqueue requires --goal');
-  return {
+  const task = {
     role: args.role || (args.agent === 'ceo' ? 'orchestrator' : args.agent || 'orchestrator'),
     flowId: args.flow || args.flowId || (args.agent === 'ceo' ? 'project-route' : 'agent-once'),
     projectId: args.project || args.projectId || '控制台',
     goal,
-    bounds: args.bounds || '只处理本秘书运营任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
+    bounds: args.bounds || '只处理本秘书运营任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
     acceptance: args.acceptance || '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
     useOrchestrator: args.useOrchestrator !== 'false',
     autoApproveHuman: args.autoApproveHuman !== 'false',
   };
+  const repairTicketId = safeTicketId(args.repairTicketId || args.parentRepairTicketId || '');
+  const sourceIncidentId = safeTicketId(args.sourceIncidentId || '');
+  if (repairTicketId) task.repairTicketId = repairTicketId;
+  if (sourceIncidentId) task.sourceIncidentId = sourceIncidentId;
+  if (RoleBoundaryRouting.PRIVILEGED_EXECUTORS.has(args.agent)) {
+    task.scopedToProject = true;
+    task.scopeAction = 'execute';
+    task.useOrchestrator = false;
+    task.rootQueueAgent = args.rootQueueAgent || process.env.YUTU6_EXEC_ROOT_QUEUE_AGENT || '';
+    task.rootQueueId = args.rootQueueId || process.env.YUTU6_EXEC_ROOT_QUEUE_ID || '';
+    task.rootTaskId = args.rootTaskId || process.env.YUTU6_EXEC_ROOT_TASK_ID || '';
+    const issuerRole = process.env.YUTU6_EXEC_QUEUE_AGENT || '';
+    const issuerQueueId = process.env.YUTU6_EXEC_QUEUE_ID || '';
+    const issuerTaskId = process.env.YUTU6_EXEC_TASK_ID || '';
+    if (issuerRole === 'repair-lead' && repairTicketId) {
+      try {
+        return RoleBoundaryRouting.signRepairScopedEnvelope(task, {
+          targetRole: args.agent,
+          issuerRole,
+          issuerQueueId,
+          issuerTaskId,
+          workspaceRoot: WORKDIR,
+          projectsDir: path.join(WORKDIR, 'projects'),
+          queueRoot: QUEUE_ROOT,
+        });
+      } catch (_) {
+        // 签发前置不完整时保留 unsigned structured envelope；server/worker 将
+        // fail-closed 回落 CEO。错误细节不进任务正文，避免路径/能力信息外泄。
+      }
+    }
+  }
+  return task;
 }
 
 async function queueEnqueue(args) {
@@ -869,12 +932,12 @@ function itReleaseRequest(args) {
       `路径清单:${paths.join(', ')}`,
       '',
       '必须执行:',
-      '1. 先检查路径清单,确认不含密钥、运行产物、Starlaid。',
+      '1. 先检查路径清单,确认不含密钥和运行产物。',
       '2. 运行发布命令:',
       command,
       '3. 回报版本号、commit 短哈希、push 结果。',
     ].join('\n'),
-    bounds: '只做版本发布/Gitee push; 不改业务代码; 不读/写密钥; 不用 git add -A; Starlaid 排除。',
+    bounds: '只做版本发布/Gitee push; 不改业务代码; 不读/写密钥; 不用 git add -A。',
     inputs: ['VERSION.json', 'projects/控制台/tools/version-manager.js', ...paths],
     acceptance: 'VERSION.json 更新; commit message 以 v<四段版本号> 开头并写明更新内容; Gitee push 成功或报告本地 commit 与失败原因。',
     useOrchestrator: false,
@@ -922,7 +985,7 @@ function itRollbackRequest(args) {
       '只有主人明确确认后,才可在后续任务中执行:',
       confirmCommand,
     ].join('\n'),
-    bounds: '只做回滚 dry-run 和确认等待; 未经主人确认不得执行 --confirm; 不重写历史、不强推、不读密钥; Starlaid 排除。',
+    bounds: '只做回滚 dry-run 和确认等待; 未经主人确认不得执行 --confirm; 不重写历史、不强推、不读密钥。',
     inputs: ['VERSION.json', 'projects/控制台/tools/version-manager.js'],
     acceptance: '返回 dry-run 计划; 如需实际回滚,明确等待主人确认; 不产生未确认回滚提交。',
     useOrchestrator: false,
@@ -1101,7 +1164,7 @@ function bulletinCardFromArgs(args) {
       flowId: target === 'ceo' ? 'project-route' : 'agent-once',
       projectId: project,
       goal,
-      bounds: '只处理本公告板任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
+      bounds: '只处理本公告板任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
       acceptance: '任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。',
       useOrchestrator: target === 'ceo',
       autoApproveHuman: true,
@@ -1211,7 +1274,6 @@ function repairTicketMarkdown(ticket) {
   const redlines = ticket.redlines ? String(ticket.redlines).split(/\\n|\r?\n/).map(x => `- ${x}`).join('\n') : [
     '- 高危/不可逆操作必须先给主人确认',
     '- 密钥/token/cookie/私钥不回显、不写日志',
-    '- Starlaid 排除',
     '- 不破现有功能; 能验证就写验证结果',
   ].join('\n');
   return [
@@ -1221,6 +1283,7 @@ function repairTicketMarkdown(ticket) {
     `- created_at: ${ticket.created_at}`,
     `- source: ${ticket.source}`,
     `- priority: ${ticket.priority}`,
+    ticket.source_incident_id ? `- source_incident_id: ${ticket.source_incident_id}` : '',
     '',
     '## 问题',
     ticket.problem || '(秘书未提供)',
@@ -1243,6 +1306,13 @@ function repairTicketMarkdown(ticket) {
     '',
     '## 处理结果',
     '- status: todo',
+    '',
+    '## 结案协议',
+    '- 本维修请求单独建单,不同故障不得混入本单。',
+    '- 完成记录必须包含:链路证据、需求传递判断、严重度、根因、处理过程、复核验证、架构判断、知识沉淀候选、剩余风险 / 下一步。',
+    '- 使用 `repair-ticket-complete` 结案;系统生成固定 HTML,飞书发送摘要卡 + 附件,元宵同步报告文档。',
+    '- 收口握手启用后,`repair-ticket-complete` 遇到 running repair 子任务会返回 `closing_pending_child`;子任务进入终态后用 `repair-ticket-child-confirm --mode read-only-no-op-confirmed` 确认,再重试结案。',
+    '- TTL 超时只生成签名主人决策卡;`force-read-only` 必须消费持久化拍板回执,并保留 unconfirmed child warning。',
     '',
   ].join('\n');
 }
@@ -1268,6 +1338,7 @@ function repairTicketAdd(args) {
     created_at: stamp,
     source: String(args.source || '秘书').slice(0, 80),
     priority: String(args.priority || 'normal').slice(0, 40),
+    source_incident_id: safeTicketId(args.sourceIncidentId || ''),
     problem: String(args.problem || args.desc || args.description || '').trim(),
     evidence: String(args.evidence || '').trim(),
     expectation: String(args.expectation || args.expected || '').trim(),
@@ -1297,13 +1368,16 @@ function repairTicketAdd(args) {
         `读取 board/repair-tickets/${id}.md。`,
         '你是维修主管:先读链路交互记录,判断需求传递是否遗漏、严重度和根因。',
         '小问题可直接最小修复;严重问题做全局系统排查,并把写码执行分派给 repair 维修员。',
+        `分派 repair 时必须传 --repair-ticket-id ${id};有 source incident 时同时传 --source-incident-id。`,
         '复核维修员结果后再 repair-ticket-complete 结案。',
       ].join('\n'),
-      bounds: '维修主管特权工单; 高危先确认; Starlaid 排除; 密钥不回显。',
-      acceptance: '链路证据、严重度、根因、处理/派工、复核验证和架构判断写入工单结果; 必要时通知主人。',
+      bounds: '维修主管特权工单; 高危先确认; 密钥不回显。',
+      acceptance: '链路证据、需求传递判断、严重度、根因、处理/派工、复核验证、架构判断、知识沉淀和剩余风险写入工单; 结案生成固定 HTML 并取得飞书/元宵投递回执。',
       useOrchestrator: false,
       autoApproveHuman: false,
       engineSlotBypass: true,
+      repairTicketId: id,
+      sourceIncidentId: ticket.source_incident_id || undefined,
     },
     status: 'todo',
     created_at: stamp,
@@ -1333,10 +1407,10 @@ function compactNoticeText(text, max = 500) {
 function shouldSkipRepairCompletionNotice(ticketId, title, body) {
   const state = readJson(OWNER_AUTO_NOTIFY_STATE, {});
   state.notices = state.notices && typeof state.notices === 'object' ? state.notices : {};
-  const fingerprint = crypto.createHash('sha256').update(['repair-complete', ticketId].join('\n')).digest('hex').slice(0, 16);
+  const fingerprint = crypto.createHash('sha256').update(['repair-complete', ticketId, body].join('\n')).digest('hex').slice(0, 16);
   const now = Date.now();
   const last = state.notices[fingerprint] || {};
-  if (OWNER_AUTO_NOTIFY_COOLDOWN_MS && last.atMs && now - last.atMs < OWNER_AUTO_NOTIFY_COOLDOWN_MS) {
+  if (OWNER_AUTO_NOTIFY_COOLDOWN_MS && last.status === 'sent' && last.atMs && now - last.atMs < OWNER_AUTO_NOTIFY_COOLDOWN_MS) {
     state.notices[fingerprint] = Object.assign({}, last, {
       skipped: (last.skipped || 0) + 1,
       lastSkippedAt: new Date(now).toISOString(),
@@ -1350,6 +1424,12 @@ function shouldSkipRepairCompletionNotice(ticketId, title, body) {
     });
     return { skipped: true, fingerprint };
   }
+  return { skipped: false, fingerprint };
+}
+
+function recordRepairCompletionNotice(ticketId, title, body, fingerprint, notifyResult) {
+  const state = normalizeOwnerNotifyState(readJson(OWNER_AUTO_NOTIFY_STATE, {}));
+  const now = Date.now();
   state.notices[fingerprint] = {
     atMs: now,
     at: new Date(now).toISOString(),
@@ -1357,10 +1437,99 @@ function shouldSkipRepairCompletionNotice(ticketId, title, body) {
     ticketId,
     title,
     body,
-    skipped: 0,
+    status: notifyResult && notifyResult.sent ? 'sent' : 'failed',
+    code: notifyResult && notifyResult.code == null ? null : notifyResult.code,
+    skipped: Number(state.notices[fingerprint] && state.notices[fingerprint].skipped || 0),
   };
   writeJsonAtomic(OWNER_AUTO_NOTIFY_STATE, state);
-  return { skipped: false, fingerprint };
+}
+
+function repairCloseoutManager() {
+  return RepairCloseoutHandshake.createManager({
+    queueRoot: QUEUE_ROOT,
+    workdir: WORKDIR,
+    eventlog(type, payload) { eventlog().emit(type, payload); },
+  });
+}
+
+function eventReceipt(type, ticketId, matches = () => true) {
+  if (!fs.existsSync(EVENTS)) return null;
+  const lines = fs.readFileSync(EVENTS, 'utf8').split('\n').filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let event;
+    try { event = JSON.parse(lines[i]); } catch (_) { continue; }
+    if (event && event.type === type && event.ticketId === ticketId && matches(event)) return event;
+  }
+  return null;
+}
+
+function reportStepResult(report) {
+  return {
+    file: displayPath(report.file),
+    metaFile: displayPath(report.metaFile),
+    sha256: report.sha256,
+    sizeBytes: report.sizeBytes,
+    missingSections: report.missingSections,
+  };
+}
+
+function reportFilesCommitted(plan) {
+  if (!plan || !plan.file || !plan.metaFile || !plan.sha256) return false;
+  if (!fs.existsSync(plan.file) || !fs.existsSync(plan.metaFile)) return false;
+  try {
+    const htmlSha = crypto.createHash('sha256').update(fs.readFileSync(plan.file)).digest('hex');
+    const meta = readJson(plan.metaFile, null);
+    return htmlSha === plan.sha256 && meta && meta.sha256 === plan.sha256 && meta.ticket_id === plan.ticketId;
+  } catch (_) {
+    return false;
+  }
+}
+
+function ticketCompletionCommitted(file, reportSha256) {
+  const text = readText(file, 1024 * 1024);
+  return repairTicketStatus(path.basename(file, '.md')) === 'done'
+    && text.includes(`- report_sha256: ${reportSha256}`);
+}
+
+function setRepairTicketStatus(file, status) {
+  const safeStatus = String(status || '').trim();
+  if (!/^[a-z_]+$/i.test(safeStatus)) throw new Error('bad repair ticket status');
+  const current = fs.readFileSync(file, 'utf8');
+  const updated = current
+    .replace(/^- status:\s*[^\r\n]+$/m, `- status: ${safeStatus}`)
+    .replace(/(## 处理结果\r?\n)- status:\s*[^\r\n]+/, `$1- status: ${safeStatus}`);
+  if (updated !== current) fs.writeFileSync(file, updated);
+  return updated;
+}
+
+function repairTicketSourceIncidentId(markdown) {
+  const match = String(markdown || '').match(/^- source_incident_id:\s*([^\r\n]+)$/m);
+  if (!match) return '';
+  const id = safeTicketId(match[1]);
+  if (!id) throw new Error('bad persisted repair ticket source incident id');
+  return id;
+}
+
+function repairTicketChildConfirm(args) {
+  const id = safeTicketId(args.id || args.ticketId || '');
+  if (!id) throw new Error('repair-ticket-child-confirm requires --id');
+  const result = repairCloseoutManager().confirmChild({
+    ticketId: id,
+    agent: args.agent || REPAIR_EXECUTOR_AGENT,
+    queueId: args.queueId || args.childId,
+    confirmation: args.confirmation || args.mode,
+  });
+  return {
+    ok: true,
+    ticketId: id,
+    child: result.child,
+    alreadyConfirmed: result.alreadyConfirmed,
+    handshake: {
+      id: result.state.handshakeId,
+      status: result.state.status,
+      file: displayPath(repairCloseoutManager().stateFile(id)),
+    },
+  };
 }
 
 function repairTicketComplete(args) {
@@ -1370,67 +1539,342 @@ function repairTicketComplete(args) {
   if (!fs.existsSync(file)) throw new Error('repair ticket not found');
   const result = String(args.result || args.summary || '').trim();
   if (!result) throw new Error('repair-ticket-complete requires --result');
-  const stamp = new Date().toISOString();
   const current = fs.readFileSync(file, 'utf8');
-  const updated = current
-    .replace(/^- status:\s*todo\s*$/m, '- status: done')
-    .replace(/## 处理结果\n- status:\s*todo/, '## 处理结果\n- status: done');
-  fs.writeFileSync(file, updated);
-  fs.appendFileSync(file, [
-    '',
-    `### 完成记录 ${stamp}`,
-    '- status: done',
-    '',
+  const persistedSourceIncidentId = repairTicketSourceIncidentId(current);
+  const explicitSourceIncidentId = safeTicketId(args.sourceIncidentId || '');
+  if (args.sourceIncidentId && !explicitSourceIncidentId) throw new Error('bad repair ticket source incident id');
+  if (persistedSourceIncidentId && explicitSourceIncidentId && persistedSourceIncidentId !== explicitSourceIncidentId) {
+    throw new Error('repair ticket source incident id mismatch');
+  }
+  const closeoutManager = repairCloseoutManager();
+  const closeout = closeoutManager.preflight({
+    ticketId: id,
+    sourceIncidentId: persistedSourceIncidentId || explicitSourceIncidentId,
+  });
+  if (closeout.alreadyClosed) {
+    return {
+      ok: true,
+      alreadyClosed: true,
+      ticket: { id, file: path.relative(WORKDIR, file) },
+      report: closeout.state.completionReceipt && closeout.state.completionReceipt.report || null,
+      handshake: {
+        id: closeout.state.handshakeId,
+        status: closeout.state.status,
+        finalStatus: closeout.state.finalStatus,
+        file: displayPath(closeoutManager.stateFile(id)),
+        warnings: closeout.state.warnings || [],
+      },
+    };
+  }
+  if (closeout.blocked) {
+    setRepairTicketStatus(file, 'closing_pending_child');
+    return {
+      ok: false,
+      blocked: true,
+      reason: closeout.reason,
+      ticket: { id, file: path.relative(WORKDIR, file), status: 'closing_pending_child' },
+      waitingChildren: closeout.waitingChildren || [],
+      ownerDecisionRequest: closeout.state.ownerDecisionRequest ? {
+        status: closeout.state.ownerDecisionRequest.status,
+        cardId: closeout.state.ownerDecisionRequest.cardId || null,
+        receiptRequired: closeout.state.ownerDecisionRequest.receiptRequired === true,
+      } : null,
+      handshake: {
+        id: closeout.state.handshakeId,
+        status: closeout.state.status,
+        expiresAt: closeout.state.expiresAt,
+        file: displayPath(closeoutManager.stateFile(id)),
+      },
+    };
+  }
+  const stamp = closeout.state && closeout.state.completionOutbox && closeout.state.completionOutbox.completedAt
+    || new Date().toISOString();
+  const preparedReport = RepairReport.generateRepairReport({
+    ticketId: id,
+    ticketFile: file,
     result,
-    '',
-  ].join('\n'));
-  eventlog().emit('repair.ticket.completed', { ticketId: id, file: path.relative(WORKDIR, file) });
-  const removedBulletins = removeRepairBulletinCards(id);
-  let memoryReview = { queued: false, reason: 'not-attempted' };
+    completedAt: stamp,
+    artifactsRoot: QUEUE_ROOT,
+    prepareOnly: true,
+  });
+  const requestHash = crypto.createHash('sha256').update(RepairReport.redactReportText(result)).digest('hex');
   try {
-    memoryReview = enqueueRepairMemoryReview(id, file, result, stamp);
-  } catch (e) {
-    memoryReview = { queued: false, reason: e.message };
-    eventlog().emit('memory.repair_review.enqueue_failed', { ticketId: id, reason: e.message });
-  }
-  let notifyResult = { attempted: false };
-  if (args.notify !== 'false') {
-    const title = `关键修复完成: ${id}`;
-    const body = [
-      `工单: board/repair-tickets/${id}.md`,
-      `修复: ${compactNoticeText(result, 500)}`,
-    ].join('\n');
-    const dedupe = shouldSkipRepairCompletionNotice(id, title, body);
-    if (dedupe.skipped) {
-      notifyResult = { attempted: false, sent: false, skipped: true, reason: 'dedupe-cooldown', fingerprint: dedupe.fingerprint };
-    } else {
-      notifyResult = notify({
-        title,
-        body,
-        source: 'repair-ticket-complete',
-        log: false,
-      });
-      eventlog().emit(notifyResult.sent ? 'repair.ticket.notify_sent' : 'repair.ticket.notify_failed', {
+    const transaction = closeoutManager.runCompletion({
+      ticketId: id,
+      completionToken: closeout.completionToken,
+      requestHash,
+      completedAt: stamp,
+    }, ({ step }) => {
+      const reportPlan = {
         ticketId: id,
-        channel: 'feishu',
-        code: notifyResult.code,
-        reason: notifyResult.sent ? null : (notifyResult.stderr || notifyResult.stdout || 'not sent'),
+        file: preparedReport.file,
+        metaFile: preparedReport.metaFile,
+        sha256: preparedReport.sha256,
+        sizeBytes: preparedReport.sizeBytes,
+        missingSections: preparedReport.missingSections,
+      };
+      const report = step('report_files', {
+        plan: reportPlan,
+        recover(plan) {
+          return reportFilesCommitted(plan)
+            ? { committed: true, result: reportStepResult(preparedReport) }
+            : { committed: false };
+        },
+        commit() {
+          return reportStepResult(RepairReport.commitPreparedRepairReport(preparedReport));
+        },
       });
+
+      step('report_event', {
+        defer: true,
+        plan: { ticketId: id, sha256: report.sha256 },
+        recover(plan) {
+          const found = eventReceipt('repair.report.generated', id, event => event.sha256 === plan.sha256);
+          return found ? { committed: true, result: { type: found.type, ticketId: id, sha256: plan.sha256 } } : { committed: false };
+        },
+        commit() {
+          eventlog().emit('repair.report.generated', {
+            ticketId: id,
+            file: report.file,
+            sha256: report.sha256,
+            sizeBytes: report.sizeBytes,
+            missingSections: report.missingSections,
+          });
+          return { type: 'repair.report.generated', ticketId: id, sha256: report.sha256 };
+        },
+      });
+
+      const reportMarker = `- report_sha256: ${report.sha256}`;
+      step('ticket_done', {
+        defer: true,
+        plan: { ticketId: id, reportSha256: report.sha256 },
+        recover(plan) {
+          return ticketCompletionCommitted(file, plan.reportSha256)
+            ? { committed: true, result: { status: 'done', reportSha256: plan.reportSha256 } }
+            : { committed: false };
+        },
+        commit() {
+          const updated = setRepairTicketStatus(file, 'done');
+          if (!updated.includes(reportMarker)) {
+            fs.appendFileSync(file, [
+              '',
+              `### 完成记录 ${stamp}`,
+              '- status: done',
+              `- report: ${report.file}`,
+              reportMarker,
+              '',
+              result,
+              '',
+            ].join('\n'));
+          }
+          return { status: 'done', reportSha256: report.sha256 };
+        },
+      });
+
+      step('completed_event', {
+        defer: true,
+        plan: { ticketId: id, sha256: report.sha256 },
+        recover(plan) {
+          const found = eventReceipt('repair.ticket.completed', id, event => event.reportSha256 === plan.sha256);
+          return found ? { committed: true, result: { type: found.type, ticketId: id, reportSha256: plan.sha256 } } : { committed: false };
+        },
+        commit() {
+          eventlog().emit('repair.ticket.completed', {
+            ticketId: id,
+            file: path.relative(WORKDIR, file),
+            report: report.file,
+            reportSha256: report.sha256,
+          });
+          return { type: 'repair.ticket.completed', ticketId: id, reportSha256: report.sha256 };
+        },
+      });
+
+      const bulletinPlan = { ids: matchingRepairBulletinCards(id).map(card => card.id).sort() };
+      let bulletinResult = null;
+      step('bulletins_removed', {
+        defer: true,
+        preview: { ids: bulletinPlan.ids },
+        plan: bulletinPlan,
+        onCommitted(committed) {
+          bulletinResult = committed;
+        },
+        recover(plan) {
+          const activeIds = new Set(matchingRepairBulletinCards(id).map(card => card.id));
+          const ids = Array.isArray(plan && plan.ids) ? plan.ids : [];
+          return ids.every(cardId => !activeIds.has(cardId))
+            ? { committed: true, result: { ids } }
+            : { committed: false };
+        },
+        commit(plan) {
+          const removed = removeRepairBulletinCards(id);
+          const ids = [...new Set([...(plan && plan.ids || []), ...removed.map(card => card.id)])].sort();
+          return { ids };
+        },
+      });
+
+      const memoryQueueId = repairMemoryQueueId(id);
+      let memoryReview = null;
+      step('memory_review', {
+        defer: true,
+        preview: { queued: false, queueAgent: MEMORY_OFFICER_AGENT, queueId: memoryQueueId },
+        plan: { queueAgent: MEMORY_OFFICER_AGENT, queueId: memoryQueueId },
+        onCommitted(committed) {
+          memoryReview = committed;
+        },
+        recover(plan) {
+          return queueEntryExists(plan.queueAgent, plan.queueId)
+            ? { committed: true, result: { queued: true, recovered: true, queueAgent: plan.queueAgent, queueId: plan.queueId } }
+            : { committed: false };
+        },
+        commit() {
+          try {
+            return enqueueRepairMemoryReview(id, file, result, stamp);
+          } catch (error) {
+            eventlog().emit('memory.repair_review.enqueue_failed', { ticketId: id, reason: 'enqueue failed' });
+            return { queued: false, reason: 'enqueue-failed' };
+          }
+        },
+      });
+
+      const title = `维修完成 · ${preparedReport.title}`;
+      const body = RepairReport.buildCompletionNotice(preparedReport);
+      const noticeFingerprint = crypto.createHash('sha256').update(['repair-complete', id, body].join('\n')).digest('hex').slice(0, 16);
+      let notifyResult = null;
+      step('owner_notify', {
+        defer: true,
+        preview: { attempted: false },
+        plan: { enabled: args.notify !== 'false', fingerprint: noticeFingerprint },
+        onCommitted(committed) {
+          notifyResult = committed;
+        },
+        recover(plan) {
+          if (!plan.enabled) return { committed: true, result: { attempted: false } };
+          const notice = normalizeOwnerNotifyState(readJson(OWNER_AUTO_NOTIFY_STATE, {})).notices[plan.fingerprint];
+          return notice
+            ? { committed: true, result: { attempted: true, sent: notice.status === 'sent', recovered: true, fingerprint: plan.fingerprint } }
+            : { committed: false };
+        },
+        commit(plan) {
+          if (!plan.enabled) return { attempted: false };
+          const dedupe = shouldSkipRepairCompletionNotice(id, title, body);
+          if (dedupe.skipped) return { attempted: false, sent: false, skipped: true, reason: 'dedupe-cooldown', fingerprint: dedupe.fingerprint };
+          let noticeResult = notify({
+            type: 'progress',
+            title,
+            body,
+            file: preparedReport.file,
+            uuid: `repair-report:${id}:${preparedReport.sha256}`,
+            source: 'repair-ticket-complete',
+            rateLimit: false,
+            log: false,
+          });
+          recordRepairCompletionNotice(id, title, body, dedupe.fingerprint, noticeResult);
+          eventlog().emit(noticeResult.sent ? 'repair.ticket.notify_sent' : 'repair.ticket.notify_failed', {
+            ticketId: id,
+            channel: 'feishu',
+            code: noticeResult.code,
+            reason: noticeResult.sent ? null : 'not-sent',
+          });
+          if (!noticeResult.skipped && !noticeResult.sent && fs.existsSync(YUTU_REMINDER)) {
+            const { spawnSync } = require('child_process');
+            const reminder = spawnSync('python3', [YUTU_REMINDER, '--context', `关键修复完成 ${id}`, `维修员完成关键修复: ${result.slice(0, 300)}`], {
+              cwd: WORKDIR,
+              encoding: 'utf8',
+              timeout: 30000,
+              maxBuffer: 1024 * 1024,
+            });
+            noticeResult = Object.assign({}, noticeResult, {
+              yutuReminder: { attempted: true, ok: reminder.status === 0, code: reminder.status },
+            });
+          }
+          return noticeResult;
+        },
+      });
+
+      let yuanxiaoResult = null;
+      step('yuanxiao_delivery', {
+        defer: true,
+        preview: { attempted: false, sent: false },
+        plan: { enabled: args.notify !== 'false' && args.yuanxiao !== 'false' },
+        onCommitted(committed) {
+          yuanxiaoResult = committed;
+        },
+        recover(plan) {
+          if (!plan.enabled) return { committed: true, result: { attempted: false, sent: false } };
+          const recovered = Object.assign({ attempted: true }, RepairReportDelivery.deliverYuanxiao(preparedReport, { artifactsRoot: QUEUE_ROOT }));
+          return recovered.skipped && recovered.reason === 'already-sent'
+            ? { committed: true, result: recovered }
+            : { committed: false };
+        },
+        commit(plan) {
+          if (!plan.enabled) return { attempted: false, sent: false };
+          const delivered = Object.assign({ attempted: true }, RepairReportDelivery.deliverYuanxiao(preparedReport, { artifactsRoot: QUEUE_ROOT }));
+          eventlog().emit(
+            delivered.sent ? 'repair.report.yuanxiao_sent' : (delivered.skipped ? 'repair.report.yuanxiao_skipped' : 'repair.report.yuanxiao_failed'),
+            {
+              ticketId: id,
+              channel: 'yuanxiao',
+              receiptId: delivered.receiptId || null,
+              reason: delivered.reason || delivered.reasonClass || null,
+            },
+          );
+          return delivered;
+        },
+      });
+
+      return {
+        finalize() {
+          const completion = {
+            ok: true,
+            ticket: { id, file: path.relative(WORKDIR, file) },
+            report: {
+              file: report.file,
+              sha256: report.sha256,
+              sizeBytes: report.sizeBytes,
+              missingSections: report.missingSections,
+            },
+            removedBulletins: bulletinResult && bulletinResult.ids || [],
+            memoryReview: memoryReview || { queued: false, reason: 'missing-commit-result' },
+            notify: notifyResult || { attempted: false },
+            yuanxiao: yuanxiaoResult || { attempted: false, sent: false },
+          };
+          return {
+            completion,
+            receipt: {
+              ticket: completion.ticket,
+              report: completion.report,
+              removedBulletins: completion.removedBulletins,
+              memoryReview: {
+                queued: !!completion.memoryReview.queued,
+                reason: completion.memoryReview.reason || null,
+                queueAgent: completion.memoryReview.queueAgent || null,
+                queueId: completion.memoryReview.queueId || null,
+              },
+            },
+          };
+        },
+      };
+    });
+    const completion = transaction.result.completion;
+    const closedState = transaction.state;
+    if (closedState) {
+      completion.handshake = {
+        id: closedState.handshakeId,
+        status: closedState.status,
+        finalStatus: closedState.finalStatus,
+        file: displayPath(closeoutManager.stateFile(id)),
+        warnings: closedState.warnings || [],
+      };
+    } else {
+      completion.handshake = { enabled: false, status: 'proposal_only_feature_disabled' };
     }
+    return completion;
+  } catch (error) {
+    if (error && error.code === 'REPAIR_CLOSEOUT_LATE_CHILD') setRepairTicketStatus(file, 'closing_pending_child');
+    else if (closeout.enabled) setRepairTicketStatus(file, 'closing_pending_commit');
+    if (closeout.completionToken) closeoutManager.releaseCompletion({ ticketId: id, completionToken: closeout.completionToken });
+    throw error;
   }
-  if (args.notify !== 'false' && !notifyResult.skipped && !notifyResult.sent && fs.existsSync(YUTU_REMINDER)) {
-    const { spawnSync } = require('child_process');
-    const res = spawnSync('python3', [YUTU_REMINDER, '--context', `关键修复完成 ${id}`, `维修员完成关键修复: ${result.slice(0, 300)}`], {
-      cwd: WORKDIR,
-      encoding: 'utf8',
-      timeout: 30000,
-      maxBuffer: 1024 * 1024,
-    });
-    notifyResult = Object.assign({}, notifyResult, {
-      yutuReminder: { attempted: true, ok: res.status === 0, code: res.status },
-    });
-  }
-  return { ok: true, ticket: { id, file: path.relative(WORKDIR, file) }, removedBulletins: removedBulletins.map(card => card.id), memoryReview, notify: notifyResult };
 }
 
 function parseArgs(argv) {
@@ -1471,7 +1915,7 @@ async function main() {
   if (!cmd || cmd === 'help' || cmd === '--help') {
     result = {
       ok: true,
-      commands: ['context', 'context-text', 'search', 'capabilities', 'notify', 'queue-status', 'queue-enqueue', 'queue-jump', 'queue-priority', 'queue-cancel', 'queue-cancel-many', 'queue-merge', 'queue-organize', 'it-release-request', 'it-rollback-request', 'bulletin-list', 'bulletin-add', 'bulletin-enable', 'bulletin-remove', 'repair-ticket-list', 'repair-ticket-add', 'repair-ticket-complete', 'meowa-credits', 'meowa-skill-doc'],
+      commands: ['context', 'context-text', 'search', 'capabilities', 'notify', 'queue-status', 'queue-enqueue', 'queue-jump', 'queue-priority', 'queue-cancel', 'queue-cancel-many', 'queue-merge', 'queue-organize', 'it-release-request', 'it-rollback-request', 'bulletin-list', 'bulletin-add', 'bulletin-enable', 'bulletin-remove', 'repair-ticket-list', 'repair-ticket-add', 'repair-ticket-child-confirm', 'repair-ticket-complete', 'meowa-credits', 'meowa-skill-doc'],
     };
   } else if (cmd === 'context') result = buildContext();
   else if (cmd === 'context-text') return process.stdout.write(buildContextText() + '\n');
@@ -1494,10 +1938,12 @@ async function main() {
   else if (cmd === 'bulletin-remove') result = bulletinRemove(args);
   else if (cmd === 'repair-ticket-list') result = { ok: true, repair_tickets: repairSummary(), tickets: repairTicketList() };
   else if (cmd === 'repair-ticket-add') result = repairTicketAdd(args);
+  else if (cmd === 'repair-ticket-child-confirm') result = repairTicketChildConfirm(args);
   else if (cmd === 'repair-ticket-complete') result = repairTicketComplete(args);
   else if (cmd === 'meowa-credits') result = spawnMeowa('credits-balance', args);
   else if (cmd === 'meowa-skill-doc') result = spawnMeowa('skill-doc', args);
   else throw new Error(`unknown command: ${cmd}`);
+  if (String(cmd || '').startsWith('bulletin-')) result = BulletinOutputRedaction.sanitize(result);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 }
 
@@ -1522,6 +1968,11 @@ module.exports = {
   bulletinEnable,
   repairSummary,
   repairTicketAdd,
+  repairTicketChildConfirm,
   repairTicketComplete,
   notify,
+  _test: {
+    normalizeTask,
+    queueEnqueue,
+  },
 };

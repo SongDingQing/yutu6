@@ -29,27 +29,32 @@ function main() {
   const expansionModule = JSON.parse(fs.readFileSync(path.join(root, 'shared/capability_registry/modules/instruction-expansion-router/module.json'), 'utf8'));
   const engineRunner = require('../projects/控制台/engine-runner')._test;
   const ctx = { root, roles, runners };
-  // 2026-07-03 老板拍板:秘书(前门)与维修主管由 Claude Code 接管;其余角色仍不得自动路由 Claude。
+  // 维修主管已由 Codex 特权接管;当前只有秘书与 Claude 董事席可自动路由 Claude。
   const claudeAutoRoutes = Object.entries(config.roleRouting || {})
     .filter(([, route]) => route && /^claude/.test(String(route.runner || '')))
     .map(([role, route]) => `${role}:${route.runner}`)
     .sort();
   const claudeRunnerDefs = Object.entries(config.runners || {})
     .filter(([id]) => /^claude/.test(id));
-  assert.deepStrictEqual(claudeAutoRoutes, ['board_claude:claude-opus-4-8', 'repair-lead:claude-code', 'secretary:claude'], 'only secretary/repair-lead/board_claude may auto-route to Claude runners');
+  assert.deepStrictEqual(claudeAutoRoutes, ['board_claude:claude-fable-5', 'secretary:claude'], 'only secretary/board_claude may auto-route to Claude runners');
   assert(claudeRunnerDefs.length > 0, 'Claude runner definitions must be registered');
   for (const id of ['claude', 'claude-code']) {
     const def = config.runners[id];
     assert(def && def.hidden !== true && def.deprecated !== true, `${id} runner must be active (not hidden/deprecated)`);
   }
-  // 其余 claude* runner(如 claude-opus-4-8 视觉评审历史通道)仍允许保持停用兼容记录。
-  const claudePreferRoles = ['secretary', 'repair-lead', 'board_claude'];
+  const fableRunner = config.runners['claude-fable-5'];
+  assert(fableRunner, 'Claude Fable 5 board runner must be registered');
+  assert(fableRunner.cmd.includes('claude-fable-5'), 'Claude board runner must select the Fable 5 model explicitly');
+  assert.strictEqual(fableRunner.execution.canWriteFiles, false, 'Claude board runner must remain read-only');
+  assert.strictEqual(fableRunner.execution.canRunCommands, false, 'Claude board runner must not execute shell commands');
+  // 其余 claude* runner(如 claude-opus-4-8 历史通道)仍允许保留为兼容记录。
+  const claudePreferRoles = ['secretary', 'board_claude'];
   for (const role of claudePreferRoles) {
     assert(/prefer:\s*\[subscription\.claude/.test(roleBlock(modelRoutingText, role)), `${role} must prefer Claude subscription first`);
     assert(/subscription\.codex/.test(roleBlock(modelRoutingText, role)), `${role} must keep Codex as failover candidate`);
   }
   const otherClaudePrefer = (modelRoutingText.match(/prefer:\s*\[[^\]]*subscription\.claude[^\]]*\]/g) || []).length;
-  assert.strictEqual(otherClaudePrefer, claudePreferRoles.length, 'only secretary and repair-lead prefer chains may include Claude subscription');
+  assert.strictEqual(otherClaudePrefer, claudePreferRoles.length, 'only secretary and board_claude prefer chains may include Claude subscription');
   assert.strictEqual(machine.runners.front_door, 'claude', 'machine front door must be Claude Code (secretary)');
   assert.strictEqual(machine.runners['claude-code'].status, 'active', 'Claude repair-lead machine runner must be active');
   assert.strictEqual(expansionModule.binding.front_door_runner, 'claude', 'instruction expansion front door must bind Claude');
@@ -165,7 +170,7 @@ function main() {
   assert(repairLead, 'repair-lead agent must be registered');
   assert(repair, 'repair agent must still be registered');
   assert.strictEqual(repairLead.role, 'repair-lead');
-  assert.strictEqual(repairLead.runner, 'claude-code');
+  assert.strictEqual(repairLead.runner, 'codex-privileged');
   assert.strictEqual(repairLead.department, '维修部门');
   assert.strictEqual(repairLead.queueAgent, true);
   assert.strictEqual(repairLead.persistent_worker, true);
@@ -176,16 +181,15 @@ function main() {
   assert(repairLead.tools.some(t => /queue-enqueue --agent repair/.test(t)), 'repair-lead must delegate to repair queue');
   assert.deepStrictEqual(validateAgent(repairLead, ctx), []);
   assert.strictEqual(repair.reports_to, 'repair-lead');
-  assert.strictEqual(config.roleRouting['repair-lead'].runner, 'claude-code');
+  assert.strictEqual(config.roleRouting['repair-lead'].runner, 'codex-privileged');
   assert.strictEqual(config.roleRouting['repair-lead'].execution.delegatesTo, 'repair');
   assert(config.runners['codex-privileged'], 'codex-privileged runner must be registered in console config');
   assert.strictEqual(config.runners['codex-privileged'].cmd[0], 'codex', 'codex-privileged runner must use Codex CLI');
   assert.strictEqual(config.runners['codex-privileged'].execution.privileged, true);
   assert.strictEqual(config.roleRouting.repair.runner, 'codex-privileged', 'repair worker must stay on codex-privileged');
-  assert(config.runners['claude-code'], 'claude-code runner must be registered in console config');
-  assert.strictEqual(config.runners['claude-code'].execution.privileged, true, 'repair-lead Claude runner must stay privileged');
-  assert(/prefer:\s*\[subscription\.claude/.test(roleBlock(modelRoutingText, 'repair-lead')), 'repair-lead must prefer Claude');
-  assert.strictEqual(engineRunner.roleMapFromConfig(config, { taskId: 'repair-lead-smoke', goal: 'repair ticket' })['repair-lead'], 'claude-code');
+  assert(/prefer:\s*\[subscription\.codex/.test(roleBlock(modelRoutingText, 'repair-lead')), 'repair-lead must prefer Codex');
+  assert(!/subscription\.claude/.test(roleBlock(modelRoutingText, 'repair-lead')), 'repair-lead must not depend on Claude');
+  assert.strictEqual(engineRunner.roleMapFromConfig(config, { taskId: 'repair-lead-smoke', goal: 'repair ticket' })['repair-lead'], 'codex-privileged');
 
   // 2026-07-03 弹性编制(拍板 Q1)第一步:闲置角色软归档标记 + INDEX 同步锁。
   const raRoute = config.roleRouting.reasoning_architect;

@@ -14,6 +14,5 @@ Use it when a user names a module and asks for 挑刺、反思、自省、优化
 ## Safety
 
 - Do not print secrets or inspect credential values.
-- Starlaid and 星桥 are excluded.
 - Only auto-execute narrow, reversible, evidence-backed, low-risk improvements.
 - Owner approval is required before any change that may affect existing behavior, APIs, permissions, queue semantics, model cost, data migration, or external services.

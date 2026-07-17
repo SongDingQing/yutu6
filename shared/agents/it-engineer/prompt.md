@@ -2,7 +2,6 @@
 
 ## L0 红线
 
-- Starlaid 一律排除。
 - 密钥、token、cookie、私钥、验证码不回显、不写日志、不写提交。
 - 不使用 `git reset --hard`、强推、删远端分支、改密钥分发或历史重写式回滚,除非主人明确单独确认。
 - 回滚默认只做 dry-run;实际回滚必须有主人确认、目标版本/提交和原因。
@@ -49,7 +48,7 @@ node projects/控制台/tools/version-manager.js release \
 发布前检查:
 
 1. `node projects/控制台/tools/version-manager.js status`
-2. 确认 `--path` 只包含本次任务文件,不包含 artifacts、密钥、缓存或 Starlaid。
+2. 确认 `--path` 只包含本次任务文件,不包含 artifacts、密钥或缓存。
 3. 确认更新说明能让主人知道本次变更内容。
 
 发布后检查:

@@ -3,7 +3,7 @@
   "generated_at": "2026-07-04T13:40:41.237Z",
   "source": "memory/experience.md",
   "source_mtime_ms": 1783172432608,
-  "entry_count": 84,
+  "entry_count": 82,
   "domains": {
     "queue": [
       "队列",
@@ -210,14 +210,6 @@
       "source_line": "memory/experience.md:35"
     },
     {
-      "title": "项目归属守卫误杀说明文本或代码标识符",
-      "keywords": [],
-      "domains": [],
-      "summary": "现象:(2026-06-20 维修复盘):控制台任务中只是复述 \"Starlaid 排除/红线\" 或引用 `buildSecretaryEnvelope()` 这类函数名,却被判成主动操作 Starlaid,导致 CEO 停…;做法:项目归属判断优先结构化 `projectId`;诊断/红线/非主动操作上下文降权或排除;英文动作词必须用单词边界,并给真实主动 Starlaid 操作保留阻断回归测…",
-      "line": 39,
-      "source_line": "memory/experience.md:39"
-    },
-    {
       "title": "\"清理卡死任务\"只移任务文件、没杀进程也没释放 slot 锁 → slot 锁泄漏、死锁",
       "keywords": [
         "slot",
@@ -282,24 +274,6 @@
       "summary": "现象:24h 内一波 SIGTERM 集群(13:42–13:45Z,6 个 task.failed)+ 多次「480s 无节点进展判死」+ enginePid 失效重入队,全部紧跟 watchdog 5 次重启(conso…;做法:① 重启前先 drain/quiesce 在途引擎,只 sweep 心跳确已失联的,心跳新鲜不清(烟测:重启时心跳新鲜的 engine 不收 SIGTERM);② …",
       "line": 55,
       "source_line": "memory/experience.md:55"
-    },
-    {
-      "title": "直派文本启发式把\"红线排除\"误当\"角色排除\" → 派错队列 + 无节点进展超时",
-      "keywords": [
-        "队列",
-        "正则",
-        "前端",
-        "超时"
-      ],
-      "domains": [
-        "queue",
-        "gate",
-        "visual",
-        "process"
-      ],
-      "summary": "现象:(2026-06-22 维修复盘):任务文本同时含「目标角色(前端设计师实现)+ 项目红线排除(Starlaid 排除)+ 其他部门/角色名(人力资源)」时,`engine-runner.js` 的 `directQu…;做法:进入角色否定匹配前,先剥离 Starlaid/星桥 + 排除/不涉及/无关/跳过/不处理 等项目红线语境,再做角色否定;为「精确失败文本→目标角色」和「真实角色排除…",
-      "line": 60,
-      "source_line": "memory/experience.md:60"
     },
     {
       "title": "队列清扫器把 owner-worker pid 当 engine pid → 新任务被误判 engine 缺失而 requeue/杀 engine",

@@ -50,9 +50,14 @@ function main() {
     const leadPrompt = fs.readFileSync(path.join(repo, 'shared/agents/repair-lead/prompt.md'), 'utf8');
     assert(leadPrompt.includes('queue-enqueue --agent repair'), 'repair lead prompt must delegate coding work to repair');
     assert(leadPrompt.includes('复核'), 'repair lead prompt must require review closure');
+    assert(leadPrompt.includes('每个维修请求'), 'repair lead prompt must require one ticket per repair request');
+    assert(leadPrompt.includes('HTML'), 'repair lead prompt must require fixed HTML completion report');
+    const leadAgent = JSON.parse(fs.readFileSync(path.join(repo, 'shared/agents/repair-lead/agent.json'), 'utf8'));
+    assert.strictEqual(leadAgent.runner, 'codex-privileged', 'repair lead must not depend on expired Claude runner');
 
     const repairPrompt = fs.readFileSync(path.join(repo, 'shared/agents/repair/prompt.md'), 'utf8');
     assert(repairPrompt.includes('repair-lead'), 'repair prompt must acknowledge repair-lead supervision');
+    assert(repairPrompt.includes('元宵'), 'repair completion protocol must include YuanXiao delivery');
 
     const workspace = fs.readFileSync(path.join(repo, 'projects/控制台/public/workspace.html'), 'utf8');
     assert(workspace.includes('id="office-repair"'), 'office view must include repair department zone');

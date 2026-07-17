@@ -76,7 +76,7 @@ function testNonWhitelistedNotExecuted() {
       { workspaceRoot: root, executeEvidence: true },
     );
     assert.strictEqual(res.ok, true, '非白名单/含串联符的命令不应被执行,也不阻断');
-    assert(res.executed.some(e => e.ran === false && e.reason === 'not_whitelisted'));
+    assert(res.executed.some(e => e.ran === false && e.reason === 'unsafe_shell_syntax'));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -160,6 +160,43 @@ function testChildEnvDisablesRecursion() {
   }
 }
 
+// 9) 裸全量套件没有显式范围:收尾阶段不偷偷二次执行
+function testUnscopedFullSuiteSleeps() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'done-gate-full-sleep-'));
+  try {
+    fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'tests', 'run.js'), 'process.exit(1);\n');
+    const res = DoneGate.verifyExecutableEvidence(
+      varsWithCommand('node tests/run.js'),
+      { workspaceRoot: root, executeEvidence: true },
+    );
+    assert.strictEqual(res.ok, true, '未分档全量套件不应在 DoneGate 收尾阶段二次执行');
+    assert(res.executed.some(entry => entry.ran === false && entry.reason === 'unscoped_full_suite'));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+// 10) 显式 profile 仍属于可核范围
+function testExplicitProfileRuns() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'done-gate-profile-'));
+  try {
+    fs.mkdirSync(path.join(root, 'tests'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, 'tests', 'run.js'),
+      'process.exit(process.argv.includes("--profile") && process.argv.includes("lean") ? 0 : 1);\n',
+    );
+    const res = DoneGate.verifyExecutableEvidence(
+      varsWithCommand('node tests/run.js --profile lean'),
+      { workspaceRoot: root, executeEvidence: true },
+    );
+    assert.strictEqual(res.ok, true, res.reason);
+    assert(res.executed.some(entry => entry.cmd === 'node tests/run.js --profile lean' && entry.status === 0));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function main() {
   testExecutedFailureIsCaught();
   testExecutedPassIsOk();
@@ -169,6 +206,8 @@ function main() {
   testGitVerifyChangedIsOk();
   testEnvSwitch();
   testChildEnvDisablesRecursion();
+  testUnscopedFullSuiteSleeps();
+  testExplicitProfileRuns();
   console.log(JSON.stringify({ pass: true, suite: 'done-gate-execute-evidence' }));
 }
 

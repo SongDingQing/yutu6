@@ -12,7 +12,7 @@
 
 ## 政策(2026-06-18)
 
-**41 项目技能 + 项目模块不再批量拷**,改为**按需拉**(pull_on_demand)——做到对应项目时再从旧机/备份取。全局只维护 3 件:① 本模块索引;② 环境配置 `shared/config/environment.md`;③ 补齐指令稿 `modules/instruction-expansion-router`(已重建)。Starlaid 硬排除。
+项目技能和项目模块不再批量拷,改为**按需拉**(pull_on_demand)——做到对应项目时再从旧机/备份取。全局只维护本模块索引、环境配置 `shared/config/environment.md` 与补齐指令稿 `modules/instruction-expansion-router`。
 
 ## 模块现状
 
@@ -28,8 +28,6 @@
 | `simulaid-studio-operating-model` | 🔻 按需拉(做 Simulaid 时) | 同上 |
 | `simulaid-taptap-release-gate` | 🔻 按需拉(做 Simulaid 时) | 同上 |
 | `user-clipboard-response-preference` | 🔻 按需拉 | 同上 |
-| `starlaid-unity-project` | 🚫 硬排除 | 不进自动研究;仅按用户显式确认处理 |
-
 ## Skills 现状
 
 - 旧机 `~/.codex/skills` 有 **41 个自定义 skill**(玉龙/玉灵/玉凤/玉鼠/simulaid-*/yuanxiao-* 等),多为**具体项目**用。

@@ -26,10 +26,6 @@ function resolveWorkspacePath(value) {
   return path.join(REPO_ROOT, value);
 }
 
-function containsExcludedProject(value) {
-  return /Starlaid|星桥/i.test(String(value || ''));
-}
-
 function flattenValues(input, out = []) {
   if (input == null) return out;
   if (Array.isArray(input)) {
@@ -49,7 +45,6 @@ function validateTemplateLibrary(library) {
   if (!library.source_of_truth || library.source_of_truth !== 'memory/办公室生图设计规范.md') {
     errors.push('source_of_truth must point to memory/办公室生图设计规范.md');
   }
-  if (library.starlaid_excluded !== true) errors.push('starlaid_excluded must be true');
   if (!library.shared_style || !library.shared_style.camera || !library.shared_style.palette) {
     errors.push('shared_style.camera and shared_style.palette are required');
   }
@@ -77,9 +72,6 @@ function validateTemplateLibrary(library) {
     ['asset_class', 'dimensions', 'projection', 'alignment', 'style_notes'].forEach(field => {
       if (!tpl[field]) errors.push(`${tpl.id || '<unknown>'} missing ${field}`);
     });
-    if (flattenValues(tpl).some(containsExcludedProject)) {
-      errors.push(`${tpl.id || '<unknown>'} contains excluded project reference`);
-    }
   }
 
   [
@@ -180,7 +172,6 @@ function validateGenerationSpec(spec, library) {
   if (!spec.meowaCommand) errors.push('meowaCommand is required');
   if (!spec.outputDir) errors.push('outputDir is required');
   if (!spec.requirement || String(spec.requirement).trim().length < 24) errors.push('requirement must be specific enough');
-  if (flattenValues(spec).some(containsExcludedProject)) errors.push('spec contains excluded project reference');
 
   const creatingReference = /^office\.reference\.sheet\./.test(spec.templateId || '') && spec.referenceMode === 'create-baseline-for-owner-approval';
   if (!creatingReference) {

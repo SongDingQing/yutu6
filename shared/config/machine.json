@@ -41,7 +41,6 @@
     "workspace_source": "gitee_no_secrets"
   },
   "hard_constraints": {
-    "starlaid": "hard_excluded",
     "secrets": "local_only_never_transmit_never_echo",
     "oauth_2fa": "manual_by_user"
   }

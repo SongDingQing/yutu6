@@ -17,7 +17,13 @@ function qdir(root, agent) {
 function nextSeq(d) {
   const f = path.join(d, '_seq'); let n = 0;
   try { n = parseInt(fs.readFileSync(f, 'utf8'), 10) || 0; } catch (_) {}
-  n++; fs.writeFileSync(f, String(n)); return n;
+  n++;
+  // 原子写:_seq 是「字典序=取用顺序」的排序基准,非原子 writeFileSync 若在写入中途崩溃会把
+  // _seq 截断成空 → 下次 parseInt→NaN→复位 0 → 同优先级新任务插到旧任务前(与 writeJson 同款 tmp+rename)。
+  const tmp = `${f}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  fs.writeFileSync(tmp, String(n));
+  fs.renameSync(tmp, f);
+  return n;
 }
 const fname = (pri, seq, id) => `${String(pri).padStart(2, '0')}-${String(seq).padStart(10, '0')}-${id}.json`;
 const pendFiles = d => fs.readdirSync(d).filter(f => /\.json$/.test(f) && f !== '_seq').sort();
@@ -99,7 +105,12 @@ function isLeaseStale(entry, opts = {}) {
 function touchLease(root, agent, id, patch = {}) {
   const file = runningFile(root, agent, id);
   if (!fs.existsSync(file)) return null;
-  const e = rd(file) || { id, target: agent };
+  // 只在 running 文件仍可读时续租。若在 existsSync 与 rd 之间被 finish/requeue 移走(TOCTOU),
+  // 或文件损坏无法解析,rd() 返回 null——此时绝不能用 {id,target} 兜底再 writeJson,那会:
+  // ① 把已迁出的任务"复活"成一份幽灵 running 文件(queue-running-missing 同族),
+  // ② 或用两字段桩覆盖损坏文件、丢掉 goal/lease。直接返回 null(调用方均容忍 null)。
+  const e = rd(file);
+  if (!e) return null;
   const expectedOwner = patch.expectedOwner || patch.expected_owner || null;
   if (expectedOwner && e.lease_owner && e.lease_owner !== expectedOwner) return null;
   const {
@@ -123,10 +134,27 @@ function touchLease(root, agent, id, patch = {}) {
 function touchProgress(root, agent, id, patch = {}) {
   const file = runningFile(root, agent, id);
   if (!fs.existsSync(file)) return null;
-  const e = Object.assign(rd(file) || { id, target: agent }, patch);
+  // 与 touchLease 同理:running 文件被并发迁走或损坏时 rd()=null,不得 {id,target} 兜底复活/覆盖。
+  const cur = rd(file);
+  if (!cur) return null;
+  const e = Object.assign(cur, patch);
   writeJson(file, e);
   return e;
 }
+// 写 running / 迁出 running 时要清理的运行时派生字段。集中一处,防 claim/requeue/resume
+// 三份手工黑名单漂移(experience.md:105「没有统一守卫所有写 running 的状态边界」同族根因)。
+const PROGRESS_ENGINE_FIELDS = [
+  'engine_started_at', 'engine_heartbeat_at', 'pre_engine_wait_heartbeat_at',
+  'progress_at', 'node_event_at', 'progress_event', 'progress_node', 'progress_task',
+  'enginePid', 'engine_pid', 'engine_code', 'engine_signal',
+  'cancel_requested', 'cancel_requested_at',
+];
+const LEASE_FIELDS = [
+  'owner', 'owner_pid', 'lease_owner', 'lease_owner_pid',
+  'lease_claimed_at', 'lease_heartbeat_at', 'lease_ms', 'heartbeat_at',
+];
+const deleteFields = (entry, ...groups) => { for (const g of groups) for (const f of g) delete entry[f]; return entry; };
+
 function runningEntries(root, agent) {
   const dir = path.join(qdir(root, agent), 'running');
   return fs.readdirSync(dir).filter(f => /\.json$/.test(f)).map(file => {
@@ -155,10 +183,18 @@ function list(root, agent) {
   const cnt = s => fs.readdirSync(path.join(d, s)).filter(f => /\.json$/.test(f)).length;
   return { agent, queued, running, paused, done: cnt('done'), failed: cnt('failed'), canceled: cnt('canceled') };
 }
+// 监督器只需判断是否有待处理/在途任务,不应每 10 秒为每个 agent 读取任务 JSON、
+// 再遍历 done/failed/canceled 历史计数。完整 UI 快照仍走 list(),调度心跳走此轻量路径。
+function hasWork(root, agent) {
+  const d = qdir(root, agent);
+  if (pendFiles(d).length) return true;
+  try { return fs.readdirSync(path.join(d, 'running')).some(f => /\.json$/.test(f)); }
+  catch (_) { return false; }
+}
 // 设优先级 / 插队(jump = 设为最急 00)
 function setPriority(root, agent, id, priority) {
   const d = qdir(root, agent); const cur = findPend(d, id); if (!cur) return null;
-  const e = rd(path.join(d, cur)); e.priority = priority;
+  const e = rd(path.join(d, cur)); if (!e) return null; e.priority = priority;
   fs.renameSync(path.join(d, cur), path.join(d, fname(priority, e.seq, id)));
   writeJson(path.join(d, fname(priority, e.seq, id)), e);
   return e;
@@ -212,7 +248,9 @@ function steer(root, agent, id, msg) {
   for (const sub of ['', 'running']) {
     const dir = path.join(d, sub);
     const f = sub ? (fs.existsSync(path.join(dir, `${id}.json`)) ? `${id}.json` : null) : findPend(d, id);
-    if (f) { const p = path.join(dir, f); const e = rd(p); e.steer = Array.isArray(e.steer) ? e.steer : []; e.steer.push({ at: new Date().toISOString(), msg }); writeJson(p, e); return e; }
+    // rd()=null(损坏/并发迁出)时 continue,不得 deref 崩溃、也不得用 writeJson 复活幽灵 running 文件
+    // (与 touchLease/touchProgress 同族防护)。
+    if (f) { const p = path.join(dir, f); const e = rd(p); if (!e) continue; e.steer = Array.isArray(e.steer) ? e.steer : []; e.steer.push({ at: new Date().toISOString(), msg }); writeJson(p, e); return e; }
   }
   return null;
 }
@@ -229,33 +267,7 @@ function resume(root, agent, id) {
   const d = qdir(root, agent); const cur = findPaused(d, id); if (!cur) return null;
   const src = path.join(d, 'paused', cur); const e = rd(src); if (!e) return null;
   e.status = 'queued'; e.resumed_at = new Date().toISOString(); e.seq = nextSeq(d);
-  for (const field of [
-    'reason',
-    'error',
-    'engine_code',
-    'engine_signal',
-    'enginePid',
-    'engine_started_at',
-    'engine_heartbeat_at',
-    'pre_engine_wait_heartbeat_at',
-    'progress_at',
-    'node_event_at',
-    'progress_event',
-    'progress_node',
-    'progress_task',
-    'started_at',
-    'finished_at',
-    'paused_at',
-    'owner',
-    'owner_pid',
-    'lease_owner',
-    'lease_owner_pid',
-    'lease_claimed_at',
-    'lease_heartbeat_at',
-    'heartbeat_at',
-    'cancel_requested',
-    'cancel_requested_at',
-  ]) delete e[field];
+  deleteFields(e, PROGRESS_ENGINE_FIELDS, LEASE_FIELDS, ['reason', 'error', 'started_at', 'finished_at', 'paused_at']);
   writeJson(path.join(d, fname(e.priority != null ? e.priority : 50, e.seq, id)), e);
   fs.unlinkSync(src);
   return e;
@@ -269,30 +281,7 @@ function requeue(root, agent, id, patch = {}) {
   e.status = 'queued';
   e.seq = nextSeq(d);
   e.requeued_at = new Date().toISOString();
-  delete e.started_at;
-  delete e.finished_at;
-  delete e.owner;
-  delete e.owner_pid;
-  delete e.lease_owner;
-  delete e.lease_owner_pid;
-  delete e.lease_claimed_at;
-  delete e.lease_heartbeat_at;
-  delete e.lease_ms;
-  delete e.heartbeat_at;
-  delete e.engine_started_at;
-  delete e.engine_heartbeat_at;
-  delete e.pre_engine_wait_heartbeat_at;
-  delete e.progress_at;
-  delete e.node_event_at;
-  delete e.progress_event;
-  delete e.progress_node;
-  delete e.progress_task;
-  delete e.enginePid;
-  delete e.engine_pid;
-  delete e.engine_code;
-  delete e.engine_signal;
-  delete e.cancel_requested;
-  delete e.cancel_requested_at;
+  deleteFields(e, PROGRESS_ENGINE_FIELDS, LEASE_FIELDS, ['started_at', 'finished_at']);
   const priority = e.priority != null ? e.priority : 50;
   writeJson(path.join(d, fname(priority, e.seq, id)), e);
   fs.unlinkSync(src);
@@ -332,23 +321,7 @@ function claim(root, agent, opts = {}) {
     if (!e) continue;
     if (match && !match(e, { file: f })) continue;
     const at = nowIso();
-    for (const field of [
-      'engine_started_at',
-      'engine_heartbeat_at',
-      'pre_engine_wait_heartbeat_at',
-      'progress_at',
-      'node_event_at',
-      'progress_event',
-      'progress_node',
-      'progress_task',
-      'enginePid',
-      'engine_pid',
-      'engine_code',
-      'engine_signal',
-      'finished_at',
-      'cancel_requested',
-      'cancel_requested_at',
-    ]) delete e[field];
+    deleteFields(e, PROGRESS_ENGINE_FIELDS, ['finished_at']);
     e.status = 'running';
     e.started_at = at;
     e.claimed_at = at;
@@ -414,6 +387,7 @@ function complete(root, agent, id, ok = true, patch = {}) {
 module.exports = {
   enqueue,
   list,
+  hasWork,
   setPriority,
   jump,
   reorder,

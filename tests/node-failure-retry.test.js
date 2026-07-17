@@ -62,12 +62,15 @@ function parseRows(text) {
     }
     if (!inTable || /^:?-{3,}:?$/.test(cells[0] || '')) continue;
     const point = cells[0];
-    if (point) rows.push({
-      point,
-      status: '完成',
-      evidence: 'tests/node-failure-retry.test.js:1',
-      notes: 'retry fixture filled structured acceptance row',
-    });
+    if (point) {
+      const notApplicable = /^\u89c6\u89c9\\\/UI\u8bc1\u636e/.test(point) && (cells[1] === 'not_applicable' || /not_applicable/.test(point));
+      rows.push({
+        point,
+        status: notApplicable ? 'not_applicable' : '完成',
+        evidence: notApplicable ? 'task-envelope:visual_acceptance' : 'projects/控制台/status.md:1',
+        notes: notApplicable ? 'non-visual v2 row; retry fixture created no screenshot' : 'retry fixture filled structured acceptance row',
+      });
+    }
   }
   return rows;
 }
@@ -89,7 +92,7 @@ function receipt(text) {
     specFingerprint,
     changedFiles: [],
     tests: ['node tests/node-failure-retry.test.js exit 0'],
-    artifacts: ['tests/node-failure-retry.test.js:1'],
+    artifacts: ['projects/控制台/status.md:1'],
     verdict: 'done',
     blocked_required_specs: [],
   };
@@ -109,7 +112,7 @@ if (/# 任务:implement/.test(prompt)) {
   process.stdout.write('implementation ok\\n\\n\\\`\\\`\\\`json\\n' + JSON.stringify(result) + '\\n\\\`\\\`\\\`\\n');
 } else if (/# 任务:review/.test(prompt)) {
   const acceptance_table = parseRows(prompt);
-  const result = { review: { pass: true, severity: 'low', notes: 'retry review ok; node tests/node-failure-retry.test.js exit 0', verification: { verdict: 'true', checked: ['implementation.logic_chain', 'implementation.acceptance_table', 'retry evidence'], acceptance_table, evidence: [{ kind: 'test', command: 'node tests/node-failure-retry.test.js', exit_code: 0, summary: 'review fixture verified retry output' }] } } };
+  const result = { review: { pass: true, severity: 'low', notes: 'retry review ok; projects/控制台/status.md:1; node tests/node-failure-retry.test.js exit 0', verification: { verdict: 'true', checked: ['implementation.logic_chain', 'implementation.acceptance_table', 'projects/控制台/status.md:1', 'retry evidence'], acceptance_table, evidence: [{ kind: 'file', path: 'projects/控制台/status.md', summary: 'review_verdict=pass; review fixture verified retry output' }] } } };
   process.stdout.write('review ok\\n\\n\\\`\\\`\\\`json\\n' + JSON.stringify(result) + '\\n\\\`\\\`\\\`\\n');
 } else {
   process.stdout.write('{}\\n');
@@ -155,7 +158,7 @@ async function main() {
       projectId: '控制台',
       scopedToProject: true,
       goal: 'NODE_RETRY_SMOKE 控制台 node_failed 自动重试',
-      bounds: 'retry smoke only; Starlaid excluded; no secrets',
+      bounds: 'retry smoke only; no secrets',
       acceptance: 'retry smoke completes',
       useOrchestrator: false,
       autoApproveHuman: true,

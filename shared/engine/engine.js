@@ -9,12 +9,22 @@
  * humanGate(node, ctx)       -> { human: { decision } } | null // 人工节点;null=暂停等人
  */
 const fs = require('fs');
+const path = require('path');
 const { parse } = require('./yaml-lite');
 const { validateFlow } = require('./validate');
 const { compileWhen } = require('./condition');
 const { TERMINAL_STATES } = require('./taskstore');
 const DoneGate = require('./done-gate');
 const ProtocolGate = require('./protocol-gate');
+
+const REVIEW_ROUTING_CONTRACT_FEATURE = 'review-routing-contract-v1';
+const REVIEW_ROUTING_CONTRACT_ENV = 'YUTU6_REVIEW_ROUTING_CONTRACT_ENABLED';
+const REVIEW_ROUTING_CONTRACT_APPROVAL_SCHEMA = 'review-routing-contract-approval@1';
+const REVIEW_ROUTING_CONTRACT_APPROVAL_TASK = 'cr-1784188730576-9502ee93';
+const REVIEW_ROUTING_CONTRACT_PROJECT = '控制台';
+const REVIEW_ROUTING_CONTRACT_APPROVAL_REL = 'projects/控制台/config/review-routing-contract-approval.json';
+const REVIEW_ROUTING_CONTRACT_TRUSTED_APPROVAL_REL = 'board/control-plane/approvals.md';
+const CONTROL_PLANE_APPROVAL_SCHEMA = 'control-plane-approval@1';
 
 function loadFlow(file) { return parse(fs.readFileSync(file, 'utf8')); }
 
@@ -37,6 +47,130 @@ function isPeekabooSoftFailure(flow, node, ctx, reason) {
 
 function reviewLoopDeliveryRequired(ctx) {
   return DoneGate.deliveryEvidenceRequiredFromText(ctx && ctx.goal, ctx && ctx.acceptance);
+}
+
+function reviewCritique(review) {
+  if (!review || typeof review !== 'object') return '';
+  if (review.critique != null) {
+    const explicit = Array.isArray(review.critique) ? review.critique : [review.critique];
+    return explicit.map(value => String(value == null ? '' : value).trim()).filter(Boolean).join('; ').slice(0, 6000);
+  }
+  const values = [
+    review.notes,
+    review.feedback,
+    review.evaluation && review.evaluation.gaps,
+    review.evaluation && review.evaluation.improvement_points,
+  ];
+  const parts = [];
+  const add = value => {
+    if (value == null) return;
+    if (Array.isArray(value)) return value.forEach(add);
+    const text = String(value).trim();
+    if (text && !parts.includes(text)) parts.push(text);
+  };
+  values.forEach(add);
+  return parts.join('; ').slice(0, 6000);
+}
+
+function appendReviewHistory(ctx, detail) {
+  const history = Array.isArray(ctx.review_loop_history) ? ctx.review_loop_history.slice() : [];
+  history.push(detail);
+  ctx.review_loop_history = history;
+  return history;
+}
+
+function readJsonObject(file) {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function validRfc3339(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(text)
+    && Number.isFinite(Date.parse(text));
+}
+
+function readTrustedControlPlaneApproval(workspaceRoot, recordId) {
+  const id = String(recordId || '').trim();
+  if (!id) return null;
+  const file = path.resolve(workspaceRoot, REVIEW_ROUTING_CONTRACT_TRUSTED_APPROVAL_REL);
+  try {
+    const stat = fs.statSync(file);
+    if (!stat.isFile() || stat.size > 512 * 1024) return null;
+    const raw = fs.readFileSync(file, 'utf8');
+    const records = [];
+    const marker = /<!--\s*control-plane-approval@1\s+(\{[^\r\n]*\})\s*-->/g;
+    let match;
+    while ((match = marker.exec(raw))) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.recordId === id) {
+          records.push(parsed);
+        }
+      } catch (_) {}
+    }
+    return records.length === 1 ? records[0] : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function reviewRoutingContractActivation(opts = {}, ctx = {}) {
+  const explicitlyConfigured = Object.prototype.hasOwnProperty.call(opts, 'reviewRoutingContractEnabled');
+  const featureFlag = explicitlyConfigured
+    ? opts.reviewRoutingContractEnabled === true
+    : process.env[REVIEW_ROUTING_CONTRACT_ENV] === '1';
+  if (!featureFlag) {
+    return { enabled: false, featureFlag: false, ownerApproved: false, reason: 'feature_flag_disabled' };
+  }
+  if (String(ctx.projectId || ctx.project_id || '') !== REVIEW_ROUTING_CONTRACT_PROJECT) {
+    return { enabled: false, featureFlag: true, ownerApproved: false, reason: 'project_scope_mismatch' };
+  }
+  const workspaceRoot = path.resolve(opts.workspaceRoot || process.cwd());
+  const approvalFile = path.resolve(workspaceRoot, REVIEW_ROUTING_CONTRACT_APPROVAL_REL);
+  const approval = readJsonObject(approvalFile);
+  const trustedApproval = approval
+    && approval.approvalSource === REVIEW_ROUTING_CONTRACT_TRUSTED_APPROVAL_REL
+    ? readTrustedControlPlaneApproval(workspaceRoot, approval.approvalRecordId)
+    : null;
+  const ownerApproved = Boolean(
+    approval
+    && approval.schema === REVIEW_ROUTING_CONTRACT_APPROVAL_SCHEMA
+    && approval.feature === REVIEW_ROUTING_CONTRACT_FEATURE
+    && approval.status === 'approved'
+    && approval.ownerApproved === true
+    && approval.approvedBy === '主人'
+    && approval.taskId === REVIEW_ROUTING_CONTRACT_APPROVAL_TASK
+    && Array.isArray(approval.approvedScope)
+    && approval.approvedScope.includes(REVIEW_ROUTING_CONTRACT_FEATURE)
+    && validRfc3339(approval.approvedAt)
+    && typeof approval.rollbackPlan === 'string'
+    && approval.rollbackPlan.trim().length > 0
+    && trustedApproval
+    && trustedApproval.schema === CONTROL_PLANE_APPROVAL_SCHEMA
+    && trustedApproval.recordId === approval.approvalRecordId
+    && trustedApproval.decision === 'approved'
+    && trustedApproval.approvedBy === '主人'
+    && trustedApproval.projectId === REVIEW_ROUTING_CONTRACT_PROJECT
+    && trustedApproval.taskId === REVIEW_ROUTING_CONTRACT_APPROVAL_TASK
+    && trustedApproval.feature === REVIEW_ROUTING_CONTRACT_FEATURE
+    && Array.isArray(trustedApproval.approvedScope)
+    && trustedApproval.approvedScope.includes(REVIEW_ROUTING_CONTRACT_FEATURE)
+    && trustedApproval.approvedAt === approval.approvedAt
+    && trustedApproval.rollbackPlan === approval.rollbackPlan
+  );
+  return {
+    enabled: ownerApproved,
+    featureFlag: true,
+    ownerApproved,
+    reason: ownerApproved ? null : 'owner_approval_required',
+    approvalSource: ownerApproved ? REVIEW_ROUTING_CONTRACT_TRUSTED_APPROVAL_REL : REVIEW_ROUTING_CONTRACT_APPROVAL_REL,
+    approvalRecordId: ownerApproved ? approval.approvalRecordId : null,
+  };
 }
 
 function taskViewForDoneGate(t, flow, ctx, visits) {
@@ -97,6 +231,39 @@ function runFlow(opts) {
   const projectId = ctx.projectId || ctx.project_id || null;
   ctx.taskId = ctx.taskId || taskId;
   ProtocolGate.ensureTaskProtocol(ctx, { taskId, flow: flow.id, projectId });
+  // Capture the owner override before any runner output is merged into ctx.
+  // A model cannot self-authorize completion by returning this field later.
+  const directOverrideInput = opts.manualCompletionOverride || ctx.manual_completion_override || null;
+  const directOverrideSupplied = !!directOverrideInput;
+  let directOverride = { ok: false, reason: '缺少人工覆盖回执' };
+  if (directOverrideSupplied) {
+    let verified = null;
+    if (typeof opts.verifyManualCompletionOverride !== 'function') {
+      verified = { ok: false, reason: '人工覆盖缺少最终消费点验证器' };
+    } else {
+      try {
+        verified = opts.verifyManualCompletionOverride(directOverrideInput, {
+          taskId,
+          flowId: flow.id,
+          projectId,
+        });
+      } catch (error) {
+        verified = { ok: false, reason: String(error && error.message || error || '人工覆盖最终复核异常') };
+      }
+    }
+    if (!verified || verified.ok !== true) {
+      directOverride = {
+        ok: false,
+        reason: String(verified && verified.reason || '人工覆盖最终消费点复核失败').slice(0, 500),
+      };
+    } else {
+      directOverride = DoneGate.validateDirectCompletionOverride(
+        verified.override,
+        taskId,
+        { finalConsumerVerified: true },
+      );
+    }
+  }
   const visits = Object.assign({}, t.visits || {});
   const t0 = nowMs();
   let lastWallProgressAt = t0;
@@ -104,6 +271,89 @@ function runFlow(opts) {
   function markWallProgress(type) {
     lastWallProgressAt = nowMs();
     lastWallProgressEvent = type || 'progress';
+  }
+  let directCompletionObserved = false;
+  function checkDirectCompletion(phase, edge = null) {
+    const gate = DoneGate.selfReportedIncomplete(ctx, {
+      conflictMode: opts.directCompletionConflictMode || 'shadow',
+    });
+    if (gate.conflicts.length && !directCompletionObserved) {
+      eventlog.emit('done_gate.direct_schema_conflict', {
+        task: taskId,
+        flow: flow.id,
+        phase,
+        edge,
+        mode: gate.conflict_mode,
+        blocked: gate.conflict_blocked,
+        conflicts: gate.conflicts.slice(0, 20),
+        signals: gate.signals,
+        projectId,
+      });
+    }
+    directCompletionObserved = true;
+    if (!gate.incomplete) {
+      taskstore.update(t, {
+        done_gate: {
+          ok: true,
+          direct_completion: {
+            conflict_mode: gate.conflict_mode,
+            conflicts: gate.conflicts,
+            signals: gate.signals,
+          },
+        },
+        vars: ctx,
+        visits,
+      });
+      return { ok: true, gate };
+    }
+    if (directOverride.ok) {
+      eventlog.emit('done_gate.direct_manual_override', {
+        task: taskId,
+        flow: flow.id,
+        phase,
+        edge,
+        reason: gate.reason,
+        override: directOverride.receipt,
+        projectId,
+      });
+      taskstore.update(t, {
+        done_gate: {
+          ok: true,
+          overridden: true,
+          reason: gate.reason,
+          manual_override: directOverride.receipt,
+          direct_completion: gate,
+        },
+        vars: ctx,
+        visits,
+      });
+      return { ok: true, gate, overridden: true };
+    }
+    const lateOverrideSupplied = !!ctx.manual_completion_override
+      && ctx.manual_completion_override !== directOverrideInput;
+    if (directOverrideSupplied || lateOverrideSupplied) {
+      eventlog.emit('done_gate.direct_manual_override_rejected', {
+        task: taskId,
+        flow: flow.id,
+        phase,
+        edge,
+        reason: lateOverrideSupplied
+          ? 'runner 输出不得后加或替换 owner override'
+          : directOverride.reason,
+        projectId,
+      });
+    }
+    eventlog.emit('done_gate.self_report_incomplete', {
+      task: taskId,
+      flow: flow.id,
+      phase,
+      edge,
+      reason: gate.reason,
+      negatives: gate.negatives.slice(0, 20),
+      projectId,
+    });
+    taskstore.update(t, { done_gate: { ok: false, reason: gate.reason, direct_completion: gate }, vars: ctx, visits });
+    return { ok: false, gate };
   }
   function wallTimeoutInfo(nodeId) {
     if (!wallMs) return null;
@@ -213,17 +463,10 @@ function runFlow(opts) {
       // agent-once 自报未完成门(防假完成,延续 P0-A):runner 永远写 result.md 当 evidence,
       // 所以 require_evidence 对 agent-once 形同虚设。模型显式自报 done=false/blocked 时必须打回。
       if (flow.id !== 'review-loop') {
-        const selfRep = DoneGate.selfReportedIncomplete(ctx);
-        if (selfRep.incomplete) {
-          eventlog.emit('done_gate.self_report_incomplete', {
-            task: taskId,
-            flow: flow.id,
-            reason: selfRep.reason,
-            projectId,
-          });
-          taskstore.update(t, { done_gate: { ok: false, reason: selfRep.reason }, vars: ctx, visits });
+        const directGate = checkDirectCompletion('end_node');
+        if (!directGate.ok) {
           taskstore.setState(t, 'failed');
-          return { ok: false, reason: `self_report_incomplete: ${selfRep.reason}`, task: t };
+          return { ok: false, reason: `self_report_incomplete: ${directGate.gate.reason}`, task: t };
         }
       }
       let trueDoneGate = null;
@@ -295,7 +538,10 @@ function runFlow(opts) {
           hooks: (hookResult.results || []).map(result => ({
             id: result.id || null,
             ok: result.ok !== false,
+            observedOk: result.observedOk !== false,
             skipped: !!result.skipped,
+            mode: result.mode || 'active',
+            shadow: !!result.shadow,
             reason: result.reason || null,
           })),
           projectId,
@@ -417,18 +663,151 @@ function runFlow(opts) {
           }
         }
         if (!out.fail && flow.id === 'review-loop' && node.id === 'review') {
-          const gate = DoneGate.validateReviewHardEvidence(ctx, {
-            workspaceRoot: opts.workspaceRoot || process.cwd(),
-          });
-          if (!gate.ok) {
-            out = Object.assign({}, out, { fail: `done_gate.review_verification: ${gate.reason}` });
-            eventlog.emit('done_gate.review_invalid', {
+          const activation = reviewRoutingContractActivation(opts, ctx);
+          if (!activation.enabled) {
+            eventlog.emit('review.contract.inactive', {
               task: taskId,
               node: current,
               attempt,
+              reason: activation.reason,
+              featureFlag: activation.featureFlag,
+              ownerApproved: activation.ownerApproved,
+              projectId,
+            });
+            const legacyGate = DoneGate.validateReviewHardEvidence(ctx, {
+              workspaceRoot: opts.workspaceRoot || process.cwd(),
+            });
+            if (!legacyGate.ok) {
+              out = Object.assign({}, out, { fail: `done_gate.review_verification: ${legacyGate.reason}` });
+              eventlog.emit('done_gate.review_invalid', {
+                task: taskId,
+                node: current,
+                attempt,
+                reason: legacyGate.reason,
+                projectId,
+              });
+            } else if (ctx.review && typeof ctx.review === 'object') {
+              // The flow edges now consume review.routing. While the new contract is
+              // inactive, preserve the legacy pass→edge mapping plus the existing
+              // finite-loop safety upgrade. Default-off deployments stay reachable
+              // without enabling warning/manual/history behavior from the gated contract.
+              ctx.review.routing = ctx.review.pass === true
+                ? 'approve'
+                : (ctx.loop >= ctx.max_loops ? 'loop_limit' : 'rework');
+              if (ctx.review.routing === 'loop_limit') {
+                eventlog.emit('done_gate.review_loop_limit', {
+                  task: taskId,
+                  node: current,
+                  attempt,
+                  loop: ctx.loop,
+                  maxLoops: ctx.max_loops,
+                  critique: reviewCritique(ctx.review) || null,
+                  contractActive: false,
+                  projectId,
+                });
+              }
+            }
+          } else {
+          const gate = DoneGate.validateReviewRoutingContract(ctx, {
+            workspaceRoot: opts.workspaceRoot || process.cwd(),
+          });
+          const critique = reviewCritique(ctx.review);
+          let route = gate.route;
+          if (route === 'rework' && ctx.loop >= ctx.max_loops) route = 'loop_limit';
+          if (ctx.review && typeof ctx.review === 'object') ctx.review.routing = route;
+          if (critique && route !== 'approve') ctx.review_critique = critique;
+          const history = appendReviewHistory(ctx, {
+            taskId,
+            loop: ctx.loop,
+            attempt,
+            pass: !!(ctx.review && ctx.review.pass),
+            verdict: gate.verification && gate.verification.verdict || null,
+            lifecycle: gate.lifecycle && gate.lifecycle.status || null,
+            routing: route,
+            critique: critique || null,
+            warnings: (gate.warnings || []).map(warning => warning.reason),
+          });
+          taskstore.update(t, {
+            review_contract: {
+              ok: gate.ok,
+              route,
+              reason: gate.reason || null,
+              loop: ctx.loop,
+              warnings: gate.warnings || [],
+            },
+            review_loop_history: history,
+            vars: ctx,
+            visits,
+          });
+          eventlog.emit('review.contract', {
+            task: taskId,
+            node: current,
+            attempt,
+            loop: ctx.loop,
+            pass: !!(ctx.review && ctx.review.pass),
+            route,
+            critique: critique || null,
+            warningCount: (gate.warnings || []).length,
+            projectId,
+          });
+          for (const warning of gate.warnings || []) {
+            eventlog.emit('done_gate.review_alignment_warning', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
+              reason: warning.reason,
+              category: warning.category || null,
+              misalignedRequiredRows: warning.misaligned_required_rows || [],
+              critique: critique || null,
+              projectId,
+            });
+          }
+          if (!gate.ok && route === 'hard_block') {
+            eventlog.emit('done_gate.review_hard_block', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
               reason: gate.reason,
               projectId,
             });
+            taskstore.setState(t, 'paused');
+            return { ok: false, reason: 'review_hard_block', hard_block: true, node: current, task: t, ctx };
+          }
+          if (route === 'hold') {
+            eventlog.emit('done_gate.review_lifecycle_hold', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
+              reason: gate.reason,
+              projectId,
+            });
+            taskstore.setState(t, 'awaiting_human');
+            return { ok: false, reason: 'review_lifecycle_hold', node: current, task: t, ctx };
+          }
+          if (route === 'manual_review') {
+            eventlog.emit('done_gate.review_manual_required', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
+              reason: gate.reason,
+              projectId,
+            });
+          }
+          if (route === 'loop_limit') {
+            eventlog.emit('done_gate.review_loop_limit', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
+              maxLoops: ctx.max_loops,
+              critique: critique || null,
+              projectId,
+            });
+          }
           }
         }
         let reviewLoopResult = null;
@@ -449,6 +828,46 @@ function runFlow(opts) {
               decision: reviewLoopResult.decision,
             });
             taskstore.update(t, { evidence: t.evidence, vars: ctx, visits });
+          }
+        }
+        if (!out.fail && flow.id === 'review-loop' && node.id === 'review' && reviewLoopResult) {
+          let adjustedRoute = null;
+          if (reviewLoopResult.decision === 'iterate') adjustedRoute = 'rework';
+          if (reviewLoopResult.decision === 'blocked_stop') adjustedRoute = 'loop_limit';
+          const contractRoute = ctx.review && ctx.review.routing;
+          const routeCanBeAdjusted = contractRoute === 'approve' || contractRoute === 'rework';
+          // Contract-level safety routes are authoritative. In particular, an
+          // evidence/verdict conflict must stay on the human path even when loop
+          // engineering would otherwise request another implementation round.
+          if (adjustedRoute && routeCanBeAdjusted && contractRoute !== adjustedRoute) {
+            const previousRoute = ctx.review.routing || null;
+            ctx.review.routing = adjustedRoute;
+            const history = Array.isArray(ctx.review_loop_history) ? ctx.review_loop_history : [];
+            const latest = history[history.length - 1];
+            if (latest && latest.taskId === taskId && latest.loop === ctx.loop) {
+              latest.routing = adjustedRoute;
+              latest.pass = ctx.review.pass === true;
+              latest.loop_engineering_decision = reviewLoopResult.decision;
+            }
+            taskstore.update(t, {
+              review_contract: Object.assign({}, t.review_contract || {}, {
+                route: adjustedRoute,
+                loop_engineering_decision: reviewLoopResult.decision,
+              }),
+              review_loop_history: history,
+              vars: ctx,
+              visits,
+            });
+            eventlog.emit('review.contract.adjusted', {
+              task: taskId,
+              node: current,
+              attempt,
+              loop: ctx.loop,
+              from: previousRoute,
+              to: adjustedRoute,
+              reason: `loop_engineering.${reviewLoopResult.decision}`,
+              projectId,
+            });
           }
         }
         // runner.quality:review 节点收尾 emit 质量分,作 role×runner 质量回写路由的地基(洞察#2/#4)。
@@ -527,6 +946,18 @@ function runFlow(opts) {
       taskstore.setState(t, 'paused');
       return { ok: false, reason: 'no_edge', node: current, on_no_edge: flow.on_no_edge || 'planner', task: t };
     }
+    if (flow.id !== 'review-loop' && nodesById[next] && nodesById[next].type === 'end') {
+      const directGate = checkDirectCompletion('before_terminal_edge', { from: current, to: next });
+      if (!directGate.ok) {
+        taskstore.setState(t, 'failed');
+        return {
+          ok: false,
+          reason: `self_report_incomplete: ${directGate.gate.reason}`,
+          node: current,
+          task: t,
+        };
+      }
+    }
     eventlog.emit('edge.take', { task: taskId, from: current, to: next, projectId });
     markWallProgress('edge.take');
     taskstore.update(t, { cursor: next, completed_pending_edge: null, vars: ctx, visits });
@@ -535,4 +966,15 @@ function runFlow(opts) {
   return { ok: false, reason: 'no_start', task: t };
 }
 
-module.exports = { loadFlow, runFlow };
+module.exports = {
+  REVIEW_ROUTING_CONTRACT_FEATURE,
+  REVIEW_ROUTING_CONTRACT_ENV,
+  REVIEW_ROUTING_CONTRACT_APPROVAL_SCHEMA,
+  REVIEW_ROUTING_CONTRACT_APPROVAL_TASK,
+  REVIEW_ROUTING_CONTRACT_APPROVAL_REL,
+  REVIEW_ROUTING_CONTRACT_TRUSTED_APPROVAL_REL,
+  CONTROL_PLANE_APPROVAL_SCHEMA,
+  reviewRoutingContractActivation,
+  loadFlow,
+  runFlow,
+};

@@ -34,10 +34,24 @@ async function main() {
     assert.strictEqual(BoardReview.MAX_ROUNDS, 1);
     assert.strictEqual(BoardReview._test.boardReviewMaxRounds(), 1);
     assert.deepStrictEqual(BoardReview.DIRECTORS.map(d => d.id), ['board_deepseek', 'board_glm52', 'board_claude', 'board_opus48']);
-    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_claude' && d.runner === 'claude-opus-4-8' && !d.final), 'Claude 董事(暂用 Opus-4.8)须在席且不占最终裁决位');
+    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_deepseek' && d.runner === 'deepseek-board-direct'), 'DeepSeek 董事须使用不依赖 Docker 的专用直连');
+    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_glm52' && d.runner === 'zhipu-board-direct'), 'GLM 董事须使用 Coding Plan 专用直连');
+	    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_claude' && d.runner === 'claude-fable-5' && d.model.includes('Claude Fable 5') && !d.final), 'Claude Fable 5 董事须在席且不占最终裁决位');
     assert.strictEqual(BoardReview.DIRECTORS.filter(d => d.runner === 'codex').length, 1, '董事会不能同时有两个 Codex/GPT-5.5 席位');
     assert(!BoardReview.DIRECTORS.some(d => d.id === 'board_kimi'), 'Kimi 董事已暂停,不得进入活跃董事会');
     assert(BoardReview.DIRECTORS.find(d => d.id === 'board_opus48' && d.final), 'Codex/GPT-5.5 必须保留最终裁决席位');
+    const productionConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../projects/控制台/config.json'), 'utf8'));
+    const canonicalVault = '/Users/yutu6/.config/yutu6-secrets/secrets.env';
+    assert.strictEqual(
+      productionConfig.runners['deepseek-board-direct'].tokenFile,
+      canonicalVault,
+      'DeepSeek 董事必须直接读取统一保险库，不能依赖 Hermes 运行副本',
+    );
+    assert.strictEqual(
+      productionConfig.runners['zhipu-board-direct'].tokenFile,
+      canonicalVault,
+      'GLM 董事必须直接读取统一保险库，不能依赖项目运行副本',
+    );
     // 2026-07-03 架构审视 A-5:董事会修订压缩前必须剥离秘书背景包,保住老板任务正文。
     const packOldFormat = '秘书补全稿:\n\n[秘书后台背景包]\n' + '背景行\n'.repeat(800) + '\n目标:修复任务板启用按钮\n项目:控制台';
     const strippedOld = BoardReview._test.stripSecretaryContextPack(packOldFormat);
@@ -55,8 +69,15 @@ async function main() {
     const absentOpinion = BoardReview._test.parseOpinion({ fail: 'Invalid Authentication' }, glmDirector, 1);
     assert.strictEqual(absentOpinion.absent, true, 'runner failure must be represented as director absence');
     assert.strictEqual(absentOpinion.failed, false, 'runner absence must not be counted as board rejection');
-    assert.strictEqual(absentOpinion.can_execute, true, 'runner absence must not block execution by itself');
+    assert.strictEqual(absentOpinion.can_execute, false, 'runner absence must never be forged into an approval vote');
     assert.strictEqual(BoardReview._test.opinionNeedsMoreRounds(absentOpinion), false, 'runner absence must not request another board round');
+    const majorityIntegration = BoardReview._test.integrateRound('goal', [
+      absentOpinion,
+      Object.assign({}, absentOpinion, { director: 'absent-2' }),
+      Object.assign({}, absentOpinion, { director: 'absent-3' }),
+      { absent: false, failed: false, risk_level: 'low', can_execute: true, issues: [], suggestions: [] },
+    ], 1, 1);
+    assert.strictEqual(majorityIntegration.absenceMajority, true, '3/4 缺席必须触发法定席位门禁');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('Invalid Authentication').kind, 'auth');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('预扣费额度失败, 用户剩余额度不足').kind, 'quota');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('该模型当前访问量过大，请您稍后再试').kind, 'busy');
@@ -293,16 +314,17 @@ async function main() {
       notify(title, body, extra) {
         notifyCalled = true;
         assert(title.includes('需拍板'));
-        // 拍板 Q12:两个选项直接是两个按钮,点按钮=拍板(指向 /api/decision 回调)
+        // 飞书原生回调:批准/驳回不打开浏览器，Hermes 在本机调用 /api/decision。
         assert(body.includes('批准继续'));
         assert(extra && extra.type === 'decision');
-        assert.strictEqual(extra.buttons.length, 3);
-        assert.strictEqual(extra.buttons[0].label, '批准继续');
-        assert(extra.buttons[0].url.includes('/api/decision/board-decision-'));
-        assert(extra.buttons[0].url.includes('/approve?t='));
-        assert.strictEqual(extra.buttons[1].label, '驳回取消');
-        assert(extra.buttons[1].url.includes('/reject?t='));
-        assert(extra.buttons[2].url.includes('/workspace?view=task-board&bulletin=board-decision-'));
+        assert.strictEqual(extra.actions.length, 3);
+        assert.strictEqual(extra.actions[0].label, '批准继续');
+        assert.strictEqual(extra.actions[0].value.yutu6_decision_action, 'approve');
+        assert(!extra.actions[0].url);
+        assert.strictEqual(extra.actions[1].label, '驳回取消');
+        assert.strictEqual(extra.actions[1].value.yutu6_decision_action, 'reject');
+        assert(!extra.actions[1].url);
+        assert(extra.actions[2].url.includes('/workspace?view=task-board&bulletin=board-decision-'));
         return { sent: true };
       },
       cliRunner(node, ctx, round) {
@@ -512,6 +534,51 @@ async function main() {
     const partialSettlement = JSON.parse(fs.readFileSync(BoardReview._test.settlementFileFor(artifactsRoot, 'board-partial-failure', 1), 'utf8'));
     assert.strictEqual(partialSettlement.opinions.board_deepseek.absent, true, 'settlement must persist director absence');
     assert.match(partialFailure.rounds[0].summary, /缺席/, 'round summary must report director absence separately');
+
+    const majorityAbsentEventsFile = path.join(root, 'majority-absent-events.jsonl');
+    let majorityNotify = false;
+    const majorityAbsent = await BoardReview.runBoardReview({
+      spec: {
+        taskId: 'board-majority-absent',
+        projectId: '控制台',
+        goal: '重构队列引擎并修复并发竞态。',
+        originalGoal: '董事缺席多数不得放行。',
+      },
+      projectId: '控制台',
+      planText: '原始目标',
+      assessment: BoardReview.assessTask('重构队列引擎并修复并发竞态。'),
+      artifactsRoot: path.join(root, 'majority-absent-artifacts'),
+      memoryFile,
+      eventlog: new EventLog(majorityAbsentEventsFile),
+      notify() {
+        majorityNotify = true;
+        return { sent: true };
+      },
+      cliRunner(node) {
+        if (node.agent_role !== 'board_opus48') return { fail: 'mock director unavailable' };
+        return {
+          vars: {
+            board_review: {
+              risk_level: 'low',
+              can_execute: true,
+              hard_block: false,
+              misjudgment_risk: false,
+              issues: [],
+              suggestions: [],
+              summary: 'only final director present',
+            },
+          },
+        };
+      },
+    });
+    assert.strictEqual(majorityAbsent.ok, false);
+    assert.strictEqual(majorityAbsent.paused, true, '缺席过半必须暂停等主人拍板');
+    assert.strictEqual(majorityNotify, true);
+    assert(majorityAbsent.card.card.payload.boardReview.ownerApproved, '决策卡必须携带 ownerApproved 防止重复评审');
+    assert.strictEqual(majorityAbsent.card.card.payload.useOrchestrator, true, '主人批准后仍必须进入 CEO 规划');
+    const majorityEvents = readEvents(majorityAbsentEventsFile);
+    assert(majorityEvents.some(ev => ev.type === 'board.review.quorum_lost' && ev.absentCount === 3 && ev.directorCount === 4));
+    assert(!majorityEvents.some(ev => ev.type === 'board.review.approved'), '缺席过半不得产生 approved 事件');
 
     // ── 拍板 Q11 分级评审:普通架构任务端到端只派 2 席(轮值+终审) ──
     const lightOkOpinion = role => ({

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yutu6.local/schemas/repair-claim-noop-steer-provenance.schema.json",
+  "title": "Repair claim no-op trusted steer provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "issuer",
+    "source",
+    "queue_agent",
+    "queue_id",
+    "ticket_id",
+    "steer_sha256",
+    "ticket_sha256",
+    "report_path",
+    "report_sha256",
+    "completion_fingerprint",
+    "issued_at",
+    "record_hash"
+  ],
+  "properties": {
+    "schema": { "const": "repair-claim-noop-steer-provenance@1" },
+    "issuer": {
+      "enum": ["console-server:repair-closeout-noop", "repair-lead:closeout"]
+    },
+    "source": { "enum": ["repair-closeout", "repair-lead"] },
+    "queue_agent": { "const": "repair" },
+    "queue_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "ticket_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "steer_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "ticket_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "report_path": {
+      "type": "string",
+      "pattern": "^projects/控制台/artifacts/repair-reports/[A-Za-z0-9._-]+\\.html$"
+    },
+    "report_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "completion_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "record_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

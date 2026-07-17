@@ -15,7 +15,7 @@
    ```
    # 任务:<一句话标题>
    - 目标:<要什么,可验证>
-   - 边界:<明确"不用管 X、不要碰 Y";Starlaid 一律排除>
+   - 边界:<明确"不用管 X、不要碰 Y",并写密钥、授权和高危操作边界>
    - 输入:<逐条列要读的文件/截图路径>
    - 验收:<怎样算做完;带视觉产物必须"渲染自查+对照用户截图">
    - 截止:<有就写,没有写"无">
@@ -26,7 +26,6 @@
 ## 硬规矩
 - **每次任务最多一个可见"补齐稿"块**;项目 expander 已出,全局 router 不再重复(避免串味,§3)。
 - **不臆测关键信息**:缺目标/输入/验收且无法合理推断 → 先问,别硬派。
-- **Starlaid 一律写进"边界—排除"**。
 - 带视觉/带证据的任务,验收必须包含"对照用户提供的证据"(§17 监管硬门)。
 - 不在信封里塞密钥值;需要密钥的步骤只引用保险库位置(见 `shared/config/environment.md`)。
 
@@ -36,7 +35,7 @@
 ```
 # 任务:排查控制台 codex runner 未通
 - 目标:让 codex 真对话在控制台返回真实回复(核心 runner 全绿)
-- 边界:只动 config.json 的 codex cmd / server.js 最小改动;不接飞书;不碰 Starlaid
+- 边界:只动 config.json 的 codex cmd / server.js 最小改动;不接飞书;密钥不回显
 - 输入:projects/控制台/{config.json,server.js,artifacts/console-verify.txt}
 - 验收:POST /api/chat runner=codex 返回真实答案、done code 0;结果写进 console-verify.txt
 - 截止:无

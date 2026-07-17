@@ -18,12 +18,11 @@
   - 路由:`projects/控制台/config.json`, `shared/routing/model-routing.yaml`, `projects/控制台/ceo-worker.js`, `shared/engine/cli-runner.js`。
   - 交接:`shared/knowledge/engineering/`, `shared/DATA-MAP.md`, `shared/agents/INDEX.md`。
   - 验收:`projects/控制台/artifacts/glm52-engineering-migration-20260622.md`。
-- 近期高风险上下文:假完成门禁、主管 review-loop、Starlaid 排除、GLM 用量统计缺 role metadata、Peekaboo/浏览器授权 gate。
+- 近期高风险上下文:假完成门禁、主管 review-loop、GLM 用量统计缺 role metadata、Peekaboo/浏览器授权 gate。
 
 ## 3. 已知坑位
 
 - 不要把"写了方案/patch 草案"说成已落盘;最终 `changed_files` 只列真实改动。
-- Starlaid 一律排除。显式红线文字不是授权,真正操作 Starlaid 仍要停。
 - `board/status-rollup.md` 通常由系统增量更新;只有任务明确要求时才手改。
 - 密钥、token、cookie、验证码不读值、不回显、不写日志。
 - 任务板/CEO 父子状态曾有假 done 历史;根任务必须有 implement+review 和证据才算交付。
@@ -75,4 +74,3 @@ node projects/控制台/tools/serial-smoke-test.js
 ```bash
 node tests/workspace-taskboard.test.js
 ```
-

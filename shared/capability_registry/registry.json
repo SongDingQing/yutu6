@@ -2,7 +2,7 @@
   "schema_version": 1,
   "updated_at": "2026-06-19",
   "note": "玉兔6 新机能力注册表。源自旧机 ~/.codex/modules/registry.json + multi-agent agent-manifest.json,repath 到新机并加迁移状态。",
-  "policy_2026_06_18": "41 项目技能与项目模块不再批量拷;改为【按需拉】(pull_on_demand)——做到对应项目时再从旧机/备份取该项目相关技能。全局只维护 3 件:①本模块索引 ②环境配置(shared/config/environment.md)③补齐指令稿(instruction-expansion-router,已重建)。Starlaid 硬排除。",
+  "policy_2026_06_18": "项目技能与项目模块不再批量拷;改为【按需拉】(pull_on_demand)——做到对应项目时再从旧机/备份取该项目相关技能。全局只维护本模块索引、环境配置与补齐指令稿。",
   "old_machine_root": "/Users/yutu/.codex/modules",
   "new_machine_root": "/Users/yutu6/.codex/modules",
   "workspace_modules_dir": "shared/capability_registry/modules",
@@ -187,25 +187,18 @@
       "status": "pull_on_demand",
       "old_path": "/Users/yutu/.codex/modules/user-clipboard-response-preference",
       "summary": "用户要\"一句话/一段话\"时复制到剪贴板的偏好。"
-    },
-    {
-      "id": "starlaid-unity-project",
-      "status": "hard_excluded",
-      "old_path": "/Users/yutu/.codex/modules/starlaid-unity-project",
-      "summary": "Starlaid 项目信息;自动研究中硬排除,仅按用户显式确认处理。"
     }
   ],
   "skills": {
     "old_root": "/Users/yutu/.codex/skills",
     "new_root": "/Users/yutu6/.codex/skills",
     "new_machine_state": "fresh_install_only_system_skills",
-    "custom_count": 41,
+    "custom_count": 38,
     "status": "archived_in_workspace",
-    "policy": "全量(减 Starlaid)已从 U盘归档进知识库作重建源;按项目登记/安装。Starlaid 四项硬排除。",
+    "policy": "现有归档已从 U 盘进入知识库作重建源;按项目登记和安装。",
     "archive": {
       "path": "knowledge/corpus/codex-skills",
       "count": 38,
-      "excluded_starlaid": 4,
       "source": "U盘 月饼/codex-41-skills-yutu-2026-06-18",
       "date": "2026-06-18"
     },

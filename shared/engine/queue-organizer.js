@@ -94,7 +94,6 @@ function projectOf(entry, agent) {
 function belongsToProject(entry, agent, projectId) {
   const project = String(projectId || '').trim();
   if (!project) return true;
-  if (/starlaid/i.test(project)) return false;
   if (projectOf(entry, agent) === project) return true;
   if (agent === `supervisor-${project}`) return true;
   const text = taskText(entry);
@@ -228,7 +227,6 @@ function queuedIdFromFile(file, entry) {
 function queueSnapshot(root, agents, opts = {}) {
   const states = opts.states || ['queued', 'paused', 'running'];
   const safeAgents = [...new Set((agents || []).map(safeAgent).filter(Boolean))]
-    .filter(agent => !/starlaid/i.test(agent))
     .sort((a, b) => a.localeCompare(b, 'zh-CN'));
   const entries = [];
   for (const agent of safeAgents) {
@@ -326,10 +324,8 @@ function sortActionable(items) {
 }
 
 function collect(root, opts) {
-  const agents = parseAgentList(opts.agents, root).filter(agent => {
-    if (/starlaid/i.test(agent)) return false;
-    return !(opts.excludeAgents || []).includes(agent);
-  });
+  const agents = parseAgentList(opts.agents, root)
+    .filter(agent => !(opts.excludeAgents || []).includes(agent));
   const actionable = [];
   const running = [];
   const terminal = [];
@@ -477,27 +473,6 @@ function uniqueGroups(groups) {
 }
 
 function makePlan(root, opts = {}) {
-  if (/starlaid/i.test(String(opts.projectId || opts.project || ''))) {
-    return attachPlanVersion({
-      ok: true,
-      applied: false,
-      out_of_band: true,
-      excluded: 'starlaid',
-      projectId: opts.projectId || opts.project || null,
-      agents: [],
-      summary: {
-        queued_before: 0,
-        paused_before: 0,
-        running_seen: 0,
-        planned_groups: 0,
-        planned_cancel: 0,
-        queued_after_estimate: 0,
-        terminal_reported: 0,
-      },
-      groups: [],
-      snapshot: queueSnapshot(root, [], {}),
-    });
-  }
   const collected = collect(root, opts);
   const allowCrossAgentMerge = opts.allowCrossAgentMerge === true;
   const groupCandidates = buildCandidateGroups(collected.actionable, allowCrossAgentMerge);
@@ -862,10 +837,6 @@ function groupContainsPaused(group) {
   return [group.keep, ...(group.cancel || [])].some(item => item && item.state === 'paused');
 }
 
-function isStarlaidScope(opts = {}) {
-  return /starlaid/i.test(String(opts.projectId || opts.project || ''));
-}
-
 function groupAgentSet(group) {
   const agents = new Set();
   if (group && group.keep && group.keep.agent) agents.add(group.keep.agent);
@@ -877,17 +848,6 @@ function groupAgentSet(group) {
 
 function crossAgentGroups(plan) {
   return (plan && plan.groups || []).filter(group => groupAgentSet(group).size > 1);
-}
-
-function starlaidAgentsInPlan(plan) {
-  const agents = new Set([
-    ...(plan && plan.agents || []),
-    ...((plan && plan.snapshot && plan.snapshot.agents) || []),
-  ]);
-  for (const group of plan && plan.groups || []) {
-    for (const agent of groupAgentSet(group)) agents.add(agent);
-  }
-  return Array.from(agents).filter(agent => /starlaid/i.test(String(agent || '')));
 }
 
 function exactSameEntries(entries) {
@@ -1066,15 +1026,6 @@ function organize(root, opts = {}) {
     projectId: null,
     source: 'queue-organizer',
   }, opts);
-  if (isStarlaidScope(options) && options.apply) {
-    return {
-      ok: false,
-      applied: false,
-      status: 403,
-      code: 'starlaid_excluded',
-      error: 'Starlaid is excluded from queue organize apply',
-    };
-  }
   const plan = makePlan(root, options);
   if (!options.apply) return plan;
   const applyPlan = normalizeApplyPlan(parsePlanInput(options.plan || options.dryRunPlan || options.expectedPlan));
@@ -1095,17 +1046,6 @@ function organize(root, opts = {}) {
       code: 'queue_organize_plan_hash_mismatch',
       error: 'organize plan hash mismatch; rerun dry-run',
       planHash: applyPlan.plan_hash_mismatch,
-    };
-  }
-  const starlaidPlanAgents = starlaidAgentsInPlan(applyPlan);
-  if (starlaidPlanAgents.length) {
-    return {
-      ok: false,
-      applied: false,
-      status: 403,
-      code: 'starlaid_excluded',
-      error: 'Starlaid is excluded from queue organize apply',
-      agents: starlaidPlanAgents,
     };
   }
   const crossAgent = crossAgentGroups(applyPlan);
@@ -1241,9 +1181,6 @@ function makeManualMergePlan(root, opts = {}) {
     .filter(id => id !== keepId);
   if (!agent || !keepId || !cancelIds.length) {
     return { ok: false, status: 400, error: 'manual merge requires agent, keepId and cancelIds' };
-  }
-  if (/starlaid/i.test(agent) || /starlaid/i.test(String(opts.projectId || ''))) {
-    return { ok: false, status: 403, code: 'starlaid_excluded', error: 'Starlaid is excluded from queue organize' };
   }
   const keep = findActionableItem(root, agent, keepId);
   const cancel = cancelIds.map(id => findActionableItem(root, agent, id));

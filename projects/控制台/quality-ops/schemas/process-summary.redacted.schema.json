@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yutu6-process-summary-redacted@1",
+  "title": "Yutu6 redacted process summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_ref",
+    "generated_at",
+    "classification",
+    "command",
+    "exit_code",
+    "target_summary",
+    "final_state",
+    "safe_output_summary",
+    "limits"
+  ],
+  "properties": {
+    "schema": { "const": "yutu6-process-summary-redacted@1" },
+    "schema_ref": { "const": "projects/控制台/quality-ops/schemas/process-summary.redacted.schema.json" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_version",
+        "kind",
+        "requires_structured_process_summary",
+        "label_factor",
+        "command_or_path_factor"
+      ],
+      "properties": {
+        "rule_version": { "const": "write-publish-dual-factor@1" },
+        "kind": { "enum": ["read_or_analysis", "write", "publish"] },
+        "requires_structured_process_summary": { "type": "boolean" },
+        "label_factor": { "$ref": "#/$defs/factor" },
+        "command_or_path_factor": { "$ref": "#/$defs/factor" }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "runner_id", "runner_kind", "executable", "arguments_recorded"],
+      "properties": {
+        "operation": { "const": "runner.execute" },
+        "runner_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "runner_kind": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "executable": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "arguments_recorded": { "const": false }
+      }
+    },
+    "exit_code": { "type": ["integer", "null"] },
+    "target_summary": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 900,
+      "not": {
+        "pattern": "^\\s*[|,;，；、:：.!?。！？()（）\\[\\]{}<>《》`\\\"'“”‘’]*(?:n\\s*/\\s*a|na|none|null|略|声明|待补|稍后补|见上|同上)[|,;，；、:：.!?。！？()（）\\[\\]{}<>《》`\\\"'“”‘’]*\\s*$"
+      }
+    },
+    "final_state": { "enum": ["completed", "failed"] },
+    "safe_output_summary": { "type": ["string", "null"], "maxLength": 2400 },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_command_arguments_recorded",
+        "output_tail_input_chars",
+        "safe_output_summary_max_chars",
+        "target_summary_max_chars",
+        "redaction_applied"
+      ],
+      "properties": {
+        "raw_command_arguments_recorded": { "const": false },
+        "output_tail_input_chars": { "const": 32768 },
+        "safe_output_summary_max_chars": { "const": 2400 },
+        "target_summary_max_chars": { "const": 900 },
+        "redaction_applied": { "const": true }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "classification": {
+            "properties": { "requires_structured_process_summary": { "const": true } },
+            "required": ["requires_structured_process_summary"]
+          }
+        },
+        "required": ["classification"]
+      },
+      "then": {
+        "properties": {
+          "exit_code": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "classification": {
+            "properties": { "requires_structured_process_summary": { "const": true } },
+            "required": ["requires_structured_process_summary"]
+          }
+        },
+        "required": ["classification"]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "properties": {
+              "kind": { "enum": ["write", "publish"] },
+              "label_factor": {
+                "properties": { "matched": { "const": true } },
+                "required": ["matched"]
+              },
+              "command_or_path_factor": {
+                "properties": { "matched": { "const": true } },
+                "required": ["matched"]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "classification": {
+            "properties": { "kind": { "const": "read_or_analysis" } }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "factor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matched", "sources"],
+      "properties": {
+        "matched": { "type": "boolean" },
+        "sources": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

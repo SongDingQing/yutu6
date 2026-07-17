@@ -102,7 +102,7 @@ function runEngine() {
     projectId: '控制台',
     scopedToProject: true,
     goal: '点击一个故意不会改变界面的测试按钮,验证未落地后自动纠错。',
-    bounds: 'visual action verify smoke only; Starlaid excluded; no secrets',
+    bounds: 'visual action verify smoke only; no secrets',
     inputs: ['projects/控制台/brief.md'],
     acceptance: 'must detect not landed and retry once',
     useOrchestrator: false,

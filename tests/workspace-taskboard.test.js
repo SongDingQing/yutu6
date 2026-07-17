@@ -31,8 +31,12 @@ function main() {
   assert(workspaceHtml.includes('const TASK_BOARD_ACTIVE_LIMIT=20'), 'active task board must cap rendered waiting/candidate cards for large queues');
   assert(workspaceHtml.includes('const remaining=Math.max(0,TASK_BOARD_ACTIVE_LIMIT-runningShown.length)'), 'running cards must have priority over waiting cards before active render capping');
   assert(workspaceHtml.includes('const hiddenActive=Math.max(0,activeTotal-activeShown)'), 'large active queues must expose a hidden-count note instead of rendering every node');
-  assert(workspaceHtml.includes('.tb-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;'), 'all task-board lists must be vertical scroll containers with contained wheel overscroll');
-  assert(workspaceHtml.includes('.tb-card.selected'), 'task cards must expose a visible selected state');
+	  assert(workspaceHtml.includes('.tb-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;'), 'all task-board lists must be vertical scroll containers with contained wheel overscroll');
+	  assert(workspaceHtml.includes('.task-board.mode-running .tb-section.running .tb-list{grid-auto-rows:max-content;'), 'running task cards must use content-sized grid rows instead of being compressed into equal-height tracks');
+	  assert(workspaceHtml.includes('overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable'), 'running task list must keep an independent stable vertical scrollbar');
+	  assert(workspaceHtml.includes('.task-board.mode-running .tb-section.running .tb-ceo-summary{grid-template-columns:minmax(0,1fr)}'), 'running card status chips must move below the title instead of squeezing its column to zero width');
+	  assert(workspaceHtml.includes('.task-board.mode-running .tb-section.running .tb-qa-text,.task-board.mode-running .tb-section.running .tb-progress-row .tb-progress{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal}'), 'running task summaries and progress must remain fully readable without line clamping');
+	  assert(workspaceHtml.includes('.tb-card.selected'), 'task cards must expose a visible selected state');
   assert(workspaceHtml.includes('.tb-ceo-card.selected,.tb-queue-card.selected,.tb-running-card.selected'), 'selected task cards must override running/queued status colors visibly');
   assert(workspaceHtml.includes('.tb-node.waiting,.tb-node.paused'), 'paused flow nodes must have a visible waiting-style state');
   assert(workspaceHtml.includes('.tb-node.rework'), 'review rework nodes must have a distinct visible state');
@@ -40,9 +44,20 @@ function main() {
   assert(workspaceHtml.includes('function isBoardRunnerAbsenceEvent'), 'workspace must classify board runner failures as absent');
   assert(workspaceHtml.includes("ev.type==='node.absent'||isBoardRunnerAbsenceEvent(ev)"), 'workspace progress must render board runner failure as absent');
   assert(workspaceHtml.includes('.tb-card.tb-rework-card:not(.tb-repair-card)'), 'rework task cards must expose an independent yellow card frame without overriding repair red');
-  assert(workspaceHtml.includes('.tb-progress-timer'), 'running progress must expose an independent second-level timer chip');
-  assert(workspaceHtml.includes('@keyframes tbProgressRun'), 'running progress must expose a visible motion effect');
-  assert(workspaceHtml.includes('updateTaskBoardProgressTimers(document)'), 'progress timers must tick without full task-board rerender');
+	  assert(workspaceHtml.includes('.tb-progress-timer'), 'running progress must expose an independent second-level timer chip');
+	  assert(workspaceHtml.includes('@keyframes tbProgressRun'), 'running progress must expose a visible motion effect');
+	  assert(workspaceHtml.includes('updateTaskBoardProgressTimers(document)'), 'progress timers must tick without full task-board rerender');
+	  assert(workspaceHtml.includes('.tb-latest-progress'), 'running cards must expose a dedicated latest-progress line below the step summary');
+	  assert(workspaceHtml.includes('data-task-progress-id="${esc(taskId)}"'), 'latest-progress lines must expose a stable taskId anchor');
+	  assert(workspaceHtml.includes('role="status" aria-live="polite" aria-atomic="true" tabindex="0"'), 'latest-progress lines must use polite atomic live-region semantics');
+	  assert(workspaceHtml.includes('.tb-latest-progress.is-overflowing .tb-latest-progress-track'), 'latest-progress motion must only run after overflow detection');
+	  assert(workspaceHtml.includes('.tb-latest-progress:hover .tb-latest-progress-track') && workspaceHtml.includes('.tb-latest-progress:focus-within .tb-latest-progress-track'), 'latest-progress motion must pause on hover and keyboard focus');
+	  assert(workspaceHtml.includes('.tb-card:not([open]) .tb-latest-progress-track') && workspaceHtml.includes('.task-progress-hidden .tb-latest-progress-track'), 'latest-progress motion must pause for collapsed cards and hidden tabs');
+	  assert(workspaceHtml.includes('function flushTaskBoardProgressUpdates'), 'event polling must batch latest-progress DOM updates by taskId');
+	  const pollEventsBlock = workspaceHtml.slice(workspaceHtml.indexOf('async function pollEvents'), workspaceHtml.indexOf('function queueTaskText'));
+	  assert(pollEventsBlock.indexOf('if(queueBoardDirty){ queueBoardDirty=false; renderQueue(); }') < pollEventsBlock.indexOf('flushTaskBoardProgressUpdates();'), 'pollEvents must flush latest-progress nodes after any required board render');
+	  const renderSignatureBlock = workspaceHtml.slice(workspaceHtml.indexOf('function taskBoardRenderSignature'), workspaceHtml.indexOf('function taskBoardBaseRole'));
+	  assert(!renderSignatureBlock.includes('taskProgress'), 'high-frequency progress must not enter the whole-board render signature');
   assert(workspaceHtml.includes('function collapseWaitingTaskCards'), 'task board must collapse non-running waiting cards on outside click');
   assert(workspaceHtml.includes('taskBoardIsRunningCard(card)'), 'outside collapse must skip running cards');
   assert(workspaceHtml.includes('const ceoRunningTasks=useCeoTasks?ceoTasks.filter'), 'CEO running tasks must be split from queued tasks');
@@ -73,6 +88,14 @@ function main() {
   assert(!/overflow:hidden/.test(officeStatusRule[0]), 'office status bubble must not clip the ::after arrow');
   assert(workspaceHtml.includes('.office-agent.working:not([data-office-gate="1"]) .office-status::before'), 'working shimmer must be scoped to working office agents and exclude gate alerts');
   assert(workspaceHtml.includes('.office-agent[data-office-gate="1"] .office-status::before{content:none;animation:none}'), 'gate alerts must suppress the working shimmer');
+  assert(workspaceHtml.includes('const OFFICE_GATE_TIMEOUT_MS=5*60*1000'), 'office human-gate alerts must auto-restore after the five-minute safety timeout');
+  assert(workspaceHtml.includes('const OFFICE_TOOL_APPLY_MIN_MS=100'), 'office tool station updates must be throttled to avoid event repaint storms');
+  assert(workspaceHtml.includes('Rule order is intentional: file/library readers run before web/open fallbacks'), 'office tool station rule order must document library-before-web precedence');
+  assert(workspaceHtml.includes("ev.toolName||ev.tool_name||ev.tool||ev.name||p.toolName||p.tool_name||p.tool||p.name||ev.command||p.command"), 'office tool names must prefer explicit tool/name fields before command fallback');
+  assert(workspaceHtml.includes('function applyOfficeToolPatch') && workspaceHtml.includes('OFFICE_TOOL_APPLY_MIN_MS-(Date.now()-(a.officeToolAppliedAt||0))'), 'office tool station patches must go through the throttled helper');
+  assert(workspaceHtml.includes('if(a.officeGate&&!isHumanGateClear(ev)) return false;'), 'office tool events must not overwrite an active human-gate alert');
+  assert(workspaceHtml.includes('function scheduleOfficeGateTimeout') && workspaceHtml.includes('officeGateRestorePatch(cur)'), 'office human-gate alerts must have a timeout restore path');
+  assert(workspaceHtml.includes('role="${actorRole}" aria-live="${actorLive}" aria-atomic="true"'), 'office gate cards must become assertive alert regions when waiting for approval');
   assert(workspaceHtml.includes('@media(prefers-reduced-motion: reduce)'), 'working shimmer must provide a reduced-motion fallback');
   const shimmerStart = workspaceHtml.indexOf('@keyframes officeStatusShimmer');
   const shimmerEnd = workspaceHtml.indexOf('@media(prefers-reduced-motion: reduce)', shimmerStart);
@@ -83,16 +106,22 @@ function main() {
   assert(!workspaceHtml.includes('.office-agent.done .office-status::before'), 'done status must not receive shimmer');
   assert(!workspaceHtml.includes('.office-agent.fail .office-status::before'), 'fail status must not receive shimmer');
   assert(workspaceHtml.includes('data-testid="office-view"'), 'office view must expose a stable test/screenshot target');
-  assert(workspaceHtml.includes("const WORKSPACE_VIEWS=['office','desks','flow'];"), 'workspace view memory must enumerate valid stage views');
+	  assert(workspaceHtml.includes("const WORKSPACE_VIEWS=['office','building','desks','flow'];"), 'workspace view memory must enumerate valid stage views');
   assert(workspaceHtml.includes("function loadCurrentView()"), 'workspace view memory must have an initialization read path');
   assert(workspaceHtml.includes('if(isWorkspaceView(q)) return q;'), 'workspace URL view must win when it is valid');
   assert(workspaceHtml.includes("return normalizeWorkspaceView(localStorage.getItem('yt6-ws-view'));"), 'workspace must read a saved valid stage view during initialization');
   assert(workspaceHtml.includes('function normalizeSideView'), 'side-panel memory must reject stale invalid localStorage values');
   assert(workspaceHtml.includes('let currentSideView=loadCurrentSideView();'), 'side-panel memory must use the normalized initialization read path');
+  assert(workspaceHtml.includes("const SIDE_VIEWS=['task-board','llm-usage','peekaboo-baseline'];"), 'side-panel memory must include the Peekaboo artifact view');
+  assert(workspaceHtml.includes('id="tab-peekaboo-baseline"') && workspaceHtml.includes('id="side-peekaboo-baseline"'), 'workspace must expose a Peekaboo artifact side tab and panel');
+  assert(workspaceHtml.includes('/api/peekaboo-baseline/artifacts'), 'workspace must fetch Peekaboo baseline artifacts from the server API');
+  assert(workspaceHtml.includes('function renderPeekabooBaseline'), 'workspace must render Peekaboo artifact thumbnails and logs');
+	  assert(workspaceHtml.includes("setInterval(()=>pollWhenVisible(pollPeekabooBaseline),60000)"), 'workspace must refresh Peekaboo artifacts while visible after initial load');
   assert(!workspaceHtml.includes("new URLSearchParams(location.search).get('view')||localStorage.getItem('yt6-ws-view')"), 'office default must not be overridden by old localStorage view state');
   assert(workspaceHtml.includes('class="vtab on" type="button" role="tab" id="vtab-office"'), 'office stage tab must have a static selected fallback before polling completes');
-  assert(workspaceHtml.includes('id="view-office" class="view on" role="tabpanel"'), 'office panel must have a static visible fallback before polling completes');
-  assert(workspaceHtml.includes('id="view-desks" class="view" role="tabpanel"') && workspaceHtml.includes('aria-hidden="true" hidden data-scroll-key="view:desks"'), 'inactive desks panel must be hidden until JS selects it');
+	  assert(workspaceHtml.includes('id="view-office" class="view on" role="tabpanel"'), 'office panel must have a static visible fallback before polling completes');
+	  assert(workspaceHtml.includes('id="view-building" class="view" role="tabpanel"') && workspaceHtml.includes('aria-hidden="true" hidden data-scroll-key="view:building"'), 'inactive building panel must be hidden until JS selects it');
+	  assert(workspaceHtml.includes('id="view-desks" class="view" role="tabpanel"') && workspaceHtml.includes('aria-hidden="true" hidden data-scroll-key="view:desks"'), 'inactive desks panel must be hidden until JS selects it');
   assert(workspaceHtml.includes('id="view-flow" class="view" role="tabpanel"') && workspaceHtml.includes('aria-hidden="true" hidden data-scroll-key="view:flow"'), 'inactive flow panel must be hidden until JS selects it');
   assert(workspaceHtml.includes('.office-people{position:relative;z-index:3;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));'), 'office rows must use a five-column grid instead of flex-wrap');
   assert(workspaceHtml.includes('.chairman-suite{order:1}.office-boardroom{order:2') && workspaceHtml.includes('.office-common{order:3'), 'boardroom must be the second office row directly after chairman suite');
@@ -113,8 +142,10 @@ function main() {
   assert(officeNameRule && !/text-overflow:ellipsis/.test(officeNameRule[0]) && !/overflow:hidden/.test(officeNameRule[0]), 'office names must not use ellipsis clipping');
   assert(workspaceHtml.includes('--sprite-size:clamp(58px,72%,82px)'), 'office agents must be scaled near the chairman visible sprite size');
 
-  const flowCtx = runWorkspaceBlock('function edgeKey', 'function queueCacheKey', {
-    GRAPH_POS: {
+	  const flowCtx = runWorkspaceBlock('function edgeKey', 'function queueCacheKey', {
+	    flowFitView: false,
+	    FLOW_RENDER_POS: {},
+	    GRAPH_POS: {
       orchestrator: { x: 30, y: 32 },
       ui_optimizer: { x: 75, y: 31 },
       gui_desktop_control: { x: 91, y: 31 },
@@ -174,22 +205,40 @@ function main() {
   assert(progress && /维修/.test(progress.text) && /跑脚本中/.test(progress.text), 'node.output must become simplified task-board progress text');
   assert(!/process\.env|SECRET|console\.log/.test(progress.text), 'node.output progress must not expose script details');
 
-  const durationCtx = runWorkspaceBlock('function queueElapsedLabel', 'function updateTaskBoardHint', {
+  const durationCtx = runWorkspaceBlock('function taskBoardRunningStartedAt', 'function updateTaskBoardHint', {
     esc: s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   });
+  const now = Date.now();
+  const justStarted = new Date(now).toISOString();
+  const seventySecondsAgo = new Date(now - 70 * 1000).toISOString();
+  const oneHundredThirtySecondsAgo = new Date(now - 130 * 1000).toISOString();
   const ninetySecondsAgo = new Date(Date.now() - 90 * 1000).toISOString();
   const tenSecondsAgo = new Date(Date.now() - 10 * 1000).toISOString();
+  assert.strictEqual(durationCtx.taskBoardElapsedFrom(justStarted), '刚开始', 'T0 running elapsed must render as just started');
+  assert.strictEqual(durationCtx.taskBoardElapsedFrom(seventySecondsAgo), '1 分钟', 'T+70s running elapsed must render as one minute');
+  assert.strictEqual(durationCtx.taskBoardElapsedFrom(oneHundredThirtySecondsAgo), '2 分钟', 'T+130s running elapsed must render as two minutes');
   assert.strictEqual(durationCtx.taskBoardElapsedFrom(ninetySecondsAgo), '1 分钟', 'running elapsed must be minute-granular');
   assert.strictEqual(durationCtx.taskBoardElapsedFrom(tenSecondsAgo), '刚开始', 'sub-minute running elapsed should avoid seconds');
+  assert.strictEqual(durationCtx.taskBoardElapsedFrom(new Date(Date.now() - 90 * 60000).toISOString()), '1 小时 30 分钟', 'hour-plus running elapsed must keep minute granularity');
+  assert.strictEqual(durationCtx.taskBoardElapsedFrom(new Date(Date.now() - ((26 * 60) + 5) * 60000).toISOString()), '1 天 2 小时', 'cross-day running elapsed must switch to day/hour granularity');
   assert(!/秒/.test(durationCtx.taskBoardElapsedFrom(ninetySecondsAgo)), 'running elapsed must never show seconds');
+  assert.strictEqual(durationCtx.queueElapsedLabel({ enqueued_at: '2026-01-01T00:00:00.000Z' }), '运行中...', 'running elapsed must not use enqueued_at as a numeric fallback');
+  assert.strictEqual(durationCtx.queueElapsedLabel({ claimed_at: seventySecondsAgo, enqueued_at: '2026-01-01T00:00:00.000Z' }), '1 分钟', 'claimed_at is an acceptable true running start fallback');
   assert.strictEqual(durationCtx.taskBoardFormatElapsedSeconds(10), '00:10', 'progress timer must format seconds as mm:ss');
   const progressTimerHtml = durationCtx.taskBoardProgressTimerHtml({ state: 'run', stepStartedAt: tenSecondsAgo }, '', 'running');
   assert(progressTimerHtml.includes('class="tb-progress-timer"'), 'running progress must render a standalone timer');
   assert(/00:1[0-2]/.test(progressTimerHtml), 'running progress timer must show second-level elapsed time');
   assert.strictEqual(durationCtx.taskBoardProgressTimerHtml({ state: 'done', stepStartedAt: tenSecondsAgo }, '', 'running'), '', 'done progress must stop showing a live timer');
+  assert.strictEqual(durationCtx.taskBoardProgressTimerHtml({}, '2026-01-01T00:00:00.000Z', 'queued'), '', 'queued progress must not start a running timer from enqueue time');
   const runningWithoutStart = durationCtx.taskBoardDurationHtml('2026-01-01T00:00:00.000Z', '', 'running');
-  assert(runningWithoutStart.includes('<b>运行</b>') && runningWithoutStart.includes('运行中'), 'running duration chip must remain visible without started_at');
+  assert(runningWithoutStart.includes('<b>运行</b>') && runningWithoutStart.includes('运行中...'), 'running duration chip must remain visible without started_at');
+  assert(!runningWithoutStart.includes('tb-duration run" data-duration-at="2026-01-01T00:00:00.000Z"'), 'running duration chip must not tick from enqueued_at');
   assert(!/data-duration-at=""/.test(runningWithoutStart), 'invalid running start must not become an empty ticking duration source');
+
+  const runningStart = '2026-07-05T04:00:00.000Z';
+  assert.strictEqual(Server._test.queueRunningStartedAt({ enqueued_at: '2026-07-05T03:00:00.000Z' }), '', 'server must not treat enqueued_at as a running start');
+  assert.strictEqual(Server._test.queueRunningStartedAt({ engine_started_at: runningStart, started_at: '2026-07-05T03:30:00.000Z' }), runningStart, 'server should prefer engine_started_at as the precise running start');
+  assert.strictEqual(Server._test.queueApiRunningEntry({ id: 'legacy-run', engine_started_at: runningStart, enqueued_at: '2026-07-05T03:00:00.000Z' }).started_at, runningStart, 'queue API running payload must expose a true started_at fallback');
 
   const scriptProgressCtx = runWorkspaceBlock('function taskBoardOutputText', 'function taskBoardCeoBrief', {
     taskBoardProgressActor: () => '后端程序员',
@@ -202,14 +251,88 @@ function main() {
   assert.strictEqual(parsedScriptProgress.scriptProgress.current, 3, 'workspace should parse script current progress from output text');
   assert.strictEqual(parsedScriptProgress.scriptProgress.total, 50, 'workspace should parse script total progress from output text');
   assert.strictEqual(scriptProgressCtx.taskBoardProgressLine(parsedScriptProgress), '正在运行第 3 个脚本(共 50 个)', 'script progress line should show current script index and total');
-  const structuredScriptProgress = scriptProgressCtx.taskBoardOutputProgress({
+	  const structuredScriptProgress = scriptProgressCtx.taskBoardOutputProgress({
     type: 'node.output',
     stream: 'stderr',
     text: 'exec_command node tests/foo.js',
     scriptIndex: 4,
     scriptTotal: 10,
-  });
-  assert.strictEqual(scriptProgressCtx.taskBoardProgressLine(structuredScriptProgress), '正在运行第 4 个脚本(共 10 个)', 'workspace should prefer structured script progress fields when present');
+	  });
+	  assert.strictEqual(scriptProgressCtx.taskBoardProgressLine(structuredScriptProgress), '正在运行第 4 个脚本(共 10 个)', 'workspace should prefer structured script progress fields when present');
+
+	  const latestCtx = runWorkspaceBlock('function taskBoardLatestProgressLine', 'function updateTaskBoardDurations', {
+	    taskBoardProgressShort: (text, max) => String(text || '').slice(0, max),
+	    esc: s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
+	    taskBoardProgressTimerHtml: () => '',
+	    taskProgressPending: {},
+	    taskProgressOverflowFrame: 0,
+	    REDUCED_MOTION: false,
+	    window: {
+	      requestAnimationFrame(fn) { fn(); return 1; },
+	      cancelAnimationFrame() {},
+	    },
+	  });
+	  const latestProgress = { text: '后端程序员跑脚本中', state: 'run', kind: 'script', outputCount: 8, order: 42 };
+	  assert.strictEqual(latestCtx.taskBoardLatestProgressLine(latestProgress), '后端程序员跑脚本中 · 进展更新 8 次', 'latest-progress projection must show role, safe action, and an activity count without raw output');
+	  const latestHtml = latestCtx.taskBoardLatestProgressHtml(latestProgress, 'task-a', 'running');
+	  assert(latestHtml.includes('data-task-progress-id="task-a"'), 'latest-progress HTML must bind to its own taskId');
+	  assert(latestHtml.includes('aria-live="polite"') && latestHtml.includes('aria-atomic="true"'), 'latest-progress HTML must be a polite atomic live region');
+	  assert(!latestHtml.includes('stdout') && !latestHtml.includes('process.env'), 'latest-progress HTML must not expose raw runner output');
+	  assert.strictEqual(latestCtx.taskBoardLatestProgressHtml(latestProgress, '', 'running'), '', 'latest-progress HTML must not render without a stable taskId');
+
+	  function fakeLatestNode(taskId, signature = '') {
+	    const classes = new Set(['tb-latest-progress', 'run']);
+	    const latest = { textContent: '', scrollWidth: 180 };
+	    const copy = { textContent: '' };
+	    const viewport = { clientWidth: 80 };
+	    return {
+	      dataset: { taskProgressId: taskId, progressSignature: signature },
+	      title: '',
+	      ariaLabel: '',
+	      style: { setProperty(name, value) { this[name] = value; } },
+	      classList: {
+	        add: c => classes.add(c),
+	        remove: (...values) => values.forEach(c => classes.delete(c)),
+	        toggle(c, on) { if (on) classes.add(c); else classes.delete(c); },
+	        contains: c => classes.has(c),
+	      },
+	      matches: selector => selector.includes('tb-latest-progress'),
+	      querySelector(selector) {
+	        if (selector === '.tb-latest-progress-text') return latest;
+	        if (selector === '.tb-latest-progress-copy') return copy;
+	        if (selector === '.tb-latest-progress-viewport') return viewport;
+	        return null;
+	      },
+	      querySelectorAll: () => [],
+	      setAttribute(name, value) { if (name === 'aria-label') this.ariaLabel = value; },
+	      _latest: latest,
+	      _copy: copy,
+	    };
+	  }
+	  const latestNode = fakeLatestNode('task-a');
+	  assert.strictEqual(latestCtx.updateTaskBoardLatestProgressNode(latestNode, 'task-a', latestProgress), true, 'matching taskId should update exactly its latest-progress node');
+		  assert.strictEqual(latestNode._latest.textContent, '后端程序员跑脚本中 · 进展更新 8 次');
+		  assert(latestNode.classList.contains('is-overflowing'), 'overflowing latest-progress text should opt into scrolling');
+		  assert.strictEqual(latestCtx.updateTaskBoardLatestProgressNode(latestNode, 'task-a', { ...latestProgress, outputCount: 9, order: 43 }), true, 'new activity should refresh the latest line');
+		  assert(latestNode.classList.contains('is-overflowing'), 'activity-count refreshes must preserve an active overflow animation instead of restarting it');
+		  assert.strictEqual(latestCtx.updateTaskBoardLatestProgressNode(latestNode, 'task-a', { ...latestProgress, outputCount: 9, order: 44 }), false, 'identical projected progress must not restart its animation');
+	  assert.strictEqual(latestCtx.updateTaskBoardLatestProgressNode(latestNode, 'task-b', latestProgress), false, 'a different taskId must never update this progress node');
+
+	  const rememberCtx = runWorkspaceBlock('function rememberTaskProgress', 'function taskBoardStepFromNodes', {
+	    taskProgress: {},
+	    taskProgressPending: {},
+	    taskBoardProgressFromEvent: ev => ({ text: `${ev.role}处理中`, state: 'run', kind: 'work' }),
+	    taskText: () => '',
+	    eventOrder: ev => ev.seq,
+	    taskBoardFallbackStep: () => '第1/2步',
+	  });
+	  assert.strictEqual(rememberCtx.rememberTaskProgress({ type: 'node.output', task: 'task-a', node: 'implement', role: '后端程序员', seq: 1, ts: '2026-07-13T00:00:01Z' }), true);
+	  assert.strictEqual(rememberCtx.rememberTaskProgress({ type: 'node.output', task: 'task-a', node: 'implement', role: '后端程序员', seq: 2, ts: '2026-07-13T00:00:02Z' }), true);
+	  assert.strictEqual(rememberCtx.rememberTaskProgress({ type: 'node.output', task: 'task-b', node: 'review', role: '主管', seq: 3, ts: '2026-07-13T00:00:03Z' }), true);
+	  assert.strictEqual(rememberCtx.rememberTaskProgress({ type: 'node.output', task: 'task-a', node: 'implement', role: '后端程序员', seq: 2, ts: '2026-07-13T00:00:02Z' }), false, 'duplicate/out-of-order events must not create another progress update');
+	  assert.strictEqual(rememberCtx.taskProgress['task-a'].outputCount, 2, 'same-task output events should become a bounded activity count');
+	  assert.strictEqual(rememberCtx.taskProgress['task-b'].outputCount, 1, 'parallel tasks must maintain independent progress counts');
+	  assert.deepStrictEqual(Object.keys(rememberCtx.taskProgressPending).sort(), ['task-a', 'task-b'], 'a poll batch must retain only one pending update per taskId');
 
   const boardProgress = Server._test.taskBoardProgressForEvent({
     type: 'board.review.round.start',
@@ -217,7 +340,29 @@ function main() {
     maxRounds: 1,
   }, '重要架构任务');
   assert(boardProgress && boardProgress.text === '董事会评议中(第 1/1 轮)', 'server board review progress text mismatch');
+  const quorumProgress = Server._test.taskBoardProgressForEvent({
+    type: 'board.review.quorum_lost',
+    absentCount: 3,
+    directorCount: 4,
+  }, '重要架构任务');
+  assert(quorumProgress && quorumProgress.state === 'wait' && quorumProgress.text.includes('3/4'), 'board quorum loss must render as waiting, not approved');
   assert.strictEqual(Server._test.taskBoardStatusLabel('rework'), '↩打回', 'server must label review rework without a done checkmark');
+
+  const preCeoBoardIndex = Server._test.buildTaskBoardIndex([
+    { seq: 1, type: 'task.queued', task: 'root-board-first', queueAgent: 'ceo', queueId: 'root-board-q', flow: 'project-route', goal: '重要架构任务' },
+    { seq: 2, type: 'node.start', task: 'root-board-first', node: 'board-board_deepseek-r1', role: 'board_deepseek' },
+    { seq: 3, type: 'node.end', task: 'root-board-first', node: 'board-board_deepseek-r1', role: 'board_deepseek' },
+    { seq: 4, type: 'node.start', task: 'root-board-first', node: 'orchestrator-plan', role: 'orchestrator' },
+    { seq: 5, type: 'node.end', task: 'root-board-first', node: 'orchestrator-plan', role: 'orchestrator' },
+  ]);
+  const preCeoBoardNodes = Server._test.buildCeoNodeChain(
+    { taskId: 'root-board-first', queueAgent: 'ceo', queueId: 'root-board-q' },
+    'running',
+    preCeoBoardIndex,
+    null,
+  );
+  assert(/^board-/.test(preCeoBoardNodes[0].node || ''), '工位链首节点必须是董事会');
+  assert.strictEqual(preCeoBoardNodes[1].id, 'ceo-plan', '工位链中 CEO 必须排在董事会后');
 
   const baseReworkEvents = [
     { seq: 1, type: 'task.queued', task: 'root-rework', queueAgent: 'ceo', queueId: 'rootq', flow: 'project-route', goal: 'root task' },
@@ -271,13 +416,13 @@ function main() {
 	  const nodeChainCtx = runWorkspaceBlock('function taskBoardNormalizeNodeChain', 'function taskBoardCeoActions', {
 	    esc: s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
 	  });
- const downstreamStartedChainHtml = nodeChainCtx.taskBoardNodeChain([
+	 const downstreamStartedChainHtml = nodeChainCtx.taskBoardNodeChain([
 	    { label: 'CEO规划', status: 'pending', statusText: '⚪待开始', taskId: 'root', node: 'orchestrator-plan' },
 	    { label: '主管', status: 'done', statusText: '✅完成', taskId: 'child', node: 'supervisor' },
 	    { label: '后端程序员', status: 'running', statusText: '🔵运行中', taskId: 'child', node: 'implement' },
 	  ]);
-	  assert(downstreamStartedChainHtml.includes('<b>CEO规划</b><em>✅完成</em>'), 'CEO planning must be inferred done once downstream nodes have started');
-	  assert(!downstreamStartedChainHtml.includes('<b>CEO规划</b><em>⚪待开始</em>'), 'CEO planning must not stay pending while downstream nodes are active');
+	  assert(downstreamStartedChainHtml.includes('<b>CEO规划</b><em>⚪待开始</em>'), 'workspace must preserve the authoritative pending CEO status');
+	  assert(!downstreamStartedChainHtml.includes('<b>CEO规划</b><em>✅完成</em>'), 'downstream activity must not infer CEO completion in the presentation layer');
 	  const allPendingChainHtml = nodeChainCtx.taskBoardNodeChain([
 	    { label: 'CEO规划', status: 'pending', statusText: '⚪待开始', taskId: 'root', node: 'orchestrator-plan' },
 	    { label: '主管', status: 'pending', statusText: '⚪待开始', taskId: 'child', node: 'supervisor' },
@@ -333,7 +478,9 @@ function main() {
     taskBoardDisplayProgress: (task, progress) => progress,
     taskBoardProgressLine: progress => progress.text,
     taskBoardProgressElapsed: () => '',
-    taskBoardProgressHtml: (progress, line) => `<div class="tb-progress-row"><div class="tb-progress">${line}</div></div>`,
+	    taskBoardProgressHtml: (progress, line) => `<div class="tb-progress-row"><div class="tb-progress">${line}</div></div>`,
+	    taskBoardTaskId: () => 'task-running',
+    taskBoardRunningStartedAt: item => item.engine_started_at || item.engineStartedAt || item.started_at || item.startedAt || item.claimed_at || item.claimedAt || '',
     taskBoardCardKey: (...parts) => parts.filter(Boolean).join(':'),
     taskBoardCardAttrs: (key, status) => `data-tb-card-key="${key}" data-tb-card-status="${status}"`,
     taskBoardSelectedKey: 'queue-waiting:worker_code:q-1',

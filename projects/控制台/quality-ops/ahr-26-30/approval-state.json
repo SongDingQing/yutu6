@@ -1,0 +1,31 @@
+{
+  "schema": "yutu6-global-blocking-hook-approval@1",
+  "taskId": "owner-gate-slimming-20260716",
+  "implementationTaskId": "owner-gate-slimming-20260716",
+  "previousImplementationTaskIds": [
+    "cr-1784014494477-397d53ad",
+    "cr-1784017768825-397d53ad"
+  ],
+  "status": "approved",
+  "approvedScope": [
+    "active-shadow-dormant hook modes",
+    "incident provenance for active blocking gates",
+    "routine lean regression profile with dormant full-only tests",
+    "risk-based loop engineering activation",
+    "role-based context budget",
+    "scoped executable evidence policy"
+  ],
+  "rollbackPlan": "Set duplicate hooks back to active in projects/控制台/config/gate-policy.json, use node tests/run.js --profile full, set CONSOLE_LOOP_ENGINEERING_AUTOMATION=1, and revert the context/evidence policy modules if incident review requires the previous behavior.",
+  "checkedAt": "2026-07-16T16:13:00+08:00",
+  "checkedSources": [
+    {
+      "path": "owner request in current Codex task",
+      "result": "explicitly requested global gate slimming, performance optimization, incident-backed constraints, and dormant nonessential gates"
+    },
+    {
+      "path": "docs/设计/玉兔6-回归门瘦身与事故驱动策略.md",
+      "result": "implementation scope and preserved safety floor documented"
+    }
+  ],
+  "decision": "Approved only for the listed slimming and observability scope. Secret hygiene, primary DoneGate, queue integrity and incident-backed runtime recovery remain active."
+}

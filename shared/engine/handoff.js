@@ -10,7 +10,8 @@
  * - 生命周期绑队列终态(目录轮转);board_* 角色(纯文本 runner)由调用方排除。
  *
  * 开关 YUTU6_HANDOFF_MODE:
- *   shadow(默认)= 只写 task.md/meta.json,不改信封;
+ *   auto(默认)  = CLI runner 的长目标自动指针化,短目标保持全文;
+ *   shadow      = 只写 task.md/meta.json,不改信封;
  *   on           = CLI runner(codex/claude 族)信封 goal 段指针化;
  *   off          = 完全关闭,不写文件、不改信封。
  * 任何读/写失败一律回退现状全文,由调用方 emit handoff.fallback,绝不阻断任务。
@@ -19,9 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const MODES = new Set(['off', 'shadow', 'on']);
-const DEFAULT_MODE = 'shadow';
+const MODES = new Set(['off', 'shadow', 'auto', 'on']);
+const DEFAULT_MODE = 'auto';
 const INTENT_MAX_CHARS = 200;
+const AUTO_POINTER_MIN_CHARS = 2500;
 
 function mode(env) {
   const source = env || process.env;
@@ -31,6 +33,15 @@ function mode(env) {
 
 function isEnabled(env) {
   return mode(env) !== 'off';
+}
+
+function autoPointerMinChars(env) {
+  const source = env || process.env;
+  return Math.max(
+    500,
+    Number.parseInt(source.YUTU6_HANDOFF_AUTO_MIN_CHARS || String(AUTO_POINTER_MIN_CHARS), 10)
+      || AUTO_POINTER_MIN_CHARS,
+  );
 }
 
 function fingerprintText(text) {
@@ -71,6 +82,9 @@ function buildTaskDocText(ctx) {
     '## 验收(含结构化验收表)',
     String(c.acceptance || '(未提供)'),
     '',
+    '## 视觉验收分类审计',
+    c.visual_acceptance ? JSON.stringify(c.visual_acceptance, null, 2) : '(旧任务信封未提供)',
+    '',
   ].filter(x => x != null).join('\n');
 }
 
@@ -93,6 +107,8 @@ function writeMeta(runDir, meta) {
     from: null,
     to: null,
     spec_fingerprint: null,
+    task_document_fingerprint: null,
+    visual_acceptance: null,
     attempts: [],
     written_at: new Date().toISOString(),
   }, meta || {});
@@ -102,7 +118,9 @@ function writeMeta(runDir, meta) {
   return { file, meta: body };
 }
 
-/* 读任务稿并校验指纹。opts.fingerprint(如 ctx.spec_fingerprint)优先于 meta.spec_fingerprint。
+/* 读任务稿并校验文档指纹。
+ * task_document_fingerprint 只证明 task.md 完整性；spec_fingerprint 只关联任务协议。
+ * 旧 meta 没有 task_document_fingerprint 时，仍把旧 spec_fingerprint 当文档指纹读取。
  * 返回 { ok:true, file, text, meta, fingerprint } 或 { ok:false, reason, file }。 */
 function readTaskDoc(runDir, opts) {
   const file = taskDocPath(runDir || '');
@@ -120,8 +138,20 @@ function readTaskDoc(runDir, opts) {
   } catch (e) {
     return { ok: false, reason: `meta_unreadable: ${e.message}`, file };
   }
-  const expected = (opts && opts.fingerprint) || (meta && meta.spec_fingerprint) || null;
+  const legacyMeta = !(meta && meta.task_document_fingerprint);
+  const expected = (opts && opts.task_document_fingerprint)
+    || (meta && meta.task_document_fingerprint)
+    || (legacyMeta && meta && meta.spec_fingerprint)
+    || null;
   if (!expected) return { ok: false, reason: 'fingerprint_missing', file };
+  const expectedSpec = opts && opts.spec_fingerprint;
+  if (!legacyMeta && expectedSpec && meta.spec_fingerprint && meta.spec_fingerprint !== expectedSpec) {
+    return {
+      ok: false,
+      reason: `spec_fingerprint_mismatch: expected=${String(expectedSpec).slice(0, 12)} meta=${String(meta.spec_fingerprint).slice(0, 12)}`,
+      file,
+    };
+  }
   const actual = fingerprintText(text);
   if (actual !== expected) {
     return {
@@ -152,10 +182,13 @@ function isCliRunner(runner) {
  * - { fallback: reason }:on 模式本该指针化但读失败/指纹不符 → 回退全文,调用方 emit handoff.fallback;
  * - { pointer: { intent, file, fingerprint } }:指针化信封。 */
 function envelopeGoalPointer({ runDir, ctx, runner, env } = {}) {
-  if (mode(env) !== 'on') return null;
+  const selectedMode = mode(env);
+  if (selectedMode === 'off' || selectedMode === 'shadow') return null;
   if (!isCliRunner(runner)) return null;
   if (!runDir) return null;
-  const doc = readTaskDoc(runDir, { fingerprint: ctx && ctx.spec_fingerprint });
+  if (selectedMode === 'auto'
+    && String(ctx && ctx.goal || '').length < autoPointerMinChars(env)) return null;
+  const doc = readTaskDoc(runDir, { spec_fingerprint: ctx && ctx.spec_fingerprint });
   if (!doc.ok) return { fallback: doc.reason };
   return {
     pointer: {
@@ -169,6 +202,8 @@ function envelopeGoalPointer({ runDir, ctx, runner, env } = {}) {
 module.exports = {
   mode,
   isEnabled,
+  autoPointerMinChars,
+  AUTO_POINTER_MIN_CHARS,
   fingerprintText,
   taskDocPath,
   metaPath,

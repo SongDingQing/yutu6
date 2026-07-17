@@ -61,11 +61,13 @@ function main() {
       card('dup-new', { title: '重复标题测试卡片甲乙丙丁戊', created_at: daysAgo(2) }),
       // 维修工单卡:最老但豁免
       card('repair-oldest', { source: '维修工单', created_at: daysAgo(30), title: '维修工单: 某某故障' }),
+      // 维修工单卡:即使 queue done 超 7 天也豁免,避免清算摘要和实现口径冲突
+      card('repair-done-old', { source: '维修工单', status: 'enabled', queueId: 'q-old-done', enabled_at: daysAgo(10), created_at: daysAgo(30), title: '维修工单: 旧完成队列' }),
       // 已归档的卡不参与
       card('already-archived', { status: 'archived', created_at: daysAgo(40) }),
     ];
-    // 填充 9 张普通活卡(12..4 天前),使 a/b/c 清算后活卡 13 张 > 10,触发 d 截断 3 张最老。
-    for (let i = 0; i < 9; i++) {
+    // 填充 8 张普通活卡(12..5 天前),使 a/b/c 清算后活卡 13 张 > 10,触发 d 截断 3 张最老。
+    for (let i = 0; i < 8; i++) {
       fixtures.push(card(`filler-${i}`, { title: `独立填充卡片编号${i}壹贰叁`, created_at: daysAgo(12 - i) }));
     }
     writeJson(cardsFile, fixtures);
@@ -82,6 +84,7 @@ function main() {
     assert(planIds.includes('dup-old'), 'rule c should archive older duplicate');
     assert(!planIds.includes('dup-new'), 'newest duplicate must stay');
     assert(!planIds.includes('repair-oldest'), 'repair card is exempt');
+    assert(!planIds.includes('repair-done-old'), 'repair card with old done queue is exempt');
     assert(!planIds.includes('already-archived'), 'archived card is not active');
     const dupAction = dry.plan.actions.find(a => a.id === 'dup-old');
     assert.strictEqual(dupAction.keepId, 'dup-new');
@@ -111,6 +114,7 @@ function main() {
     assert(byId.get('dup-old').archivedReason.startsWith('duplicate-merged:dup-new'));
     assert.strictEqual(byId.get('filler-0').archivedReason, 'active-cap-overflow');
     assert.strictEqual(byId.get('repair-oldest').status, 'todo', 'repair card must survive');
+    assert.strictEqual(byId.get('repair-done-old').status, 'enabled', 'repair card with old done queue must survive');
     assert.strictEqual(byId.get('done-recent').status, 'enabled');
     assert.strictEqual(byId.get('proposal-fresh').status, 'todo');
 

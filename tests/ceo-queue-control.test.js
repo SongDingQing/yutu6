@@ -50,6 +50,29 @@ function post(port, apiPath, body) {
   });
 }
 
+function get(port, apiPath) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: apiPath,
+      method: 'GET',
+    }, res => {
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        let parsed = {};
+        try { parsed = JSON.parse(data || '{}'); }
+        catch (e) { return reject(e); }
+        resolve({ status: res.statusCode, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -130,6 +153,22 @@ async function main() {
   const agent = 'worker_code';
 
   try {
+    Q.enqueue(root, agent, { goal: 'api running start normalization' }, { id: 'api-running-start', priority: 1 });
+    Q.claim(root, agent, { match: entry => entry.id === 'api-running-start' });
+    const apiRunningFile = path.join(root, 'queues', agent, 'running', 'api-running-start.json');
+    const apiRunningEntry = JSON.parse(fs.readFileSync(apiRunningFile, 'utf8'));
+    apiRunningEntry.enqueued_at = '2026-07-05T01:00:00.000Z';
+    apiRunningEntry.engine_started_at = '2026-07-05T01:23:00.000Z';
+    delete apiRunningEntry.started_at;
+    fs.writeFileSync(apiRunningFile, JSON.stringify(apiRunningEntry, null, 2) + '\n');
+    const apiQueue = await get(port, `/api/queue/${agent}`);
+    assert.strictEqual(apiQueue.status, 200);
+    const apiRunning = apiQueue.body.running.find(entry => entry.id === 'api-running-start');
+    assert(apiRunning, '/api/queue running payload should include the active item');
+    assert.strictEqual(apiRunning.started_at, apiRunningEntry.engine_started_at, '/api/queue must expose a true running started_at fallback');
+    assert.notStrictEqual(apiRunning.started_at, apiRunning.enqueued_at, '/api/queue must not use enqueued_at as running started_at');
+    Q.complete(root, agent, 'api-running-start', true);
+
     const deniedEnqueue = await post(port, `/api/queue/${agent}`, {
       id: 'oldenq',
       goal: 'legacy secretary enqueue must be rejected',

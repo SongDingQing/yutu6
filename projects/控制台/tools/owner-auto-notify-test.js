@@ -80,6 +80,7 @@ async function main() {
     process.env.RUNNING_ENGINE_HEARTBEAT_STALE_MS = '1000';
     process.env.RUNNING_NO_PROGRESS_STALE_MS = '0';
     process.env.AUTO_REPAIR_ENABLED = '0';
+    process.env.YUTU6_NOTIFY_TIERED = '0';
     process.env.FAKE_FEISHU_LOG = fakeLog;
 
     const WorkerTest = require(path.join(WORKDIR, 'projects/控制台/ceo-worker'))._test;
@@ -202,6 +203,7 @@ async function main() {
     const completed = Tools.repairTicketComplete({
       id: 'repair-key',
       result: '根因: running 心跳失联; 处理: 清理占槽并补告警; 验证: owner-auto-notify-test PASS; 架构判断: 可泛化',
+      yuanxiao: 'false',
     });
     assert.strictEqual(completed.notify.sent, true);
 
@@ -224,7 +226,7 @@ async function main() {
     assert(calls[2].body.includes('问题类型: 任务卡住'));
     assert(calls[2].body.includes('下一步: 系统重试中'));
     assert(!/(任务卡住:|【自动[:：]】|stuck1|heartbeat|engine_heartbeat_at|心跳|超时|未续约)/i.test(`${calls[2].title}\n${calls[2].body}`));
-    assert.strictEqual(calls[3].title, '关键修复完成: repair-key');
+    assert.strictEqual(calls[3].title, '维修完成 · 卡死解除');
     assert(calls.every(call => !/(老板要求|请 CEO|原始目标)/.test(`${call.title}\n${call.body}`)));
     const notifyState = JSON.parse(fs.readFileSync(path.join(artifactsDir, 'owner-auto-notify-state.json'), 'utf8'));
     const mergedNotices = Object.values(notifyState.notices || {}).filter(notice => notice.merged > 0);

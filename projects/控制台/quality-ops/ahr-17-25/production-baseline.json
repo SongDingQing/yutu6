@@ -1,0 +1,34 @@
+{
+  "schema": "yutu6.ahr17-25-production-baseline@1",
+  "recordedAt": "2026-07-14T18:42:10+08:00",
+  "taskId": "cr-1784025338751-0e9019b7",
+  "rootTaskId": "cr-1784019175750-d512c3ff",
+  "head": "9e346f2dbbc4b6de1dc0a22ff399af3c70466bfe",
+  "worktreeDiffSha256": "84ff00bd5381805101d77c27f54ec5319e8a62dd435dc5c68be928796d2484b2",
+  "statusPorcelainSha256": "deb733898312579da3062e0c1fcb8bc38c8b96ad05bafd77d859f2e009b44fe5",
+  "note": "Hashes freeze the pre-implementation worktree. Dirty runner files belong to the existing workspace and are not modified by this PoC.",
+  "files": {
+    "shared/engine/engine.js": "727e42a26233a30d1c84d4b977faaabc7e791299333aed6ec2c1a91f54464683",
+    "shared/engine/eventlog.js": "e904baf48a81c76a9deff82db62e971e075a4783da8fb38705ec27f5822453d5",
+    "shared/engine/done-gate.js": "d95a91e2c5dc9edc2457a9e8079aad736b0768dd5c815240ddd43f3505e5a0ab",
+    "shared/engine/protocol-gate.js": "34cd5020ab62ef3df47e18c74140a80b4b5d5d09eb7dbd069c88512848334ea0",
+    "shared/engine/taskstore.js": "6f3ae1153bee62405d5f010c00c02c4a0478bbc1d0de373b8fa5e328fa09de76",
+    "shared/engine/queue.js": "a4451593a2bf852c33732639d9a80261d12fc4452ad60bcf5588af1989f55ff0",
+    "shared/engine/cli-runner.js": "76042a19439e88b68262af765ad21c2a8acbec91ad1807a1e45491b71bef4001",
+    "shared/engine/loop-engineering.js": "24f21950d1261d0c0dbf24be7983c3f71fe2979e70b43a879c80f9851fb40a8a",
+    "projects/控制台/engine-runner.js": "244b3b4141523f7f2946bce565d61c14d3d0929ff26ad96d4e9c385da9c78b08",
+    "projects/控制台/ceo-worker.js": "1aaa9ab404b906020e0ef94120625c498d87c818ea0f00fd9952452f2ddf13b9"
+  },
+  "headFiles": {
+    "shared/engine/engine.js": "727e42a26233a30d1c84d4b977faaabc7e791299333aed6ec2c1a91f54464683",
+    "shared/engine/eventlog.js": "e904baf48a81c76a9deff82db62e971e075a4783da8fb38705ec27f5822453d5",
+    "shared/engine/done-gate.js": "7d28aec63ba28cc3325791ab5b782efd28f3ab27b1705ec2699378491e9181ff",
+    "shared/engine/protocol-gate.js": "34cd5020ab62ef3df47e18c74140a80b4b5d5d09eb7dbd069c88512848334ea0",
+    "shared/engine/taskstore.js": "afde02736d6b76909160b40f77a521e36f463aa9554f46df72ca948a5ff64dbc",
+    "shared/engine/queue.js": "4fc874429250a28452a0c3f8f3a80f4d844a1014b735a0a23776ed7c5383f91c",
+    "shared/engine/cli-runner.js": "0f20ec404d95da3680f6bd87ff8c9f2ee5737964ecc0a03c883d582266366682",
+    "shared/engine/loop-engineering.js": "5865e62246256a82f046e5a62cdb26ccefdcb0912abd85742d60b24d891b917f",
+    "projects/控制台/engine-runner.js": "840fc72cefb440264a0a032ca18c1d9d872581b36fda8853a7f0e3bcc84916df",
+    "projects/控制台/ceo-worker.js": "dbfbc1982d46fafaeed850aed72a2e6aa25fb78c7d618e1084a1b08f7d9b78c8"
+  }
+}

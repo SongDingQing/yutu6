@@ -9,13 +9,19 @@
  *
  * 安全边界(硬约束):索引缺失/解析失败/无命中/任何异常 → 静默空结果,绝不阻断信封组装。
  * 开关:YUTU6_LESSON_INJECT=0 关闭注入(默认开)。
- * 注入预算:整块 ≤ MAX_BLOCK_CHARS(1200)字,防止信封膨胀。
+ * 注入预算:整块 ≤ MAX_BLOCK_CHARS(700)字,防止信封膨胀。
  */
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_MAX_LESSONS = 3;
-const MAX_BLOCK_CHARS = 1200;
+const DEFAULT_MAX_LESSONS = Math.max(
+  1,
+  parseInt(process.env.YUTU6_LESSON_MAX_HITS || '2', 10) || 2,
+);
+const MAX_BLOCK_CHARS = Math.max(
+  300,
+  parseInt(process.env.YUTU6_LESSON_MAX_CHARS || '700', 10) || 700,
+);
 
 // 六域领域词表(单一权威来源:build-lesson-index.js 归域/提取 keywords 也从这里取)。
 // 匹配规则:英文词按 token 边界匹配(避免 ui 命中 suite 这类子串误伤——同
@@ -159,6 +165,10 @@ function lessonContextBlock(goalText, opts) {
     if (process.env.YUTU6_LESSON_INJECT === '0') return '';
     const matched = matchLessons(goalText, opts);
     if (!matched.length) return '';
+    const maxChars = Math.max(
+      120,
+      Number(opts && opts.maxChars) || MAX_BLOCK_CHARS,
+    );
     const lines = [
       '# 历史教训(自动注入,与本任务同域的既往坑)',
       '以下是既往同域故障的教训摘要(只读参考,避免重蹈同族坑;与本任务无关可忽略,不构成新的验收要求):',
@@ -168,7 +178,7 @@ function lessonContextBlock(goalText, opts) {
     for (const m of matched) {
       const anchor = m.source_line ? `(依据: ${m.source_line})` : '';
       const line = `- 【${m.title}】${m.summary}${anchor}`;
-      if (total + line.length + 1 > MAX_BLOCK_CHARS) break;
+      if (total + line.length + 1 > maxChars) break;
       lines.push(line);
       total += line.length + 1;
       added++;

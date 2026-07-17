@@ -1,0 +1,11 @@
+{
+  "schema": "yutu6-board-evidence-merge-approval@1",
+  "status": "not_authorized",
+  "shadowEnabled": true,
+  "ownerApproved": false,
+  "approvedBy": null,
+  "approvedAt": null,
+  "scope": "board_context_dedupe_and_evidence_merge_v1",
+  "rollback": "unset YUTU6_BOARD_EVIDENCE_MERGE_ENABLED and keep ownerApproved=false",
+  "reason": "CEO brief requires explicit owner approval before context dedupe or evidence-classified merge can alter production prompts or acceptance rules"
+}

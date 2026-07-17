@@ -2,7 +2,7 @@
 'use strict';
 /*
  * 交接文件夹机制 shadow 阶段回归(拍板①②修正版):
- * 1) shadow(默认)写三件套(task.md + meta.json + handoff.shadow.written 事件)且信封不变;
+ * 1) auto(默认)写三件套,长 CLI 目标指针化;shadow 显式保持全文;
  * 2) on 模式 CLI runner 信封含指针(路径+指纹+先读指令),体积显著小于全文,验收表仍完整内联;
  * 3) 指纹不符回退全文 + handoff.fallback 事件;
  * 4) openai_http 不受影响(全文,且不发 fallback);
@@ -32,7 +32,7 @@ function mkCtx(overrides) {
       '优化工作区渲染:首行一句话意图',
       '细节说明:' + 'x'.repeat(20000),
     ].join('\n'),
-    bounds: '只处理本任务; Starlaid 一律排除; 密钥不回显',
+    bounds: '只处理本任务; 密钥不回显; 高危操作先确认',
     acceptance: [
       '结构化验收表',
       '| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |',
@@ -41,6 +41,14 @@ function mkCtx(overrides) {
     ].join('\n'),
     taskId: 'handoff-task-1',
     projectId: '控制台',
+    spec_fingerprint: 'task-protocol-spec-1',
+    visual_acceptance: {
+      schema: 'visual-acceptance@1',
+      acceptance_protocol: 'structured-acceptance@2',
+      state: 'not_applicable',
+      required: false,
+      source: 'task_type',
+    },
   }, overrides || {});
 }
 
@@ -64,10 +72,11 @@ function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'handoff-shadow-test-'));
   try {
     // ---- 开关语义 ----
-    assert.strictEqual(Handoff.mode({}), 'shadow', '默认应为 shadow');
+    assert.strictEqual(Handoff.mode({}), 'auto', '默认应为 auto');
+    assert.strictEqual(Handoff.mode({ YUTU6_HANDOFF_MODE: 'auto' }), 'auto');
     assert.strictEqual(Handoff.mode({ YUTU6_HANDOFF_MODE: 'on' }), 'on');
     assert.strictEqual(Handoff.mode({ YUTU6_HANDOFF_MODE: 'off' }), 'off');
-    assert.strictEqual(Handoff.mode({ YUTU6_HANDOFF_MODE: 'weird' }), 'shadow', '非法值回落 shadow');
+    assert.strictEqual(Handoff.mode({ YUTU6_HANDOFF_MODE: 'weird' }), 'auto', '非法值回落 auto');
     assert.strictEqual(Handoff.isEnabled({ YUTU6_HANDOFF_MODE: 'off' }), false);
     assert.strictEqual(Handoff.isEnabled({}), true);
 
@@ -93,20 +102,24 @@ function main() {
     assert(taskDoc.includes(ctx1.goal), '任务稿必须含 goal 全文');
     assert(taskDoc.includes(ctx1.bounds), '任务稿必须含 bounds');
     assert(taskDoc.includes(ctx1.acceptance), '任务稿必须含验收(含结构化验收表)');
+    assert.match(taskDoc, /## 视觉验收分类审计/);
+    assert.match(taskDoc, /"state": "not_applicable"/);
     const meta1 = JSON.parse(fs.readFileSync(path.join(runsDir1, 'meta.json'), 'utf8'));
     assert.strictEqual(meta1.taskId, 'handoff-task-1');
     assert.strictEqual(meta1.queueAgent, 'supervisor-控制台');
     assert.strictEqual(meta1.queueId, 'q-1');
     assert.strictEqual(meta1.from, 'ceo');
     assert.strictEqual(meta1.to, 'supervisor-控制台');
-    assert.strictEqual(meta1.spec_fingerprint, doc1.fingerprint);
+    assert.strictEqual(meta1.spec_fingerprint, ctx1.spec_fingerprint);
+    assert.strictEqual(meta1.task_document_fingerprint, doc1.fingerprint);
+    assert.deepStrictEqual(meta1.visual_acceptance, ctx1.visual_acceptance);
     assert(Array.isArray(meta1.attempts), 'meta.attempts 必须是数组');
     const written = eventsOf(eventlog1, 'handoff.shadow.written');
     assert.strictEqual(written.length, 1, '应 emit handoff.shadow.written');
     assert.strictEqual(written[0].fingerprint, doc1.fingerprint);
-    assert.strictEqual(written[0].mode, 'shadow');
+    assert.strictEqual(written[0].mode, 'auto');
     // readTaskDoc 指纹校验通过
-    const read1 = Handoff.readTaskDoc(runsDir1);
+    const read1 = Handoff.readTaskDoc(runsDir1, { spec_fingerprint: ctx1.spec_fingerprint });
     assert(read1.ok, `readTaskDoc 应通过: ${read1.reason || ''}`);
     assert.strictEqual(read1.fingerprint, doc1.fingerprint);
     // shadow 模式信封与不带 handoff 参数的信封逐字一致(信封不变)
@@ -118,6 +131,29 @@ function main() {
     assert(shadowEnvelope.includes(ctx1.goal), 'shadow 信封含 goal 全文');
     assert(!shadowEnvelope.includes('任务稿指针'), 'shadow 信封不得含指针');
 
+    const autoEnvelope = withHandoffMode(null, () => buildEnvelope(NODE, ctx1, {
+      runner: CLI_RUNNER, runsDir: runsDir1, eventlog: eventlog1, taskId: 'handoff-task-1',
+    }));
+    assert(autoEnvelope.includes('任务稿指针'), 'auto 模式应指针化长 CLI 目标');
+    const shortCtx = mkCtx({ goal: '短任务目标' });
+    const shortDoc = Handoff.writeTaskDoc(runsDir1, shortCtx);
+    Handoff.writeMeta(runsDir1, {
+      taskId: shortCtx.taskId,
+      spec_fingerprint: shortCtx.spec_fingerprint,
+      task_document_fingerprint: shortDoc.fingerprint,
+    });
+    const autoShortEnvelope = withHandoffMode(null, () => buildEnvelope(NODE, shortCtx, {
+      runner: CLI_RUNNER, runsDir: runsDir1, eventlog: eventlog1, taskId: shortCtx.taskId,
+    }));
+    assert(!autoShortEnvelope.includes('任务稿指针'), 'auto 模式短目标保持全文');
+    assert(autoShortEnvelope.includes('短任务目标'));
+    const restoredDoc = Handoff.writeTaskDoc(runsDir1, ctx1);
+    Handoff.writeMeta(runsDir1, {
+      taskId: ctx1.taskId,
+      spec_fingerprint: ctx1.spec_fingerprint,
+      task_document_fingerprint: restoredDoc.fingerprint,
+    });
+
     // ---- 2) on 模式 CLI runner:指针信封,体积显著小于全文 ----
     const eventlog2 = new EventLog(path.join(root, 'events-on.jsonl'));
     const onEnvelope = withHandoffMode('on', () => buildEnvelope(NODE, ctx1, {
@@ -125,7 +161,7 @@ function main() {
     }));
     assert(onEnvelope.includes('任务稿指针'), 'on 信封必须含指针');
     assert(onEnvelope.includes(path.join(runsDir1, 'task.md')), '指针必须是完整路径');
-    assert(onEnvelope.includes(doc1.fingerprint), '指针必须带 fingerprint');
+    assert(onEnvelope.includes(restoredDoc.fingerprint), '指针必须带 fingerprint');
     assert.match(onEnvelope, /先完整读取.*task\.md/, '必须有「先读该文件再执行」指令');
     assert(onEnvelope.includes('优化工作区渲染:首行一句话意图'), '必须保留一句话意图(goal 首行)');
     assert(!onEnvelope.includes('x'.repeat(2000)), 'goal 长正文不得内联');
@@ -140,7 +176,11 @@ function main() {
     const runsDir3 = path.join(root, 'engine-runs', 'handoff-task-3');
     const ctx3 = mkCtx({ taskId: 'handoff-task-3' });
     const doc3 = Handoff.writeTaskDoc(runsDir3, ctx3);
-    Handoff.writeMeta(runsDir3, { taskId: 'handoff-task-3', spec_fingerprint: doc3.fingerprint });
+    Handoff.writeMeta(runsDir3, {
+      taskId: 'handoff-task-3',
+      spec_fingerprint: ctx3.spec_fingerprint,
+      task_document_fingerprint: doc3.fingerprint,
+    });
     fs.appendFileSync(path.join(runsDir3, 'task.md'), '\n被篡改的尾巴\n');
     const badRead = Handoff.readTaskDoc(runsDir3);
     assert(!badRead.ok && /fingerprint_mismatch/.test(badRead.reason), '篡改后 readTaskDoc 必须报指纹不符');

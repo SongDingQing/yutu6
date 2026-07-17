@@ -15,6 +15,7 @@ const artifactsDir = path.join(runRoot, 'artifacts');
 const projectsDir = path.join(runRoot, 'projects');
 const boardRollup = path.join(runRoot, 'board', 'status-rollup.md');
 const configPath = path.join(runRoot, 'config.json');
+const runtimeSettingsPath = path.join(runRoot, 'console-runtime.json');
 const mockRunnerPath = path.join(runRoot, 'mock-runner.js');
 const eventsPath = path.join(artifactsDir, 'engine-events.jsonl');
 
@@ -43,12 +44,18 @@ function mockRunnerSource() {
   const codexReportRel = path.relative(WORKDIR, path.join(artifactsDir, 'codex-serial-smoke-review.md'));
   return `
 'use strict';
+const fs = require('fs');
 const prompt = process.argv.slice(2).join('\\n');
 const isFirst = /SERIAL_SMOKE_ONE/.test(prompt);
 const delay = isFirst ? 250 : 50;
 const smokeEvidence = ${JSON.stringify(smokeEvidenceRel)};
 const visualPeekaboo = ${JSON.stringify(visualPeekabooRel)};
 const codexReport = ${JSON.stringify(codexReportRel)};
+function ensureVisualFixture() {
+  fs.mkdirSync(require('path').dirname(visualPeekaboo), { recursive: true });
+  if (!fs.existsSync(visualPeekaboo)) fs.writeFileSync(visualPeekaboo, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAEtAJJXIDTjwAAAABJRU5ErkJggg==', 'base64'));
+  if (!fs.existsSync(codexReport)) fs.writeFileSync(codexReport, '# Codex serial smoke review\\n\\nCodex visual evidence fixture.\\n');
+}
 function parseRows(text) {
   const rows = [];
   let inTable = false;
@@ -66,7 +73,14 @@ function parseRows(text) {
     if (!inTable || /^:?-{3,}:?$/.test(cells[0] || '')) continue;
     const point = cells[0];
     if (!point) continue;
-    rows.push({ point, status: '完成', evidence: evidenceForPoint(point), notes: notesForPoint(point) });
+    const notApplicable = /^\u89c6\u89c9\\\/UI\u8bc1\u636e/.test(point) && (cells[1] === 'not_applicable' || /not_applicable/.test(point));
+    if (/^\u89c6\u89c9\\\/UI\u8bc1\u636e/.test(point) && !notApplicable) ensureVisualFixture();
+    rows.push({
+      point,
+      status: notApplicable ? 'not_applicable' : '完成',
+      evidence: notApplicable ? 'task-envelope:visual_acceptance' : evidenceForPoint(point),
+      notes: notApplicable ? 'non-visual v2 row; no screenshot artifact created' : notesForPoint(point),
+    });
   }
   return rows.length ? rows : [{
     point: '任务验收: serial smoke completes',
@@ -94,15 +108,36 @@ function notesForPoint(point) {
   if (/^视觉\\/UI证据/.test(String(point || ''))) return 'serial smoke visual row includes peekaboo screenshot path and Codex review pointer';
   return 'serial smoke fixture filled structured acceptance row from prompt';
 }
+function promptField(text, label) {
+  const re = new RegExp('-\\s*' + label + '\\s*[:：]\\s*([^\\n]+)');
+  const m = String(text || '').match(re);
+  return m ? m[1].trim() : '';
+}
+function promptJsonField(text, key) {
+  const re = new RegExp('"' + key + '"\\s*:\\s*"([^"]*)"');
+  const m = String(text || '').match(re);
+  return m ? m[1].trim() : '';
+}
+function receipt(text) {
+  return {
+    taskId: promptField(text, 'taskId') || promptJsonField(text, 'taskId'),
+    specFingerprint: promptField(text, '规格指纹') || promptJsonField(text, 'specFingerprint'),
+    changedFiles: [smokeEvidence],
+    tests: ['node projects/控制台/tools/serial-smoke-test.js exit 0'],
+    artifacts: [smokeEvidence + ':1'],
+    verdict: 'done',
+    blocked_required_specs: [],
+  };
+}
 let payload;
 if (/# 任务:review/.test(prompt)) {
   const acceptance_table = parseRows(prompt);
   payload = { review: { pass: true, severity: 'low', notes: 'serial smoke review ok; changed_files verified: ' + smokeEvidence + '; serial smoke command evidence exit 0', verification: { verdict: 'true', checked: ['implementation.logic_chain', 'implementation.acceptance_table', 'changed_files: ' + smokeEvidence, 'serial smoke evidence'], acceptance_table, evidence: [{ kind: 'file', path: smokeEvidence, summary: 'serial smoke changed file verified' }, { kind: 'test', command: 'node projects/控制台/tools/serial-smoke-test.js', exit_code: 0, summary: 'serial smoke verified' }] } } };
 } else if (/# 任务:implement/.test(prompt)) {
   const acceptance_table = parseRows(prompt);
-  payload = { implementation: { done: true, summary: 'serial smoke implementation ok; evidence file written', changed_files: [smokeEvidence], acceptance_table, logic_chain: { summary: 'serial smoke implementation ok', current_status: 'done', actions: ['parsed prompt acceptance rows', 'wrote serial smoke evidence file', 'ran serial smoke fixture'], evidence: [{ kind: 'file', path: smokeEvidence, summary: 'serial smoke fixture evidence file' }, { kind: 'test', command: 'node projects/控制台/tools/serial-smoke-test.js', exit_code: 0, summary: 'serial smoke fixture evidence' }], tests: [{ command: 'node projects/控制台/tools/serial-smoke-test.js', exit_code: 0, summary: 'serial smoke fixture' }], conclusion: 'serial smoke complete' } } };
+  payload = { implementation: { done: true, summary: 'serial smoke implementation ok; evidence file written', changed_files: [smokeEvidence], receipt: receipt(prompt), acceptance_table, logic_chain: { summary: 'serial smoke implementation ok', current_status: 'done', actions: ['parsed prompt acceptance rows', 'wrote serial smoke evidence file', 'ran serial smoke fixture'], evidence: [{ kind: 'file', path: smokeEvidence, summary: 'serial smoke fixture evidence file' }, { kind: 'test', command: 'node projects/控制台/tools/serial-smoke-test.js', exit_code: 0, summary: 'serial smoke fixture evidence' }], tests: [{ command: 'node projects/控制台/tools/serial-smoke-test.js', exit_code: 0, summary: 'serial smoke fixture' }], conclusion: 'serial smoke complete' } } };
 } else {
-  payload = { orchestrator: { projectId: '控制台', summary: 'serial smoke route ok', acceptance: 'ok' } };
+  payload = { orchestrator: { projectId: '控制台', summary: 'serial smoke route ok', acceptance: [{ text: 'serial smoke acceptance', scope: 'project/控制台' }] } };
 }
 setTimeout(() => {
   process.stdout.write('serial smoke ok\\n\\n\\\`\\\`\\\`json\\n' + JSON.stringify(payload) + '\\n\\\`\\\`\\\`\\n');
@@ -124,12 +159,8 @@ function writeHarnessFiles() {
     'peekaboo screenshot and Codex review pointers are included when a visual/UI row is present.',
     '',
   ].join('\n'));
-  fs.writeFileSync(
-    path.join(artifactsDir, 'serial-smoke-peekaboo.png'),
-    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAEtAJJXIDTjwAAAABJRU5ErkJggg==', 'base64')
-  );
-  fs.writeFileSync(path.join(artifactsDir, 'codex-serial-smoke-review.md'), '# Codex serial smoke review\n\nCodex visual evidence placeholder for done-gate fixture.\n');
   fs.writeFileSync(mockRunnerPath, mockRunnerSource());
+  writeJson(runtimeSettingsPath, { version: 1, engineMaxConcurrency: 1 });
   writeJson(configPath, {
     roleRouting: {
       secretary: { runner: 'mock' },
@@ -162,6 +193,8 @@ function spawnWorker(agent) {
       CONSOLE_PROJECTS_DIR: projectsDir,
       CONSOLE_BOARD_ROLLUP: boardRollup,
       ENGINE_MAX_CONCURRENCY: '1',
+      CONSOLE_RUNTIME_SETTINGS_TEST_MODE: '1',
+      CONSOLE_RUNTIME_SETTINGS_TEST_PATH: runtimeSettingsPath,
       CEO_ACTIVE_TASK_SERIAL_LOCK: '1',
       RUNNER_SINGLEFLIGHT: '',
       AUTO_REPAIR_ENABLED: '0',
@@ -177,7 +210,7 @@ function enqueueCeo(id, goal) {
     flowId: 'project-route',
     projectId: '控制台',
     goal,
-    bounds: 'serial smoke only; Starlaid excluded; no secrets',
+    bounds: 'serial smoke only; no secrets',
     acceptance: 'serial smoke completes',
     useOrchestrator: false,
     autoApproveHuman: true,
@@ -257,10 +290,15 @@ async function main() {
 	    const firstRootDone = events.find(e => e.type === 'queue.completed' && e.queueAgent === 'ceo' && e.queueId === 'serialA');
 	    const secondRootDone = events.find(e => e.type === 'queue.completed' && e.queueAgent === 'ceo' && e.queueId === 'serialB');
 	    const secondTask = taskFor(events, 'ceo', 'serialB');
-	    const secondStart = events.find(e => e.type === 'node.start' && e.task === secondTask && e.node === 'orchestrator-plan');
+		    // Elastic direct-to-supervisor routes may not execute an orchestrator-plan
+		    // node. task.queued is the stable CEO-start boundary for both paths.
+		    const secondStart = events.find(e => e.type === 'task.queued' && e.task === secondTask && e.queueAgent === 'ceo');
 	    const waitEvent = events.find(e => e.type === 'ceo.active_task.wait' && e.waitingQueueId === 'serialB');
 	    const slotEvents = events.filter(e => e.type === 'engine.slot.acquired');
 	    const overlap = assertNoNodeOverlap(events);
+	    const unexpectedVisualArtifacts = fs.readdirSync(runRoot, { recursive: true })
+	      .map(String)
+	      .filter(file => /(?:\.(?:png|jpe?g|webp|gif)|codex-serial-smoke-review\.md)$/i.test(file));
 	    const pass = !!firstDone
 	      && !!firstRootDone
 	      && !!secondRootDone
@@ -268,17 +306,19 @@ async function main() {
 	      && Date.parse(firstRootDone.ts) >= Date.parse(firstDone.ts)
 	      && Date.parse(secondStart.ts) >= Date.parse(firstRootDone.ts)
 	      && slotEvents.every(e => e.maxConcurrency === 1)
-	      && overlap.ok;
+	      && overlap.ok
+	      && unexpectedVisualArtifacts.length === 0;
 	    const report = {
 	      pass,
 	      runRoot,
 	      firstSupervisorDoneSeq: firstDone && firstDone.seq,
 	      firstRootDoneSeq: firstRootDone && firstRootDone.seq,
-	      secondCeoNodeStartSeq: secondStart && secondStart.seq,
+		      secondCeoStartSeq: secondStart && secondStart.seq,
 	      secondRootDoneSeq: secondRootDone && secondRootDone.seq,
 	      sawSecondWait: !!waitEvent,
 	      slotMaxConcurrencyValues: slotEvents.map(e => e.maxConcurrency),
 	      nodeOverlap: overlap.ok ? null : overlap.overlap,
+	      unexpectedVisualArtifacts,
     };
     writeJson(path.join(runRoot, 'report.json'), report);
     if (!pass) {

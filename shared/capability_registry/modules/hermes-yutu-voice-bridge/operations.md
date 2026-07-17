@@ -79,6 +79,25 @@ Codex handoff queue smoke tests:
 python3 -m py_compile /Users/yutu/.hermes/plugins/codex-handoff/__init__.py
 ```
 
+Yutu6 native decision-card smoke tests:
+
+```bash
+cd /Users/yutu6/玉兔6工作区
+node tests/feishu-card-types.test.js
+node tests/decision-callback.test.js
+python3 tests/hermes-feishu-decision-bridge.test.py
+/Users/yutu6/.hermes/hermes-agent/venv/bin/python -m pytest \
+  /Users/yutu6/.hermes/hermes-agent/tests/gateway/test_feishu_approval_buttons.py -q
+```
+
+After changing the Feishu adapter or `codex-handoff` plugin:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/ai.hermes.gateway
+```
+
+Confirm `~/.hermes/gateway_state.json` reports the Feishu platform as connected before sending a real decision card.
+
 Runtime commands from Feishu:
 
 - `/codex-queue` shows queued/running Codex handoff items.

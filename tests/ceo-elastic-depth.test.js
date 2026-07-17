@@ -59,7 +59,6 @@ function main() {
   try {
     fs.mkdirSync(path.join(projectsDir, '控制台'), { recursive: true });
     fs.mkdirSync(path.join(projectsDir, 'Simulaid'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Starlaid'), { recursive: true });
     writeJson(configPath, { runners: {}, roleRouting: {} });
 
     process.env.CONSOLE_PROJECTS_DIR = projectsDir;
@@ -87,7 +86,6 @@ function main() {
     assert.strictEqual(simple.reason, 'simple_task');
 
     assert.strictEqual(_test.isSimpleTask({ goal: SIMPLE_GOAL }).reason, 'no_explicit_project');
-    assert.strictEqual(_test.isSimpleTask({ projectId: 'Starlaid', goal: SIMPLE_GOAL }).reason, 'starlaid_project');
     assert.strictEqual(_test.isSimpleTask({ projectId: '不存在的项目', goal: SIMPLE_GOAL }).reason, 'unknown_project');
     assert.strictEqual(_test.isSimpleTask({ projectId: '控制台', goal: SIMPLE_GOAL, useOrchestrator: true }).reason, 'use_orchestrator_required');
     assert.strictEqual(_test.isSimpleTask({ projectId: '控制台', goal: SIMPLE_GOAL, boardReview: { required: true } }).reason, 'board_review_required');
@@ -108,17 +106,6 @@ function main() {
       projectId: '控制台',
       goal: '顺手把 Simulaid 看板的文案也统一下',
     }).reason, 'mentions_other_project');
-
-    // 主动涉 Starlaid 不直通(排除语境不算)
-    assert.strictEqual(_test.isSimpleTask({
-      projectId: '控制台',
-      goal: '修改 Starlaid 项目的构建脚本并运行测试',
-    }).reason, 'starlaid_reference');
-    assert.strictEqual(_test.isSimpleTask({
-      projectId: '控制台',
-      goal: SIMPLE_GOAL,
-      bounds: '只处理本任务; Starlaid 一律排除; 密钥不回显',
-    }).simple, true, 'Starlaid 排除语境不应挡直通');
 
     // 董事会重要域不直通(structured 优先 + 文本兜底)
     const importantVerdict = _test.isSimpleTask({
@@ -187,7 +174,13 @@ function main() {
     assert.strictEqual(directEvent.projectId, '控制台');
     assert.strictEqual(directEvent.queueAgent, 'supervisor-控制台');
     assert(!directEvents.some(e => e.type === 'node.start' && e.node === 'orchestrator-plan'), '直通路径不应经过 orchestrator-plan');
-    assert(directEvents.some(e => e.type === 'project.brief.written' && e.projectId === '控制台'));
+    const directBriefEvent = directEvents.find(e => e.type === 'project.brief.written' && e.projectId === '控制台');
+    assert(directBriefEvent);
+    assert(directBriefEvent.taskFile, '直通路径应写任务级 brief');
+    const directTaskBriefPath = path.isAbsolute(directBriefEvent.taskFile)
+      ? directBriefEvent.taskFile
+      : path.join(path.resolve(__dirname, '..'), directBriefEvent.taskFile);
+    assert(fs.existsSync(directTaskBriefPath), '任务级 brief 应存在');
     assert(directEvents.some(e => e.type === 'queue.enqueued' && e.queueAgent === 'supervisor-控制台'));
     assert(directEvents.some(e => e.type === 'project.routed' && e.supervisorQueue === 'supervisor-控制台' && e.queueId));
     assert(directEvents.some(e => e.type === 'project.route.waiting'));
@@ -214,13 +207,16 @@ function main() {
     assert.strictEqual(child.rootQueueId, 'elasticSimple');
     assert.strictEqual(child.rootTaskId, 'ceo-elastic-direct');
     assert.strictEqual(child.parentTaskId, 'ceo-elastic-direct');
-    assert((child.inputs || []).includes('projects/控制台/brief.md'));
+    assert((child.inputs || []).includes(directBriefEvent.taskFile));
+    assert(!(child.inputs || []).includes('projects/控制台/brief.md'));
 
-    // handoff shadow spec_fingerprint(协议字段)
+    // handoff shadow:task protocol 与 task document 使用两个独立指纹字段。
     const shadowEvent = directEvents.find(e => e.type === 'handoff.shadow.written');
     assert(shadowEvent && /^[0-9a-f]{64}$/.test(String(shadowEvent.fingerprint || '')), '直通路径应保留 handoff shadow 指纹');
     const meta = JSON.parse(fs.readFileSync(path.join(artifactsDir, 'engine-runs', 'ceo-elastic-direct', 'meta.json'), 'utf8'));
-    assert.strictEqual(meta.spec_fingerprint, shadowEvent.fingerprint);
+    assert.strictEqual(meta.spec_fingerprint, shadowEvent.spec_fingerprint);
+    assert.strictEqual(meta.task_document_fingerprint, shadowEvent.fingerprint);
+    assert.notStrictEqual(meta.spec_fingerprint, meta.task_document_fingerprint);
 
     // ---- 复杂任务(跨项目)仍走 orchestrator-plan ----
     const crossSpec = path.join(root, 'elastic-cross-spec.json');

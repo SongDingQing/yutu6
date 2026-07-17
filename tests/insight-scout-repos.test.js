@@ -39,7 +39,7 @@ function main() {
     assert.strictEqual(listed.queued[0].task.structuredAcceptance, false);
     assert.match(listed.queued[0].task.goal, /insight_scout/);
     assert.match(listed.queued[0].task.goal, /最终只输出一个 `json` 代码块/);
-    assert.match(listed.queued[0].task.bounds, /Starlaid.*排除|Starlaid.*一律排除/);
+    assert.match(listed.queued[0].task.bounds, /密钥不回显/);
     assert.deepStrictEqual(listed.queued[0].task.resourceDomains, {
       read: ['insights'],
       write: ['insights'],
@@ -117,6 +117,10 @@ function main() {
     assert.strictEqual(cards.length, 1);
     assert.strictEqual(cards[0].source, '洞察员');
     assert.strictEqual(cards[0].target, 'ceo');
+    assert.strictEqual(cards[0].payload.loopEngineering, false);
+    assert.strictEqual(cards[0].payload.insightWorkload.mode, 'light');
+    assert.strictEqual(cards[0].payload.insightWorkload.proposalOnly, true);
+    assert.match(cards[0].insight_fingerprint, /^[0-9a-f]{64}$/);
 
     const repeated = InsightScoutRepos.applyInsightScoutOutput({
       workspaceRoot: workspace,
@@ -131,6 +135,77 @@ function main() {
     assert.strictEqual(repeated.bulletin.added.length, 0);
     assert.strictEqual(repeated.seenRepos.added.length, 0);
     assert.strictEqual(readJson(path.join(artifactsRoot, 'bulletin', 'cards.json')).length, 1);
+
+    const crossSlotOutput = appliedOutputFixture();
+    crossSlotOutput.insight_scout.slot = '20260623-12';
+    const crossSlot = InsightScoutRepos.applyInsightScoutOutput({
+      workspaceRoot: workspace,
+      artifactsRoot,
+      taskId: 'cr-insight-test-next-slot',
+      queueAgent: 'insight-scout',
+      queueId: 'q2',
+      output: crossSlotOutput,
+    });
+    assert.strictEqual(crossSlot.ok, true);
+    assert.strictEqual(crossSlot.bulletin.added.length, 0);
+    assert(crossSlot.bulletin.skipped.some(item => item.reason === 'duplicate-content'));
+    assert.strictEqual(readJson(path.join(artifactsRoot, 'bulletin', 'cards.json')).length, 1);
+
+    const rotatingWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'console-insight-rotate-'));
+    const rotatingArtifacts = path.join(rotatingWorkspace, 'artifacts');
+    const rotatingInsightsDir = path.join(rotatingWorkspace, 'board', 'insights');
+    fs.mkdirSync(rotatingInsightsDir, { recursive: true });
+    const oldBlocks = [];
+    for (let i = 1; i <= 5; i++) {
+      oldBlocks.push([
+        `<!-- insight-scout-run:old-batch-${i} -->`,
+        `## 2026-06-2${i} · 自动洞察(old-${i} · queue-engine)`,
+        '',
+        `### old repo ${i}`,
+        `- URL: https://github.com/example/old-${i}`,
+        '',
+      ].join('\n'));
+    }
+    fs.writeFileSync(path.join(rotatingInsightsDir, 'insights.md'), '# 洞察员 · 借鉴分析(insights)\n\n' + oldBlocks.join('\n'));
+    fs.writeFileSync(path.join(rotatingInsightsDir, 'seen-repos.json'), JSON.stringify({
+      repos: ['https://github.com/example/old-1'],
+      borrowed_libraries: [{ url: 'https://github.com/example/cold-metadata', analysis: 'should not stay hot' }],
+      analysis: 'heavy field should be removed',
+    }, null, 2) + '\n');
+    for (let i = 1; i <= 4; i++) {
+      const insightBackup = path.join(rotatingInsightsDir, `insights.md.bak-test-${i}`);
+      const seenBackup = path.join(rotatingInsightsDir, `seen-repos.json.pre-test-${i}`);
+      fs.writeFileSync(insightBackup, `backup ${i}`);
+      fs.writeFileSync(seenBackup, `backup ${i}`);
+      const t = new Date(Date.UTC(2026, 5, 20, i));
+      fs.utimesSync(insightBackup, t, t);
+      fs.utimesSync(seenBackup, t, t);
+    }
+    const rotatingApplied = InsightScoutRepos.applyInsightScoutOutput({
+      workspaceRoot: rotatingWorkspace,
+      artifactsRoot: rotatingArtifacts,
+      taskId: 'cr-insight-rotate',
+      queueAgent: 'insight-scout',
+      queueId: 'q-rotate',
+      output: appliedOutputFixture(),
+    });
+    assert.strictEqual(rotatingApplied.ok, true);
+    assert(rotatingApplied.maintenance.insights.archived >= 2);
+    const hotAfterRotate = fs.readFileSync(path.join(rotatingInsightsDir, 'insights.md'), 'utf8');
+    assert.strictEqual((hotAfterRotate.match(/insight-scout-run:/g) || []).length, 4);
+    assert(!hotAfterRotate.includes('old-batch-1'));
+    assert(!hotAfterRotate.includes('old-batch-2'));
+    const archiveText = fs.readFileSync(path.join(rotatingInsightsDir, 'references', 'archive-202606.md'), 'utf8');
+    assert.match(archiveText, /old-batch-1/);
+    assert.match(archiveText, /old-batch-2/);
+    assert(fs.existsSync(path.join(rotatingInsightsDir, 'references', 'archive-index.md')));
+    const slimSeen = readJson(path.join(rotatingInsightsDir, 'seen-repos.json'));
+    assert.deepStrictEqual(Object.keys(slimSeen).sort(), ['_note', 'repos', 'updated_at']);
+    assert(slimSeen.repos.includes('https://github.com/maragudk/goqite'));
+    assert(!JSON.stringify(slimSeen).includes('heavy field'));
+    assert.strictEqual(fs.readdirSync(rotatingInsightsDir).filter(f => f.startsWith('insights.md.bak') || f.startsWith('insights.md.pre')).length, 3);
+    assert.strictEqual(fs.readdirSync(rotatingInsightsDir).filter(f => f.startsWith('seen-repos.json.bak') || f.startsWith('seen-repos.json.pre')).length, 3);
+    fs.rmSync(rotatingWorkspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 
     const emptyOutput = InsightScoutRepos.applyInsightScoutOutput({
       workspaceRoot: workspace,

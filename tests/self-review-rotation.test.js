@@ -54,7 +54,7 @@ async function main() {
     assert(entry1.task.goal.includes('≤10 条'), 'goal must carry ledger budget');
     assert(entry1.task.goal.includes('auto_execute ≤3 条'), 'goal must carry auto-execute budget');
     assert(entry1.task.goal.includes('bulletin-add'), 'owner_decision items go to bulletin');
-    assert(entry1.task.bounds.includes('Starlaid'));
+    assert(entry1.task.bounds.includes('密钥不回显'));
 
     // ---- 同周幂等:第二次调用跳过,不新增队列条目 ----
     const r2 = await Rotation.run(Object.assign({}, base, { now: SUNDAY + 2 * 60 * 60 * 1000 }));

@@ -140,7 +140,6 @@ Do not:
 - rewrite Git history
 - force-push
 - print secrets or credentials
-- route Starlaid work through this lane
 
 Hermes modification rules:
 

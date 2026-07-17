@@ -9,6 +9,7 @@ const path = require('path');
 const { runFlow } = require('../shared/engine/engine');
 const { TaskStore } = require('../shared/engine/taskstore');
 const LoopEngineering = require('../shared/engine/loop-engineering');
+const AcceptanceContract = require('../shared/engine/acceptance-contract');
 
 function reviewLoopFlow() {
   return {
@@ -222,6 +223,46 @@ function testCompletionValidator() {
   assert.strictEqual(bad.ok, false);
 }
 
+function testContractRowsReplaceMarkdownNoiseStandards() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'loop-engineering-contract-'));
+  try {
+    const contract = AcceptanceContract.createContract([
+      { text: '每轮 review 对全量验收行复核。' },
+      { text: '差量上下文保留稳定身份和证据哈希。' },
+      { text: '回退结果必须经过同等级脱敏。' },
+    ], {
+      scope: 'project/控制台',
+      sourceRef: 'orchestrator:fixture',
+      projectId: '控制台',
+    });
+    const requiredRows = AcceptanceContract.acceptanceRows(contract);
+    const ctx = {
+      acceptance_contract: contract,
+      requiredRows,
+      acceptance: [
+        '| 要点 | 完成状态 | 证据 | 备注 |',
+        '|---|---|---|---|',
+        '| md | 完成 | fixture | old parser noise |',
+      ].join('\n'),
+      loop_engineering: {
+        enabled: true,
+        standards: [
+          { id: 'S5', text: 'md', weight: 0.125 },
+          { id: 'S7', text: '|---|---|---|---|', weight: 0.125 },
+        ],
+      },
+    };
+    const loop = makeLoop(root, 'contract-fixture').init(ctx);
+    assert.strictEqual(loop.standards_source, 'acceptance-contract@1.requiredRows');
+    assert.strictEqual(loop.standards.length, requiredRows.length, 'all contract rows must remain in loop standards');
+    assert.deepStrictEqual(loop.standards.map(row => row.acceptance_id), requiredRows.map(row => row.acceptance_id));
+    assert.deepStrictEqual(loop.standards.map(row => row.source_hash), requiredRows.map(row => row.source_hash));
+    assert(!loop.standards.some(row => row.text === 'md' || /^\|---/.test(row.text)), 'Markdown syntax must not become a standard');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function writeFixtureFile(root, rel, content = 'snapshot source\n') {
   const file = path.join(root, rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -287,6 +328,7 @@ function testSnapshotSkipsLogsAndOversized() {
 runConvergingCase();
 runRegressionRollbackCase();
 testCompletionValidator();
+testContractRowsReplaceMarkdownNoiseStandards();
 testSnapshotFilesAvoidPathExpansion();
 testSnapshotSkipsLogsAndOversized();
 

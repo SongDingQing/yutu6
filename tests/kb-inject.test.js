@@ -58,6 +58,16 @@ function testInjectsHits() {
     // 注入进 envelope
     const env = withEnv(undefined, () => buildEnvelope({ id: 'implement', agent_role: 'worker_code' }, { workspaceRoot: root, goal: '生成办公室椅子图', acceptance: 'x' }));
     assert(/知识库检索/.test(env), 'buildEnvelope 应含知识库块');
+    const review = withEnv(undefined, () => buildEnvelope(
+      { id: 'review', agent_role: 'supervisor' },
+      { workspaceRoot: root, goal: '生成办公室椅子图', acceptance: 'x' },
+    ));
+    assert(!/知识库检索/.test(review), '主管复审不得重复注入生成知识');
+    const board = withEnv(undefined, () => buildEnvelope(
+      { id: 'board-board_claude-r1', agent_role: 'board_claude' },
+      { workspaceRoot: root, goal: '生成办公室椅子图', acceptance: 'x' },
+    ));
+    assert(!/知识库检索/.test(board), '董事只读评审不得注入无关生成知识');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 

@@ -1,8 +1,8 @@
 'use strict';
 
 // P0-B(热重载):计算一组目录下顶层 *.js 的修订指纹(mtime+size 哈希)。
-// 常驻 worker 启动时记一份,空闲时复算;指纹变了 = 磁盘代码已更新、当前进程跑的是缓存旧码,
-// 该在空闲窗口优雅退出让 server 用新代码重启(治"补丁落盘≠运行态生效")。
+// 常驻 worker 启动时记一份,运行中持续复算;指纹变了 = 磁盘代码已更新、当前进程跑的是缓存旧码,
+// 应立即停止 claim、等待在途归零后优雅退出,让 server 用新代码重启(治"补丁落盘≠运行态生效")。
 // 只看顶层 .js、不递归 artifacts/,避免运行时产物噪声。
 
 const fs = require('fs');
@@ -36,4 +36,17 @@ function defaultReloadDirs(consoleDir) {
   ];
 }
 
-module.exports = { computeSourceRevision, defaultReloadDirs };
+function codeReloadDecision({ bootRevision, currentRevision, pending = false, activeCount = 0 } = {}) {
+  const changed = !!bootRevision && !!currentRevision && currentRevision !== bootRevision;
+  const reloadPending = pending === true || changed;
+  return {
+    changed,
+    newlyPending: pending !== true && changed,
+    pending: reloadPending,
+    allowClaim: !reloadPending,
+    shouldExit: reloadPending && Number(activeCount || 0) === 0,
+    shouldDrain: reloadPending && Number(activeCount || 0) > 0,
+  };
+}
+
+module.exports = { computeSourceRevision, defaultReloadDirs, codeReloadDecision };

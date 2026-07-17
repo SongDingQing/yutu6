@@ -1,0 +1,146 @@
+schema: console.readonly_governance.apm.v0
+status: pilot_only
+runtime_contract: false
+date: "2026-07-05"
+task:
+  id: cr-1783228718439-c42c7ece
+  root_id: cr-1783228495485-1247c429
+  project: 控制台
+origin:
+  original_pilot_task: cr-1782712888258-a3e9f8b0
+  original_pilot_date: "2026-06-29"
+placement:
+  directory: projects/控制台/.agent/governance/readonly-skill-tool-pilot-20260629
+  reason: centralized governance directory avoids placing AGENTS.md/llms.txt next to runtime source files
+rules:
+  hash_algorithm: SHA256
+  hash_scope: full working-tree bytes of each listed hash_object source file
+  hash_verify_command: shasum -a 256 <hash_object>
+  lock_snapshot_rule: use apm.lock.yaml git.head_short plus working_tree_note as the reproducibility anchor
+  license_unknown_policy: record UNKNOWN; do not invent a license; treat as internal project code until owner confirms
+  license_unknown_review_rule: license UNKNOWN automatically sets requires_human_review true
+  human_review_rule: medium_or_high_permission OR license_UNKNOWN
+  permissions_policy: list permission name and intended use only; never record credential contents
+  side_effect_activation: metadata_only; do not trigger network, model, process, queue, GUI or secret side effects during this pilot refresh
+  external_runtime_install: false
+  bulk_history_migration: false
+  governed_source_files_edited: false
+coverage:
+  requested_scope: 2-3 skill/tool
+  actual_scope: 3 tool objects
+  skill_objects_covered: 0
+  scope_note: no skill object is claimed as covered in this round
+risk_tiers:
+  low:
+    permissions:
+      - file_read
+    requires_human_review: false_if_license_known_and_no_higher_tier
+  medium:
+    permissions:
+      - file_write
+      - queue_mutation
+      - gui_control
+      - notification_send
+    requires_human_review: true
+  high:
+    permissions:
+      - process_spawn
+      - network_request
+      - external_model_call
+      - secret_env_access
+      - env_mutation
+      - install_dependency
+      - git_operation
+      - destructive_delete
+      - cross_project_write
+    requires_human_review: true
+candidate_snapshot:
+  ceo_brief: projects/控制台/brief.md:14288-14324
+  insight_candidate: board/insights/insights.md:230-243
+  prior_decision: memory/decisions.md:679
+  prior_mapping: projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md:112-160
+objects:
+  - id: console.engine.review_loop
+    kind: tool
+    name: review-loop
+    source: local_console_project
+    source_path: projects/控制台/engine-runner.js
+    entrypoint: node projects/控制台/engine-runner.js --spec <file>
+    hash_object: projects/控制台/engine-runner.js
+    version_hash: sha256:840fc72cefb440264a0a032ca18c1d9d872581b36fda8853a7f0e3bcc84916df
+    license: UNKNOWN
+    license_note: no repository-level or file-level LICENSE was found in the workspace snapshot; treat as internal project code until owner confirms
+    permissions:
+      - name: file_read
+        tier: low
+        purpose: read config, flow specs, project files and task context
+      - name: file_write
+        tier: medium
+        purpose: write eventlog, taskstore, run directories and status artifacts
+      - name: process_spawn
+        tier: high
+        purpose: invoke configured runner processes through the engine flow
+      - name: network_request
+        tier: high
+        purpose: possible runner/provider calls during LLM-backed nodes
+      - name: external_model_call
+        tier: high
+        purpose: execute model-backed planner/worker/review nodes through configured runners
+      - name: secret_env_access
+        tier: high
+        purpose: pass existing runner env/token configuration without logging secret values
+      - name: gui_control
+        tier: medium
+        purpose: optional Peekaboo action verification screenshots/actions when enabled
+      - name: queue_mutation
+        tier: medium
+        purpose: route and complete queue tasks through review-loop
+      - name: notification_send
+        tier: medium
+        purpose: emit completion/failure/human-gate notifications through existing hooks
+    requires_human_review: true
+    review_reason: UNKNOWN license plus high-side-effect async worker; this pilot recorded metadata only and did not invoke these side effects
+  - id: console.secretary.queue_organize
+    kind: tool
+    name: queue-organize
+    source: local_console_project
+    source_path: projects/控制台/secretary-tools.js
+    entrypoint: node projects/控制台/secretary-tools.js queue-organize
+    hash_object: projects/控制台/secretary-tools.js
+    version_hash: sha256:6996315316d099472da71f89fde5f2264b2a113c84a9955145c5e2c5e48ba25d
+    license: UNKNOWN
+    license_note: no repository-level or file-level LICENSE was found in the workspace snapshot; treat as internal project code until owner confirms
+    permissions:
+      - name: file_read
+        tier: low
+        purpose: read queue, board and capability registry state for planning
+      - name: file_write
+        tier: medium
+        purpose: write idempotency records or apply queue state changes when explicitly requested
+      - name: queue_mutation
+        tier: medium
+        purpose: merge, cancel or organize queued items only with an explicit apply path
+    requires_human_review: true
+    review_reason: UNKNOWN license plus write-capable apply mode; dry-run remains read-oriented but the governed object includes queue mutation
+  - id: console.tools.serial_smoke_test
+    kind: tool
+    name: serial-smoke-test
+    source: local_console_project
+    source_path: projects/控制台/tools/serial-smoke-test.js
+    entrypoint: node projects/控制台/tools/serial-smoke-test.js
+    hash_object: projects/控制台/tools/serial-smoke-test.js
+    version_hash: sha256:c64e40c57b8f9eb97301956b17e23b60289955028084548a7346af50002f7003
+    license: UNKNOWN
+    license_note: no repository-level or file-level LICENSE was found in the workspace snapshot; treat as internal project code until owner confirms
+    permissions:
+      - name: file_write
+        tier: medium
+        purpose: create isolated serial-smoke config, mock runner, eventlog, status and evidence artifacts
+      - name: process_spawn
+        tier: high
+        purpose: spawn temporary ceo and supervisor worker processes
+      - name: queue_mutation
+        tier: medium
+        purpose: enqueue fixture tasks into the isolated smoke queue root
+    requires_human_review: true
+    review_reason: UNKNOWN license plus artifact writes, process spawn and isolated queue mutation

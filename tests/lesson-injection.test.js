@@ -157,6 +157,11 @@ function testEnvelopeContainsLessonBlock() {
     assert(/跨队列优先级丢失/.test(env), '信封应含命中的教训标题');
     assert(/memory\/experience\.md:5/.test(env), '信封应含行号锚点');
     assert(/不构成新的验收要求/.test(env), '注入块必须声明不构成新验收要求(防自动行反向触发门禁)');
+    const review = withEnv('YUTU6_LESSON_INJECT', undefined, () => buildEnvelope(
+      { id: 'review', agent_role: 'supervisor' },
+      { workspaceRoot: root, goal: '队列合并整理:把重复任务去重', acceptance: 'x' }
+    ));
+    assert(!review.includes('# 历史教训'), '主管复审不得重复注入生成阶段教训');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 

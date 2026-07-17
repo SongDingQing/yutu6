@@ -246,6 +246,31 @@ function main() {
     assert.strictEqual(staleWall.task.state, 'paused');
     assert.strictEqual(staleWall.task.timeout_reason, 'wall_timeout');
 
+    const atomicStore = new TaskStore(path.join(root, 'atomic-tasks'));
+    const atomicTask = atomicStore.create('task-atomic-write', flow.id, { marker: 'before' });
+    const atomicFile = path.join(root, 'atomic-tasks', 'task-atomic-write.json');
+    const beforeAtomicRaw = fs.readFileSync(atomicFile, 'utf8');
+    const realRenameSync = fs.renameSync;
+    fs.renameSync = function patchedRenameSync(src, dst) {
+      if (dst === atomicFile && path.basename(src).startsWith('.task-atomic-write.json.')) {
+        throw new Error('simulated taskstore rename crash');
+      }
+      return realRenameSync.apply(fs, arguments);
+    };
+    try {
+      assert.throws(() => {
+        atomicStore.update(atomicTask, { state: 'running', vars: { marker: 'after' } });
+      }, /simulated taskstore rename crash/);
+    } finally {
+      fs.renameSync = realRenameSync;
+    }
+    assert.strictEqual(fs.readFileSync(atomicFile, 'utf8'), beforeAtomicRaw,
+      'failed atomic write must leave previous task JSON intact');
+    assert.strictEqual(atomicStore.get('task-atomic-write').vars.marker, 'before',
+      'taskstore recovery read must still parse the previous complete JSON');
+    assert.strictEqual(fs.readdirSync(path.dirname(atomicFile)).some(file => file.endsWith('.tmp')), false,
+      'failed atomic write must clean temp files');
+
     console.log(JSON.stringify({ pass: true, suite: 'crash-recovery-idempotency' }));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

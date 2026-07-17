@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const Q = require('../shared/engine/queue');
+const DoneGate = require('../shared/engine/done-gate');
 
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -26,7 +27,6 @@ function main() {
   try {
     fs.mkdirSync(path.join(projectsDir, '控制台'), { recursive: true });
     fs.mkdirSync(path.join(projectsDir, 'Simulaid'), { recursive: true });
-    fs.mkdirSync(path.join(projectsDir, 'Starlaid'), { recursive: true });
     writeJson(configPath, { runners: {}, roleRouting: {} });
 
     process.env.CONSOLE_PROJECTS_DIR = projectsDir;
@@ -35,6 +35,81 @@ function main() {
 
     const { _test } = require('../projects/控制台/engine-runner');
     const workerTest = require('../projects/控制台/ceo-worker')._test;
+    // Exact 10-item acceptance from
+    // cr-1784014332008-34ff7914/orchestrator-plan-1/result.md.
+    const orchestratorAcceptanceItems = [
+      '工具与 hook 清单覆盖所有 AHR-26..30 关键路径，逐项包含名称/别名、触发条件、调用方与旧名依赖脚本、priority、failureMode、timeoutMs、状态、影响范围和唯一 owner；主管完成完整性复核后方可进入后续阶段。',
+      '监管风险报告逐项给出处置状态（已缓解/待验证/待主人拍板/接受风险），不得只写 done；明确 `task.true_done` 阻塞面、同步 handler 真实卡死风险、2026-07-06 degraded 死锁先例和回滚路径。',
+      '先落特征化 contract tests，证明默认 fail-open=`warn`、默认 timeoutMs=100、priority 排序、duplicate id 抛错、同步 registry 拒绝 Promise；同时覆盖 AHR-26 alias 路径及 AHR-29 schema version/requestId/toolCallId。',
+      'AHR-28 迁移设计须以特征化测试为基线，明确 pre/post 职责、兼容期、双路径验证、退役条件和回滚点。',
+      'AHR-30 必须包含超时注入测试：记录预算、实际阻塞时长和结果，并明确当前 timeout 只能事后判定、不能中断同步 handler；不得把该能力描述为已实现。',
+      '所有测试须可重复执行并给出命令、通过/失败结果及对应产物路径；任何失败均不得绕过或据此启用 blocking。',
+      '主人批准记录出现前，验证全局 blocking hook 配置与接入范围未改变；批准记录必须绑定本 taskId、明确批准范围并附回滚方案。',
+      '分工明确：质量运营负责清单、迁移设计与 contract tests；监管负责独立阻塞风险评估；项目主管负责完整性审查、验收汇总和发起主人确认。',
+      '视觉/UI证据：NA——本任务仅涉及引擎、hook、兼容设计与自动化测试，无 UI 或视觉验收面，不要求 Peekaboo 截图。',
+      '全程不回显密钥；登录、授权、OAuth、扫码或 2FA 一律停下交主人手动处理。',
+    ];
+    const orchestratorAcceptance = orchestratorAcceptanceItems
+      .map((item, index) => `${index + 1}. ${item}`)
+      .join('');
+    const orchestratorAcceptanceRecords = orchestratorAcceptanceItems.map(text => ({
+      text,
+      scope: 'project/控制台',
+    }));
+    const planCtx = { projectId: '控制台' };
+    const planEvents = [];
+    const planned = _test.runOrchestratorPlan({
+      taskId: 'orchestrator-acceptance-capture',
+      eventlog: { emit: (type, data) => planEvents.push(Object.assign({ type }, data || {})) },
+      cliRunner: () => ({
+        vars: {
+          orchestrator: {
+            projectId: '控制台',
+            summary: 'fixture supervisor brief',
+            acceptance: orchestratorAcceptanceRecords,
+          },
+        },
+      }),
+      ctx: planCtx,
+    });
+    assert.strictEqual(planned.ok, true);
+    assert.deepStrictEqual(planCtx.orchestrator_acceptance, orchestratorAcceptanceRecords, 'orchestrator.acceptance item array must be retained structurally in ctx');
+    assert.strictEqual(planCtx.orchestrator_acceptance_contract.schema, 'acceptance-contract@1');
+    assert.strictEqual(planCtx.orchestrator_acceptance_contract.records.length, orchestratorAcceptanceItems.length);
+    assert(planCtx.orchestrator_acceptance_contract.records.every(record => record.acceptance_id && record.source_hash && record.scope === 'project/控制台'));
+    assert(planEvents.some(event => event.type === 'node.end'), 'orchestrator acceptance capture must complete the plan node');
+    const workerPrompt = fs.readFileSync(path.join(__dirname, '../shared/agents/worker-code/prompt.md'), 'utf8');
+    const supervisorPrompt = fs.readFileSync(path.join(__dirname, '../shared/agents/supervisor/prompt.md'), 'utf8');
+    assert.match(workerPrompt, /可执行完成证据只记录真实运行且退出码为 0/);
+    assert.match(supervisorPrompt, /postCompletionCloseout/);
+    assert.match(supervisorPrompt, /旧信封仍把后置动作列成前置验收时,判为信封协议缺陷/);
+    assert.match(supervisorPrompt, /artifacts\/task-briefs/);
+
+    const reviewPromptCtx = _test.makeCtx({
+      flowId: 'review-loop',
+      role: 'supervisor',
+      useOrchestrator: false,
+      goal: 'prompt scope fixture',
+      structuredAcceptance: false,
+    });
+    assert.deepStrictEqual(Object.keys(reviewPromptCtx.agentPrompts).sort(), ['supervisor', 'worker_code']);
+    const agentOncePromptCtx = _test.makeCtx({
+      flowId: 'agent-once',
+      role: 'insight-scout',
+      useOrchestrator: false,
+      goal: 'prompt scope fixture',
+      structuredAcceptance: false,
+    });
+    assert.deepStrictEqual(Object.keys(agentOncePromptCtx.agentPrompts), ['insight-scout']);
+    const routePromptCtx = _test.makeCtx({
+      flowId: 'project-route',
+      role: 'orchestrator',
+      goal: 'prompt scope fixture',
+      structuredAcceptance: false,
+    });
+    assert(routePromptCtx.agentPrompts.orchestrator);
+    assert(Object.keys(routePromptCtx.agentPrompts).filter(role => /^board_/.test(role)).length >= 1);
+    assert(Object.keys(routePromptCtx.agentPrompts).every(role => role === 'orchestrator' || /^board_/.test(role)));
 
     assert.strictEqual(_test.automaticLightweightSource({
       source: '洞察员',
@@ -51,42 +126,44 @@ function main() {
     }), true);
 
     assert.strictEqual(_test.normalizeProjectId('控制台'), '控制台');
-    assert.strictEqual(_test.normalizeProjectId('Starlaid'), null);
+    assert.strictEqual(_test.normalizeProjectId('不存在的项目'), null);
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '边界: Starlaid 一律排除; 密钥不回显',
+      goal: '边界:只处理控制台;密钥不回显',
     }, '', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 复核控制台 project-route 守卫',
-    }, '诊断: inferProjectId 显式 projectId 且非主动操作 Starlaid 时正常透传', null), '控制台');
+    }, '诊断: inferProjectId 显式 projectId 时正常透传', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 新增 CEO 到秘书反馈通道',
-    }, '- **A. CEO→秘书反馈通道(核心新增)**:CEO 拆解区分「硬失败(红线/Starlaid)」与「需澄清」', null), '控制台');
+    }, '- **A. CEO→秘书反馈通道(核心新增)**:CEO 拆解区分「硬失败」与「需澄清」', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
       goal: '目标: 自动维修直入队、不进公告板',
-    }, '本任务派给主管时**不得**再过会触发「检测到 Starlaid 或无法安全确定项目归属」的 CEO 转交判死分支(`buildSecretaryEnvelope()` 约 1309–1353)', null), '控制台');
+    }, '本任务派给主管时不得触发「无法安全确定项目归属」的 CEO 转交判死分支', null), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复一个未登记项目的构建脚本并运行测试',
     }, '', null), '控制台');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      goal: '目标: 修复一个未登记项目的构建脚本并运行测试',
     }), '控制台');
 
     assert.strictEqual(_test.inferProjectId({
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      projectId: '不存在的项目',
+      goal: '目标: 修复一个未登记项目的构建脚本并运行测试',
     }, '', null), null);
     assert.strictEqual(workerTest.inferProjectId({
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      projectId: '不存在的项目',
+      goal: '目标: 修复一个未登记项目的构建脚本并运行测试',
     }), null);
 
     assert.strictEqual(_test.inferProjectId({
@@ -117,17 +194,17 @@ function main() {
     }, '```json\n{"orchestrator":{"projectId":"Simulaid","summary":"LLM 猜错","acceptance":"n/a"}}\n```', 'Simulaid'), 'Simulaid');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: '边界: 如果涉及 Starlaid 就停止; buildSecretaryEnvelope() 只是函数名',
+      goal: '边界:只处理控制台;buildSecretaryEnvelope() 只是函数名',
     }), '控制台');
     assert.strictEqual(_test.inferProjectId({
       projectId: '控制台',
-      goal: '修复控制台 project-guard: buildStarlaidStatus() 只是函数名,不是 Starlaid 项目操作',
+      goal: '修复控制台 project-guard: buildLegacyStatus() 只是函数名',
     }, '', null), '控制台');
     assert.strictEqual(workerTest.inferProjectId({
       projectId: '控制台',
-      goal: 'Refactor buildStarlaidStatus() helper in console guard only',
+      goal: 'Refactor buildLegacyStatus() helper in console guard only',
     }), '控制台');
-    assert.strictEqual(workerTest.isRetryableEngineFailure('检测到 Starlaid 排除范围或项目归属需要主人确认,CEO 已软暂停派单', { code: 5, paused: true }), false);
+    assert.strictEqual(workerTest.isRetryableEngineFailure('无法安全确定项目归属,CEO 已软暂停派单', { code: 5, paused: true }), false);
     assert.strictEqual(workerTest.isRetryableEngineFailure('node_failed', { code: 3 }), true);
 
     assert.strictEqual(_test.supervisorQueue('控制台'), 'supervisor-控制台');
@@ -139,8 +216,8 @@ function main() {
     }, ''), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
     assert.deepStrictEqual(_test.directQueueForGoal({
       goal: '重整办公室布局: 每个部门(总裁办/公共协作/系统办/Simulaid/人力资源/董事会)占一整行; 前端程序员做; Peekaboo 截图确认。',
-      bounds: '办公室改一行一行; 前端做; Starlaid 排除',
-    }, '前端程序员负责实现(布局/CSS),不是后端逻辑改动。{"summary":"前端程序员实现,Starlaid 排除。"}'), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
+      bounds: '办公室改一行一行; 前端做; 密钥不回显',
+    }, '前端程序员负责实现(布局/CSS),不是后端逻辑改动。{"summary":"前端程序员实现。"}'), { agent: 'frontend_designer', role: 'frontend_designer', flowId: 'agent-once' });
     assert.deepStrictEqual(_test.directQueueForGoal({
       goal: 'HR主管安排一次智能体职责边界审核,并更新花名册',
     }, ''), { agent: 'hr_manager', role: 'hr_manager', flowId: 'agent-once' });
@@ -225,7 +302,8 @@ function main() {
       queueId: 'softRoute',
       role: 'orchestrator',
       flowId: 'project-route',
-      goal: '目标: 修复 Starlaid 项目的构建脚本并运行测试',
+      projectId: '不存在的项目',
+      goal: '目标: 修复一个未登记项目的构建脚本并运行测试',
       useOrchestrator: false,
       autoApproveHuman: true,
     });
@@ -310,6 +388,7 @@ function main() {
       flowId: 'project-route',
       projectId: '控制台',
       goal: '目标: 控制台任务链状态传播冒烟',
+      acceptance: orchestratorAcceptance,
       useOrchestrator: false,
       autoApproveHuman: true,
     });
@@ -328,6 +407,76 @@ function main() {
     assert(routedEvents.some(e => e.type === 'project.route.waiting'), 'project-route did not mark waiting downstream');
     assert(routedEvents.some(e => e.type === 'engine.worker.end' && e.waitingDownstream === true && e.state === 'waiting_downstream'), 'project-route did not end as waiting_downstream');
     assert(!routedEvents.some(e => e.type === 'task.done'), 'project-route parent must not be done before child finishes');
+    const routedEvent = routedEvents.find(e => e.type === 'project.routed');
+    const briefEvent = routedEvents.find(e => e.type === 'project.brief.written');
+    assert(briefEvent && briefEvent.taskFile, 'project-route must emit a task-scoped brief path');
+    assert(fs.existsSync(resolveMaybeRepoPath(briefEvent.taskFile)), 'task-scoped brief file missing');
+    const routedChild = Q.list(artifactsDir, 'supervisor-控制台').queued.find(e => e.id === routedEvent.queueId);
+    assert(routedChild, 'project-route supervisor child queue entry missing');
+    assert((routedChild.task.inputs || []).includes(briefEvent.taskFile), 'supervisor must read the task-scoped brief');
+    assert(!(routedChild.task.inputs || []).includes('projects/控制台/brief.md'), 'supervisor must not reread the append-only brief history');
+    const routedRows = _test.buildSupervisorAcceptance({
+      projectId: '控制台',
+      supervisorGoal: routedChild.task.goal,
+      acceptanceGoal: '目标: 控制台任务链状态传播冒烟',
+      orchestratorAcceptance,
+    });
+    assert.strictEqual(routedChild.task.acceptance, routedRows, 'supervisor child must receive the structured orchestrator acceptance');
+    const routedPoints = DoneGate.parseStructuredAcceptanceRows(routedChild.task.acceptance).map(row => row.point);
+    assert.strictEqual(routedPoints.length, 11, '9 applicable orchestrator items, implement row, and one structured N/A row must survive replay');
+    assert.deepStrictEqual(
+      routedPoints.slice(0, 9),
+      orchestratorAcceptanceItems.filter(item => !/^视觉\/UI证据/.test(item)).map(item => `任务验收: ${item}`),
+      'applicable orchestrator acceptance must reach supervisor without loss or secondary semicolon splits',
+    );
+    assert(routedChild.task.acceptance.includes('AHR-26..30'), 'AHR-26..30 must remain searchable verbatim');
+    assert(routedChild.task.acceptance.includes('timeoutMs=100'), 'timeoutMs=100 must remain searchable verbatim');
+    assert.match(routedChild.task.acceptance, /视觉\/UI证据: not_applicable \| not_applicable \| task-envelope:visual_acceptance/);
+    assert.strictEqual(routedChild.task.visual_acceptance.required, false);
+    assert.match(routedChild.task.acceptance, /实现阶段完成 控制台 项目 CEO brief/);
+    assert.match(routedChild.task.acceptance, /review 由系统随后单独执行/);
+    assert.strictEqual(
+      routedPoints[9],
+      '任务验收: 实现阶段完成 控制台 项目 CEO brief 的交付、逐项证据和 projects/控制台/status.md 更新（review 由系统随后单独执行，不要求 implement 预先声明 review 已完成）。',
+      'supervisor implement-stage acceptance must be preserved before the visual-decision row',
+    );
+    assert.doesNotMatch(routedChild.task.acceptance, /在 控制台 项目 scope 内跑 review-loop/);
+    assert(
+      DoneGate.parseStructuredAcceptanceRows(routedChild.task.acceptance).filter(row => DoneGate.visualAcceptancePoint(row.point)).length === 1,
+      'negative visual acceptance must emit exactly one structured visual-decision row',
+    );
+    assert.strictEqual(routedPoints[10], DoneGate.VISUAL_ACCEPTANCE_NA_POINT);
+    assert(!/status-rollup\.md/.test(routedChild.task.acceptance), 'post-completion rollup must not be a pre-done acceptance row');
+    assert.deepStrictEqual(routedChild.task.postCompletionCloseout, {
+      type: 'project-status-rollup',
+      statusFile: 'projects/控制台/status.md',
+      rollupFile: 'board/status-rollup.md',
+    });
+
+    const boardCommentaryAcceptance = _test.buildSupervisorAcceptance({
+      projectId: '控制台',
+      acceptanceGoal: '纯引擎 typed outcome 契约回归，不改页面。',
+      supervisorGoal: [
+        '项目主管执行纯引擎契约回归。',
+        '董事评语: typed outcome 需兼容测试，否则 UI/队列消费者可能静默错读。',
+      ].join('\n'),
+      orchestratorAcceptance: '自动测试证明旧状态兼容且新字段可审计。',
+    });
+    const boardCommentaryVisualRows = DoneGate.parseStructuredAcceptanceRows(boardCommentaryAcceptance)
+      .filter(row => DoneGate.visualAcceptancePoint(row.point));
+    assert.strictEqual(boardCommentaryVisualRows.length, 1);
+    assert(DoneGate.notApplicableVisualRow(boardCommentaryVisualRows[0]), 'board commentary must remain structured non-visual N/A');
+    const realVisualAcceptance = _test.buildSupervisorAcceptance({
+      projectId: '控制台',
+      acceptanceGoal: '修改 workspace.html 的真实 UI 页面布局。',
+      supervisorGoal: '项目主管执行 UI 改造。',
+      orchestratorAcceptance: '页面布局和交互可用。',
+    });
+    assert(
+      DoneGate.parseStructuredAcceptanceRows(realVisualAcceptance)
+        .some(row => row.point === DoneGate.VISUAL_ACCEPTANCE_POINT && !DoneGate.notApplicableVisualRow(row)),
+      'a real visual owner goal must still require visual evidence',
+    );
 
     const insightSpec = path.join(root, 'insight-route-spec.json');
     writeJson(insightSpec, {

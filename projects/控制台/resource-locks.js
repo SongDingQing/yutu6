@@ -10,16 +10,25 @@ const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const DEFAULT_HEARTBEAT_MS = 15 * 1000;
 const DEFAULT_WAIT_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_WAIT_POLL_MS = 700;
+const DEFAULT_WAIT_AUDIT_INTERVAL_MS = 60 * 1000;
 const COORDINATOR_STALE_MS = 10 * 1000;
 
 const DOMAIN_DEFS = [
   { id: 'frontend-public', aliases: ['public', 'frontend', 'ui', 'webui'], paths: ['projects/控制台/public/'] },
-  { id: 'engine', aliases: ['shared-engine', 'engine-core'], paths: ['shared/engine/'] },
+  { id: 'engine', aliases: ['shared-engine', 'engine-core'], paths: [
+    'shared/engine/',
+    'projects/控制台/engine-runner.js',
+    'projects/控制台/ceo-worker.js',
+    'projects/控制台/resource-locks.js',
+    'projects/控制台/board-review.js',
+    'projects/控制台/watchdog-daemon.js',
+  ] },
   { id: 'config', aliases: ['configs', 'routing'], paths: ['projects/控制台/config.json', 'shared/routing/', 'shared/config/'] },
   { id: 'assets', aliases: ['asset', 'artifacts-assets'], paths: ['projects/控制台/public/office-demo-assets/', 'projects/控制台/artifacts/avatars/'] },
   { id: 'agents', aliases: ['agent', 'agent-dirs'], paths: ['shared/agents/'] },
   { id: 'queue-state', aliases: ['queues', 'events', 'runtime'], paths: ['projects/控制台/artifacts/queues/', 'projects/控制台/artifacts/engine-events.jsonl', 'projects/控制台/artifacts/engine-jobs/'] },
   { id: 'brief-status', aliases: ['status', 'brief', 'rollup'], paths: ['projects/控制台/brief.md', 'projects/控制台/status.md', 'board/status-rollup.md'] },
+  { id: 'console-backend', aliases: ['server', 'console-server', 'backend'], paths: ['projects/控制台/server.js', 'projects/控制台/control-room.js'] },
   { id: 'console-project', aliases: ['console', 'project-console'], paths: ['projects/控制台/'] },
   { id: 'tests', aliases: ['test'], paths: ['tests/'] },
   { id: 'memory', aliases: ['memories'], paths: ['memory/'] },
@@ -100,7 +109,13 @@ function domainForPath(file) {
   for (const def of DOMAIN_DEFS) {
     for (const prefix of def.paths || []) {
       const p = normalizePathForCompare(prefix);
-      if (raw === p || raw.startsWith(`${p}/`) || (prefix.endsWith('/') && raw.startsWith(p))) return def.id;
+      const absoluteSuffix = `/${p}`;
+      if (raw === p
+        || raw.startsWith(`${p}/`)
+        || (prefix.endsWith('/') && raw.startsWith(p))
+        || raw === absoluteSuffix
+        || raw.endsWith(absoluteSuffix)
+        || raw.includes(`${absoluteSuffix}/`)) return def.id;
     }
   }
   return null;
@@ -155,38 +170,140 @@ function isPrivilegedTask(task = {}) {
     || runnerType === 'codex-privileged';
 }
 
+const INFERRED_WRITE_DOMAIN_LIMIT = 2;
+const WRITE_ACTION_RE = /(修改|修复|重构|重写|新增|添加|删除|移除|替换|迁移|清理|重排|合并|取消|落地|实现|接入|更新|改造|优化|生成|覆盖|\b(?:modify|edit|fix|refactor|rewrite|add|remove|delete|replace|migrate|implement|update|generate)\b)/i;
+const READ_ONLY_ACTION_RE = /(只读|读取|查看|检查|核实|审核|分析|对照|\b(?:read|inspect|audit|analy[sz]e|review)\b)/i;
+
+function stripSecretaryBackground(text) {
+  const s = String(text || '');
+  const marker = s.indexOf('[秘书后台背景包]');
+  if (marker === -1) return s;
+  const goal = s.indexOf('\n目标:', marker);
+  if (goal > marker) return `${s.slice(0, marker)}${s.slice(goal + 1)}`.trim();
+  return s.slice(0, marker).trim();
+}
+
+function extractPrimaryTaskIntent(text) {
+  const s = stripSecretaryBackground(text);
+  const originalAt = s.indexOf('原始目标:');
+  const searchFrom = originalAt >= 0 ? originalAt + '原始目标:'.length : 0;
+  const targetAt = s.indexOf('目标:', searchFrom);
+  if (targetAt < 0) return s;
+  const start = targetAt + '目标:'.length;
+  const tail = s.slice(start);
+  const boundaries = [
+    /\s项目:/,
+    /\s图片附件(?:\(|:)/,
+    /\s边界:/,
+    /\s验收:/,
+    /\n##\s/,
+  ];
+  let end = tail.length;
+  for (const re of boundaries) {
+    const match = re.exec(tail);
+    if (match && match.index < end) end = match.index;
+  }
+  const primary = tail.slice(0, end).trim();
+  return primary || s;
+}
+
+function primaryIntentText(task = {}) {
+  return [task.title, task.task, task.summary, task.goal, task.message]
+    .filter(Boolean)
+    .map(extractPrimaryTaskIntent)
+    .join('\n')
+    .slice(0, 12000);
+}
+
+function intentClauses(text) {
+  return String(text || '').split(/[\r\n。；;!?！？]+/).map(s => s.trim()).filter(Boolean);
+}
+
+function hasPositiveWriteAction(text, writeRe) {
+  const scrubbed = String(text || '')
+    .replace(/(?:不|无需|不要|不再|未).{0,6}(?:修改|修复|重构|重写|新增|添加|删除|移除|替换|迁移|清理|重排|合并|取消|落地|实现|接入|更新|改造|优化|生成|覆盖)/gi, '')
+    .replace(/\b(?:do\s+not|don't|not|without)\b.{0,16}\b(?:modify|edit|fix|refactor|rewrite|add|remove|delete|replace|migrate|implement|update|generate)\b/gi, '');
+  writeRe.lastIndex = 0;
+  return writeRe.test(scrubbed);
+}
+
+function domainIntentMode(clauses, targetRe, writeRe = WRITE_ACTION_RE) {
+  let readMention = false;
+  for (const clause of clauses) {
+    targetRe.lastIndex = 0;
+    if (!targetRe.test(clause)) continue;
+    readMention = true;
+    if (hasPositiveWriteAction(clause, writeRe) && !(/^仅?(只读|读取|查看|检查|核实|审核|分析|对照)/.test(clause) && READ_ONLY_ACTION_RE.test(clause))) return 'write';
+  }
+  if (readMention && clauses.some(clause => hasPositiveWriteAction(clause, writeRe))) return 'write';
+  return readMention ? 'read' : '';
+}
+
+function pushDomainByIntent(read, write, clauses, domain, targetRe, writeRe) {
+  const mode = domainIntentMode(clauses, targetRe, writeRe);
+  if (mode === 'write') write.push(domain);
+  else if (mode === 'read') read.push(domain);
+}
+
 function inferResourceDomains(task = {}) {
   const role = String(task.role || task.agentRole || task.queueAgent || '').toLowerCase();
-  const intentText = [
-    task.goal,
-    task.message,
-    task.task,
-    task.title,
-    task.summary,
-    ...(Array.isArray(task.changed_files) ? task.changed_files : []),
-  ].filter(Boolean).join('\n');
+  const intentText = primaryIntentText(task);
+  const clauses = intentClauses(intentText);
   const inputPaths = Array.isArray(task.inputs) ? task.inputs : [];
+  const changedFiles = [
+    ...(Array.isArray(task.changed_files) ? task.changed_files : []),
+    ...(Array.isArray(task.changedFiles) ? task.changedFiles : []),
+  ];
   const read = [];
   const write = [];
 
-  if (role === 'orchestrator' || task.flowId === 'project-route') write.push('brief-status', 'queue-state');
+  // project-route 会追加项目 brief,但队列文件、eventlog 与 engine-jobs 都由
+  // 控制面自己的原子写负责；不能因为“运行了一个任务”就把 queue-state
+  // 作为整段 engine 生命周期的业务写锁，否则任意 supervisor 长任务都会
+  // 阻塞所有 CEO 路由。真正清理/迁移队列的任务仍由下面的意图规则命中。
+  if (role === 'orchestrator' || task.flowId === 'project-route') write.push('brief-status');
   if (role === 'frontend_designer' || role === 'ui_optimizer') write.push('frontend-public');
+  if (role === 'memory_officer') write.push('memory');
+  if (role === 'hr_manager' || role === 'hr_specialist') write.push('agents');
+  if (role === 'insight-scout') write.push('insights');
   if (role === 'quality_ops' || role === 'governance') read.push('console-project', 'engine', 'config');
 
   for (const p of inputPaths) read.push(domainForPath(p));
 
-  if (/projects\/控制台\/public\/|workspace\.html|前端|webui|ui|css|html/i.test(intentText)) write.push('frontend-public');
-  if (/shared\/engine\/|engine-runner|ceo-worker|queue|队列|调度|并发|锁|slot|lease/i.test(intentText)) write.push('engine', 'queue-state');
-  if (/config\.json|shared\/routing\/|配置|runner|路由/i.test(intentText)) write.push('config');
-  if (/shared\/agents\/|agent\.json|prompt\.md|智能体|agent/i.test(intentText)) write.push('agents');
-  if (/assets|素材|头像|office-demo-assets|png|webp/i.test(intentText)) write.push('assets');
-  if (/memory\/|记忆|沉淀/i.test(intentText)) write.push('memory');
-  if (/board\/|公告板|工单|rollup|status\.md|brief\.md/i.test(intentText)) write.push('board', 'brief-status');
-  if (/tests\/|测试|回归|smoke/i.test(intentText)) write.push('tests');
-  for (const f of Array.isArray(task.changed_files) ? task.changed_files : []) write.push(domainForPath(f));
+  pushDomainByIntent(read, write, clauses, 'frontend-public', /projects\/控制台\/public\/|workspace\.html|control-room\.html|newapi\.html|前端|webui|任务板|任务卡|工位视图|(?:显示|渲染).{0,30}(?:CEO|主管|程序员|任务|节点|状态)|\b(?:ui|css|html)\b/i);
+  pushDomainByIntent(read, write, clauses, 'engine', /shared\/engine\/|engine-runner\.js|ceo-worker\.js|resource-locks\.js|board-review\.js|watchdog-daemon\.js|引擎代码|队列引擎|lease|slot/i);
+  pushDomainByIntent(read, write, clauses, 'console-backend', /projects\/控制台\/(?:server|control-room)\.js|控制台后端|API 路由/i);
+  pushDomainByIntent(read, write, clauses, 'config', /projects\/控制台\/config\.json|shared\/routing\/|runners\.yaml|角色路由|runner 配置/i);
+  pushDomainByIntent(read, write, clauses, 'agents', /shared\/agents\/|agent\.json|(?:注册|创建|修改|更新).{0,20}(?:智能体|角色|agent)/i);
+  pushDomainByIntent(read, write, clauses, 'assets', /office-demo-assets|artifacts\/avatars\/|图像素材|头像|\.(?:png|webp)\b/i);
+  pushDomainByIntent(read, write, clauses, 'queue-state', /artifacts\/queues\/|engine-events\.jsonl|engine-jobs\/|(?:清理|重排|迁移|合并|取消).{0,20}队列|队列.{0,20}(?:状态文件|清理|重排|迁移|合并|取消)/i);
+  pushDomainByIntent(read, write, clauses, 'brief-status', /board\/status-rollup\.md|projects\/控制台\/(?:brief|status)\.md|项目 (?:brief|status)/i);
+  pushDomainByIntent(read, write, clauses, 'memory', /(?:^|[\s`'"(])memory\/|记忆库|记忆条目|沉淀案例/i);
+  pushDomainByIntent(read, write, clauses, 'insights', /board\/insights\/|artifacts\/bulletin\/|洞察卡|公告板卡/i);
+  pushDomainByIntent(read, write, clauses, 'board', /board\/repair-tickets\/|board\/(?:direction|learning-cases|decisions)|维修工单/i);
+  pushDomainByIntent(
+    read,
+    write,
+    clauses,
+    'tests',
+    /(?:^|[\s`'"(])tests\/|回归测试|测试用例/i,
+    /(新增|添加|修改|重写|删除|补齐|补充).{0,24}(测试|tests\/)|(测试|tests\/).{0,24}(新增|添加|修改|重写|删除|补齐|补充)|\b(?:add|modify|update|rewrite|remove).{0,24}(?:test|tests\/)\b/i,
+  );
 
-  if (!read.length && !write.length) write.push('console-project');
-  return { read, write, source: 'inferred' };
+  // changed_files 是执行体的硬证据，不做数量截断。只有文本启发式推断才限制写域：
+  // 跨多域真任务应由 CEO 显式声明 resourceDomains 或拆分阶段，避免一口气锁死全局。
+  for (const f of changedFiles) write.push(domainForPath(f));
+  let inferredWrite = uniqSorted(write);
+  let source = 'inferred';
+  if (!changedFiles.length && inferredWrite.length > INFERRED_WRITE_DOMAIN_LIMIT) {
+    const kept = inferredWrite.slice(0, INFERRED_WRITE_DOMAIN_LIMIT);
+    for (const domain of inferredWrite.slice(INFERRED_WRITE_DOMAIN_LIMIT)) read.push(domain);
+    inferredWrite = kept;
+    source = 'inferred-capped';
+  }
+
+  if (!read.length && !inferredWrite.length) inferredWrite.push('console-project');
+  return { read, write: inferredWrite, source };
 }
 
 function normalizeResourceRequest(task = {}, opts = {}) {
@@ -328,6 +445,50 @@ function conflictHolders(root, request, token, opts = {}) {
   return conflicts;
 }
 
+function requestConflictDomains(left = {}, right = {}) {
+  const leftRead = new Set(listFrom(left.read).map(normalizeDomain).filter(Boolean));
+  const leftWrite = new Set(listFrom(left.write).map(normalizeDomain).filter(Boolean));
+  const rightRead = new Set(listFrom(right.read).map(normalizeDomain).filter(Boolean));
+  const rightWrite = new Set(listFrom(right.write).map(normalizeDomain).filter(Boolean));
+  const domains = [];
+  for (const domain of leftWrite) {
+    if (rightWrite.has(domain) || rightRead.has(domain)) domains.push(domain);
+  }
+  for (const domain of leftRead) {
+    if (rightWrite.has(domain)) domains.push(domain);
+  }
+  return uniqSorted(domains);
+}
+
+function waiterPrecedes(waiter, token, requestedAt) {
+  const waiterAt = Date.parse(waiter && waiter.requested_at || '') || 0;
+  const currentAt = Date.parse(requestedAt || '') || Number.MAX_SAFE_INTEGER;
+  if (waiterAt !== currentAt) return waiterAt < currentAt;
+  return String(waiter && waiter.token || '') < String(token || '');
+}
+
+function conflictWaiters(root, request, token, requestedAt, opts = {}) {
+  const conflicts = [];
+  for (const waiter of readWaiters(root)) {
+    if (!waiter || !waiter.token || waiter.token === token) continue;
+    if (lockRecordStale(waiter, opts)) continue;
+    if (requestedAt && !waiterPrecedes(waiter, token, requestedAt)) continue;
+    for (const domain of requestConflictDomains(request, waiter)) {
+      conflicts.push({
+        token: waiter.token,
+        mode: 'waiter',
+        domain,
+        queueAgent: waiter.queueAgent || null,
+        queueId: waiter.queueId || null,
+        taskId: waiter.taskId || null,
+        ownerPid: waiter.ownerPid || null,
+        requested_at: waiter.requested_at || null,
+      });
+    }
+  }
+  return conflicts;
+}
+
 function currentOwnerRecord(task, token, opts = {}) {
   return {
     token,
@@ -437,13 +598,16 @@ function detectCircularWait(waiters) {
 }
 
 function writeWaiter(root, token, task, request, conflicts, opts = {}) {
+  const previous = readJson(waiterFile(root, token));
   const waiter = {
     token,
     queueAgent: task.queueAgent || task.agent || null,
     queueId: task.queueId || task.id || null,
     taskId: task.taskId || null,
     ownerPid: Number(opts.ownerPid || process.pid),
-    requested_at: opts.requestedAt || nowIso(),
+    // requested_at 是公平排序键，轮询刷新只能更新 heartbeat，不能把老
+    // waiter 每 700ms 伪装成新请求。
+    requested_at: opts.requestedAt || previous && previous.requested_at || nowIso(),
     heartbeat_at: nowIso(),
     read: request.read,
     write: request.write,
@@ -547,7 +711,9 @@ async function currentResourceConflicts(task = {}, opts = {}) {
   let conflicts = [];
   await withCoordinator(root, async () => {
     sweepStaleResourceLocksInside(root, Object.assign({}, opts, { leaseMs }));
-    conflicts = conflictHolders(root, request, opts.token || '__scheduler_probe__', Object.assign({}, opts, { leaseMs }));
+    const probeToken = opts.token || '__scheduler_probe__';
+    conflicts = conflictHolders(root, request, probeToken, Object.assign({}, opts, { leaseMs }))
+      .concat(conflictWaiters(root, request, probeToken, null, Object.assign({}, opts, { leaseMs })));
   }, { coordinatorTimeoutMs: Number(opts.coordinatorTimeoutMs || 1000) });
   return {
     available: conflicts.length === 0,
@@ -615,14 +781,20 @@ async function acquireResourceLease(task = {}, opts = {}) {
   const pollMs = Number(opts.pollMs || DEFAULT_WAIT_POLL_MS);
   const leaseMs = Number(opts.leaseMs || DEFAULT_LEASE_MS);
   const heartbeatMs = Number(opts.heartbeatMs || Math.min(DEFAULT_HEARTBEAT_MS, Math.max(1000, Math.floor(leaseMs / 3))));
+  const waitAuditIntervalMs = Number(opts.waitAuditIntervalMs || DEFAULT_WAIT_AUDIT_INTERVAL_MS);
+  const requestedAt = nowIso();
   let loggedWait = false;
+  let lastWaitAuditAt = 0;
+  let lastWaitAuditSignature = '';
 
   while (Date.now() - started <= timeoutMs) {
     let acquired = false;
     let waitPayload = null;
     await withCoordinator(root, async () => {
       sweepStaleResourceLocksInside(root, Object.assign({}, opts, { leaseMs }));
-      const conflicts = conflictHolders(root, request, token, Object.assign({}, opts, { leaseMs }));
+      const holderConflicts = conflictHolders(root, request, token, Object.assign({}, opts, { leaseMs }));
+      const queuedConflicts = conflictWaiters(root, request, token, requestedAt, Object.assign({}, opts, { leaseMs }));
+      const conflicts = holderConflicts.concat(queuedConflicts);
       if (!conflicts.length) {
         removeWaiter(root, token);
         addLocks(root, task, request, token, Object.assign({}, opts, { leaseMs }));
@@ -630,7 +802,7 @@ async function acquireResourceLease(task = {}, opts = {}) {
         acquired = true;
         return;
       }
-      const waiter = writeWaiter(root, token, task, request, conflicts, opts);
+      const waiter = writeWaiter(root, token, task, request, conflicts, Object.assign({}, opts, { requestedAt }));
       const cycle = detectCircularWait(readWaiters(root));
       waitPayload = Object.assign({}, meta, {
         token,
@@ -640,7 +812,18 @@ async function acquireResourceLease(task = {}, opts = {}) {
         waitedMs: Date.now() - started,
         deadlockCycle: cycle,
       });
-      appendJsonl(arbitrationFile(root), Object.assign({ ts: nowIso(), action: 'wait', waiter }, waitPayload));
+      const waitAuditSignature = JSON.stringify({
+        conflicts: conflicts.map(item => [item.token, item.mode, item.domain]).sort(),
+        deadlockCycle: cycle || null,
+      });
+      const auditNow = Date.now();
+      if (!lastWaitAuditAt
+        || waitAuditSignature !== lastWaitAuditSignature
+        || auditNow - lastWaitAuditAt >= waitAuditIntervalMs) {
+        appendJsonl(arbitrationFile(root), Object.assign({ ts: nowIso(), action: 'wait', waiter }, waitPayload));
+        lastWaitAuditAt = auditNow;
+        lastWaitAuditSignature = waitAuditSignature;
+      }
     }, opts);
 
     if (acquired) {
@@ -739,9 +922,15 @@ module.exports = {
   _test: {
     cleanDomainState,
     conflictHolders,
+    conflictWaiters,
+    extractPrimaryTaskIntent,
+    inferResourceDomains,
     lockRecordStale,
+    primaryIntentText,
     processStartMarker,
     readDomainState,
+    requestConflictDomains,
     requestConflictsWithHeld,
+    waiterPrecedes,
   },
 };

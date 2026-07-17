@@ -71,9 +71,4 @@
 | Skill | 作用 |
 |---|---|
 | `doubao-seedance-animation` | 豆包 Seedance 动画 |
-| `starlaid-game-development` | 🚫 Starlaid——硬排除 |
-| `starlaid-image-generation` | 🚫 Starlaid——硬排除 |
-| `starlaid-test-maintenance` | 🚫 Starlaid——硬排除 |
-| `starlaid-unity-maintenance` | 🚫 Starlaid——硬排除 |
-
-> **按需拉方式**:做到某项目(如 Simulaid/YuanXiao)时,只从旧机 `~/.codex/skills` 取**该项目相关**技能拷进新机 `~/.codex/skills`,并把 registry 对应项标 `present`。不一次性全拷。Starlaid 四项保持硬排除。
+> **按需拉方式**:做到某项目(如 Simulaid/YuanXiao)时,只从旧机 `~/.codex/skills` 取**该项目相关**技能拷进新机 `~/.codex/skills`,并把 registry 对应项标 `present`。不一次性全拷。

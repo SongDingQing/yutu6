@@ -11,19 +11,27 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const RuntimeSettings = require('./runtime-settings');
+const RUNTIME_SETTINGS_BOOT = RuntimeSettings.applyRuntimeSettingsToEnv({ logger: console });
 
 const Q = require('../../shared/engine/queue');
 const EventLog = require('../../shared/engine/eventlog');
 const SecretaryTools = require('./secretary-tools');
 const QueueAutoMerge = require('./queue-automerge');
+const RoleBoundaryRouting = require('./role-boundary-routing');
+const IndependentRoleReceipts = require('./independent-role-receipts');
 const BoardReview = require('./board-review');
-const { hasActiveStarlaidReference, isStarlaidProjectId, keywordProjectId } = require('./project-guard');
+const DirectCompletionOverride = require('./direct-completion-override');
+const RepairClaimNoop = require('./repair-claim-noop');
+const { keywordProjectId } = require('./project-guard');
 const Runtime = require('./engine-runtime');
 const ResourceLocks = require('./resource-locks');
 const QuotaDegrade = require('./quota-degrade');
 const RuntimePaths = require('./runtime-paths');
 const DoneGate = require('../../shared/engine/done-gate');
-const { computeSourceRevision, defaultReloadDirs } = require('./source-revision');
+const { IncrementalEventReader } = require('../../shared/engine/incremental-event-reader');
+const { AuditPulseLimiter } = require('../../shared/engine/audit-pulse');
+const { computeSourceRevision, defaultReloadDirs, codeReloadDecision } = require('./source-revision');
 const DailyIgnition = require('./daily-ignition');
 const CODE_RELOAD_CHECK_MS = 30000;
 
@@ -40,6 +48,7 @@ const ENGINE_SLOTS = path.join(ARTIFACTS_ROOT, 'engine-slots');
 const ENGINE_TYPE_LOCKS = path.join(ARTIFACTS_ROOT, 'engine-runner-types');
 const RESOURCE_LOCKS = path.join(ARTIFACTS_ROOT, 'resource-locks');
 const ACTIVE_CEO_TASK_LOCK = path.join(ARTIFACTS_ROOT, 'active-ceo-task.lock.json');
+const CONSOLE_RESTART_BARRIER = path.join(ARTIFACTS_ROOT, 'console-restart', '.restart-request.lock');
 const LEGACY_ENGINE_LOCK = path.join(ARTIFACTS_ROOT, 'engine-runner.lock.json');
 const CFG = (() => {
   const cfgPath = process.env.CONSOLE_CONFIG_PATH
@@ -66,9 +75,9 @@ const DEFAULT_ROLE_MAP = {
   repair: 'codex-privileged',
   gui_desktop_control: 'peekaboo',
   frontend_designer: 'zhipu-glm',
-  board_glm52: 'zhipu-glm',
-  board_deepseek: 'new-api',
-  board_claude: 'claude-opus-4-8',
+  board_glm52: 'zhipu-board-direct',
+  board_deepseek: 'deepseek-board-direct',
+  board_claude: 'claude-fable-5',
   board_opus48: 'codex',
 };
 const ENGINE_MAX_CONCURRENCY = Math.max(1, parseInt(process.env.ENGINE_MAX_CONCURRENCY || '3', 10) || 3);
@@ -81,6 +90,7 @@ const RUNNER_SINGLEFLIGHT = new Set(String(process.env.RUNNER_SINGLEFLIGHT || 'c
 const QUEUE_MAX_RETRY = Math.max(0, parseInt(process.env.QUEUE_MAX_RETRY || '2', 10) || 2);
 const NODE_FAILURE_MAX_RETRY = Math.max(0, parseInt(process.env.NODE_FAILURE_MAX_RETRY || '2', 10) || 2);
 const RUNNING_SWEEP_MS = Math.max(1000, parseInt(process.env.RUNNING_SWEEP_MS || '5000', 10) || 5000);
+const AUDIT_PULSE_MS = Math.max(10 * 1000, parseInt(process.env.YUTU6_AUDIT_PULSE_MS || '60000', 10) || 60000);
 const ENGINE_LOCK_STALE_MS = Math.max(60 * 1000, parseInt(process.env.ENGINE_LOCK_STALE_MS || String(2 * 60 * 60 * 1000), 10) || (2 * 60 * 60 * 1000));
 const RUNNING_ENGINE_HEARTBEAT_STALE_MS = Math.max(1000, parseInt(process.env.RUNNING_ENGINE_HEARTBEAT_STALE_MS || '60000', 10) || 60000);
 const ENGINE_LEASE_HEARTBEAT_MS = Math.max(1000, parseInt(process.env.ENGINE_LEASE_HEARTBEAT_MS || '2000', 10) || 2000);
@@ -115,6 +125,11 @@ const PROJECT_ROUTE_EVENT_WAKE_ENABLED = process.env.PROJECT_ROUTE_EVENT_WAKE_EN
 const PROJECT_ROUTE_DISCOVERY_FALLBACK_MS = Math.max(50, parseInt(process.env.PROJECT_ROUTE_DISCOVERY_FALLBACK_MS || '300', 10) || 300);
 const PROJECT_ROUTE_ACTIVE_FALLBACK_MS = Math.max(50, parseInt(process.env.PROJECT_ROUTE_ACTIVE_FALLBACK_MS || '800', 10) || 800);
 const WORKER_HEARTBEAT_MS = Math.max(1000, parseInt(process.env.WORKER_HEARTBEAT_MS || '5000', 10) || 5000);
+const QUEUE_WORKER_PERSISTENT = process.env.QUEUE_WORKER_PERSISTENT === '1';
+const QUEUE_WORKER_IDLE_EXIT_MS = (() => {
+  const parsed = parseInt(process.env.QUEUE_WORKER_IDLE_EXIT_MS || '300000', 10);
+  return Math.max(0, Number.isFinite(parsed) ? parsed : 300000);
+})();
 const RESOURCE_DOMAIN_LOCKS_ENABLED = process.env.RESOURCE_DOMAIN_LOCKS_ENABLED !== '0';
 const RESOURCE_LOCK_WAIT_TIMEOUT_MS = Math.max(1000, parseInt(process.env.RESOURCE_LOCK_WAIT_TIMEOUT_MS || String(30 * 60 * 1000), 10) || (30 * 60 * 1000));
 const RESOURCE_LOCK_LEASE_MS = Math.max(30 * 1000, parseInt(process.env.RESOURCE_LOCK_LEASE_MS || String(5 * 60 * 1000), 10) || (5 * 60 * 1000));
@@ -123,7 +138,7 @@ const QUOTA_DEGRADE_ENABLED = process.env.QUOTA_DEGRADE_ENABLED !== '0';
 const QUOTA_DEGRADE_DRAIN_MS = Math.max(0, parseInt(process.env.QUOTA_DEGRADE_DRAIN_MS || '1800', 10) || 0);
 const QUOTA_DEGRADE_LOCK_WAIT_MS = Math.max(100, parseInt(process.env.QUOTA_DEGRADE_LOCK_WAIT_MS || '5000', 10) || 5000);
 
-const DEFAULT_BOUNDS = '只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
+const DEFAULT_BOUNDS = '只处理本任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明';
 const DEFAULT_ACCEPTANCE = '跑通 review-loop: 总管拆解、实现、评审、完成事件都写入 engine-events.jsonl; 如无需改文件请明确说明';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -144,12 +159,22 @@ const PROJECT_ROUTE_WAKE_EVENT_TYPES = new Set([
   'project.route.paused',
   'project.route.canceled',
 ]);
+const PROJECT_ROUTE_REFERENCE_EVENT_TYPES = new Set([
+  'project.routed',
+  'project.route.waiting',
+  'queue.enqueued',
+]);
+const projectRouteEventReader = new IncrementalEventReader(EVENTS, {
+  include: ev => !!ev && (PROJECT_ROUTE_WAKE_EVENT_TYPES.has(ev.type) || PROJECT_ROUTE_REFERENCE_EVENT_TYPES.has(ev.type)),
+  retain: Math.max(1000, parseInt(process.env.PROJECT_ROUTE_EVENT_RETAIN || '50000', 10) || 50000),
+});
+const runningKeepalivePulse = new AuditPulseLimiter({ intervalMs: AUDIT_PULSE_MS });
+const resourceBlockedPulse = new AuditPulseLimiter({ intervalMs: AUDIT_PULSE_MS });
 const ownerAutoNotifyTimers = new Map();
 let p1DigestNextCheckMs = 0;
 let workerPidFile = null;
 let workerHeartbeatTimer = null;
 let workerSupersededNoticeSent = false;
-let resourceSchedulerLastBlockedAt = 0;
 let resourceSchedulerLastProbeFailedAt = 0;
 const resourceSchedulerReservations = new Map();
 
@@ -171,23 +196,51 @@ function isQueueAgentDirName(s) {
 }
 
 function readEngineEventsSince(afterSeq) {
-  const out = [];
-  let maxSeq = Number(afterSeq || 0) || 0;
-  try {
-    const lines = fs.readFileSync(EVENTS, 'utf8').trim().split(/\r?\n/).filter(Boolean);
-    for (const line of lines) {
-      let ev;
-      try { ev = JSON.parse(line); } catch (_) { continue; }
-      const seq = Number(ev && ev.seq) || 0;
-      if (seq > maxSeq) maxSeq = seq;
-      if (seq > Number(afterSeq || 0)) out.push(ev);
-    }
-  } catch (_) {}
-  return { events: out, maxSeq };
+  return projectRouteEventReader.since(afterSeq);
 }
 
 function currentEngineEventSeq() {
-  return readEngineEventsSince(0).maxSeq;
+  return projectRouteEventReader.currentSeq();
+}
+
+function keepaliveSignature(payload) {
+  return JSON.stringify({
+    reason: payload && payload.reason || null,
+    enginePid: payload && payload.enginePid || null,
+    ownerPid: payload && payload.ownerPid || null,
+    taskState: payload && payload.taskState || null,
+    settling: !!(payload && payload.settling),
+    inFlightCount: payload && payload.inFlightCount || 0,
+    freshInFlightCount: payload && payload.freshInFlightCount || 0,
+    inFlight: (payload && payload.inFlight || []).map(item => ({
+      agent: item && item.agent || null,
+      queueId: item && item.queueId || null,
+      status: item && item.status || null,
+    })),
+  });
+}
+
+function emitRunningKeepalive(payload) {
+  const key = queueRefKey(payload && payload.queueAgent, payload && payload.queueId);
+  if (!runningKeepalivePulse.shouldEmit(key, keepaliveSignature(payload))) return false;
+  eventlog.emit('queue.running.keepalive', payload);
+  return true;
+}
+
+function resourceBlockedSignature(blocked) {
+  return JSON.stringify((blocked || []).map(item => ({
+    queueId: item && item.queueId || null,
+    reason: item && item.reason || null,
+    quotaScope: item && item.quotaScope || null,
+    read: item && item.read || [],
+    write: item && item.write || [],
+    conflicts: (item && item.conflicts || []).map(conflict => ({
+      mode: conflict && conflict.mode || null,
+      domain: conflict && conflict.domain || null,
+      queueAgent: conflict && conflict.queueAgent || null,
+      queueId: conflict && conflict.queueId || null,
+    })),
+  })));
 }
 
 function queueRefKey(agent, queueId) {
@@ -844,14 +897,10 @@ function downstreamRefsFromEvents(spec, root) {
   if (!spec || !root || !root.rootQueueAgent || !root.rootQueueId) return [];
   const taskId = spec.taskId || null;
   const refs = [];
-  let lines = [];
-  try { lines = fs.readFileSync(EVENTS, 'utf8').trim().split(/\r?\n/).filter(Boolean); }
-  catch (_) { return refs; }
-  for (const line of lines) {
-    let ev;
-    try { ev = JSON.parse(line); } catch (_) { continue; }
+  const events = projectRouteEventReader.matching(ev => PROJECT_ROUTE_REFERENCE_EVENT_TYPES.has(ev && ev.type));
+  for (const ev of events) {
     const type = ev && ev.type;
-    if (!['project.routed', 'project.route.waiting', 'queue.enqueued'].includes(type)) continue;
+    if (!PROJECT_ROUTE_REFERENCE_EVENT_TYPES.has(type)) continue;
     const taskMatches = !!taskId && (ev.task === taskId || ev.sourceTask === taskId);
     const rootMatches = ev.rootQueueAgent === root.rootQueueAgent && ev.rootQueueId === root.rootQueueId;
     if (!taskMatches && !rootMatches) continue;
@@ -871,6 +920,17 @@ function isRootQueueEntry(agent, entry, root) {
 function descendantEntriesForRoot(root, opts = {}) {
   if (!root || !root.rootQueueAgent || !root.rootQueueId) return [];
   const statuses = opts.statuses || ['queued', 'running', 'paused', 'done', 'failed', 'canceled'];
+  const refs = mergeDownstreamRefs(opts.refs || []);
+  const direct = queueEntriesForRefs(refs, statuses);
+  if (refs.length) {
+    const allStatuses = ['queued', 'running', 'paused', 'done', 'failed', 'canceled'];
+    const allRefsResolved = refs.every(ref => {
+      const agent = ref.agent || ref.queueAgent;
+      const queueId = ref.queueId || ref.id;
+      return allStatuses.some(status => !!queueEntryById(agent, queueId, status));
+    });
+    if (allRefsResolved) return dedupeDownstreamEntries(direct);
+  }
   const out = [];
   for (const agent of queueAgents()) {
     for (const item of statuses.flatMap(status => queueEntriesForStatus(agent, status))) {
@@ -879,7 +939,7 @@ function descendantEntriesForRoot(root, opts = {}) {
       out.push(item);
     }
   }
-  out.push(...queueEntriesForRefs(opts.refs || [], statuses));
+  out.push(...direct);
   return dedupeDownstreamEntries(out);
 }
 
@@ -1594,6 +1654,16 @@ async function acquireRunnerTypeLock(entry, runnerType) {
   const file = runnerTypeLockFile(runnerType);
   let loggedWait = false;
   while (true) {
+    const waitDecision = preEngineWaitAbortDecision(readRunningEntry(entry.id));
+    if (waitDecision.abort) {
+      eventlog.emit('engine.slot.wait_canceled', {
+        queueAgent: AGENT,
+        queueId: entry.id,
+        runnerType,
+        reason: waitDecision.reason,
+      });
+      return { file: null, canceled: true, reason: waitDecision.reason, release() {} };
+    }
     await cleanupDeadRunnerTypeLocks();
     const cur = readJson(file);
     if (cur && lockValid(cur)) {
@@ -1617,6 +1687,17 @@ async function acquireRunnerTypeLock(entry, runnerType) {
     };
     try {
       writeJson(file, payload, { flag: 'wx' });
+      const acquiredDecision = preEngineWaitAbortDecision(readRunningEntry(entry.id));
+      if (acquiredDecision.abort) {
+        try { fs.unlinkSync(file); } catch (_) {}
+        eventlog.emit('engine.slot.wait_canceled', {
+          queueAgent: AGENT,
+          queueId: entry.id,
+          runnerType,
+          reason: acquiredDecision.reason,
+        });
+        return { file: null, canceled: true, reason: acquiredDecision.reason, release() {} };
+      }
       eventlog.emit('engine.runner_lock.acquired', { queueAgent: AGENT, queueId: entry.id, runnerType });
       return {
         file,
@@ -1644,6 +1725,25 @@ async function acquireRunnerTypeLock(entry, runnerType) {
       await sleep(300);
     }
   }
+}
+
+function preEngineWaitAbortDecision(record) {
+  if (!record) return { abort: true, reason: 'queue-running-missing-before-runner-lock' };
+  if (record.cancel_requested && !Runtime.enginePidFromRecord(record)) {
+    return { abort: true, reason: 'cancel-requested-before-runner-lock' };
+  }
+  return { abort: false, reason: null };
+}
+
+function preEngineCancellationPatch(record, reason) {
+  const preEngineOnly = !!(record
+    && record.pre_engine_waiting === true
+    && !record.engine_started_at
+    && !Runtime.enginePidFromRecord(record));
+  return preEngineOnly ? {
+    pre_engine_cancel_confirmed: true,
+    pre_engine_cancel_reason: reason || 'cancel-requested-before-runner-lock',
+  } : {};
 }
 
 async function acquireEngineSlot(entry, runnerType) {
@@ -1716,7 +1816,7 @@ function sanitizeFlow(flowId) {
 function listProjects() {
   try {
     return fs.readdirSync(PROJECTS_DIR)
-      .filter(name => !name.startsWith('_') && name !== 'Starlaid')
+      .filter(name => !name.startsWith('_'))
       .filter(name => {
         try { return fs.statSync(path.join(PROJECTS_DIR, name)).isDirectory(); }
         catch (_) { return false; }
@@ -1731,7 +1831,6 @@ function normalizeProjectId(projectId) {
   const projects = listProjects();
   const raw = String(projectId || '').trim();
   if (!raw) return null;
-  if (/starlaid/i.test(raw)) return null;
   const exact = projects.find(p => p === raw);
   if (exact) return exact;
   const lower = raw.toLowerCase();
@@ -1750,10 +1849,10 @@ function normalizeKeywordProjectId(text) {
 function inferProjectId(payload) {
   const rawText = [payload && payload.goal, payload && payload.message, payload && payload.task]
     .filter(Boolean).join('\n');
-  if (isStarlaidProjectId(payload && payload.projectId)) return null;
-  const explicit = normalizeProjectId(payload && payload.projectId);
+  const rawExplicit = String(payload && payload.projectId || '').trim();
+  const explicit = normalizeProjectId(rawExplicit);
   if (explicit) return explicit;
-  if (hasActiveStarlaidReference(rawText)) return null;
+  if (rawExplicit) return null;
   const keyword = normalizeKeywordProjectId(rawText);
   if (keyword) return keyword;
   return defaultProjectId();
@@ -1806,14 +1905,98 @@ function mergeInputs(inputs, attachments) {
   return out;
 }
 
-function structuredAcceptanceForTask(goal, acceptance, projectId) {
+function structuredAcceptanceForTask(goal, acceptance, projectId, extra = {}) {
   return DoneGate.buildStructuredAcceptanceTable({
     goal,
     acceptance: acceptance || DEFAULT_ACCEPTANCE,
     projectId,
+    visual_acceptance: extra.visual_acceptance || extra.visualAcceptance,
+    changePaths: extra.changePaths || extra.change_paths || extra.targetPaths || extra.target_paths,
     workspaceRoot: WORKDIR,
     templatePath: DoneGate.structuredAcceptanceTemplatePath({ workspaceRoot: WORKDIR }),
   });
+}
+
+function manualCompletionOverrideForSpec(payload, identity) {
+  const inlineClaim = payload && (payload.manual_completion_override || payload.manualCompletionOverride);
+  const inlineRequest = payload && (payload.manual_completion_override_request || payload.manualCompletionOverrideRequest);
+  const receiptId = payload && (payload.manual_completion_override_receipt_id || payload.manualCompletionOverrideReceiptId);
+  if (inlineClaim || inlineRequest) {
+    return {
+      override: null,
+      audit: {
+        status: 'rejected',
+        receiptId: receiptId || null,
+        reason: 'queue payload 不得自称 owner 或直接申请覆盖；必须使用 HMAC 决策卡生成的持久回执',
+      },
+    };
+  }
+  if (!receiptId) return { override: null, audit: null };
+  const resolved = DirectCompletionOverride.resolveForTask({
+    artifactsRoot: ARTIFACTS_ROOT,
+    receiptId,
+    queueAgent: identity.queueAgent,
+    queueId: identity.queueId,
+    taskId: identity.taskId,
+    authorityPublicKey: process.env[DirectCompletionOverride.AUTHORITY_PUBLIC_KEY_ENV],
+  });
+  if (!resolved.ok) {
+    return {
+      override: null,
+      audit: {
+        status: 'rejected',
+        receiptId: resolved.receiptId || String(receiptId).slice(0, 120),
+        reason: resolved.reason,
+      },
+    };
+  }
+  return {
+    override: resolved.override,
+    audit: {
+      status: 'accepted',
+      receiptId: resolved.receiptId,
+      reason: null,
+    },
+  };
+}
+
+function emitManualCompletionOverrideAudit(spec, sink = eventlog) {
+  const audit = spec && spec.manual_completion_override_audit;
+  if (!audit || !sink || typeof sink.emit !== 'function') return null;
+  const type = audit.status === 'accepted'
+    ? 'done_gate.direct_manual_override_accepted'
+    : 'done_gate.direct_manual_override_rejected';
+  const payload = {
+    task: spec.taskId || null,
+    queueAgent: spec.queueAgent || null,
+    queueId: spec.queueId || null,
+    receiptId: audit.receiptId || null,
+    reason: audit.reason || null,
+    stage: 'queue.makeSpec',
+  };
+  sink.emit(type, payload);
+  return { type, payload };
+}
+
+function completeRepairClaimNoop(entry, spec, runnerType, typeLock, options = {}) {
+  return RepairClaimNoop.completeIfEligible(Object.assign({}, options, {
+    workdir: options.workdir || WORKDIR,
+    artifactsRoot: ARTIFACTS_ROOT,
+    queueRoot: QUEUE_ROOT,
+    queueAgent: AGENT,
+    queueId: entry && entry.id,
+    runnerType,
+    typeLockFile: typeLock && typeLock.file,
+    spec,
+    emit: options.emit || ((type, detail) => eventlog.emit(type, detail)),
+    finishQueue: options.finishQueue || ((request) => Q.finish(
+      QUEUE_ROOT,
+      AGENT,
+      entry.id,
+      request.status,
+      request.patch,
+    )),
+  }));
 }
 
 function makeSpec(entry) {
@@ -1824,14 +2007,24 @@ function makeSpec(entry) {
   const shouldResumeTask = !!existingTaskId && !!(latest.recovered_at || latest.recovered_reason || latest.lease_stale_at || latest.resumed_at || payload.resumeTask);
   const taskId = shouldResumeTask ? existingTaskId : `cr-${Date.now()}-${entry.id}`;
   const rawGoal = payload.goal || payload.message || payload.task || latest.task || '';
-  const projectId = isStarlaidProjectId(payload.projectId)
-    ? null
-    : (normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload));
+  const rawAcceptance = payload.acceptance || DEFAULT_ACCEPTANCE;
+  const visualAcceptance = DoneGate.classifyVisualAcceptance(Object.assign({}, payload, {
+    goal: rawGoal,
+    acceptance: rawAcceptance,
+  }));
+  const projectId = normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload);
   const projectMode = AGENT === 'ceo' && payload.projectMode !== false;
   const scoped = /^supervisor-/.test(AGENT);
-  const rootQueueAgent = payload.rootQueueAgent || (AGENT === 'ceo' ? 'ceo' : null);
-  const rootQueueId = payload.rootQueueId || (AGENT === 'ceo' ? entry.id : null);
-  const rootTaskId = payload.rootTaskId || (AGENT === 'ceo' ? taskId : null);
+  // 直达专职队列也必须有完整根链。旧逻辑仅给 CEO 补 root，导致 repair/IT
+  // 绕过 CEO 后 rollup 与审计无法关联；这里以当前队列项作为缺省根，不猜造上游。
+  const rootQueueAgent = payload.rootQueueAgent || AGENT;
+  const rootQueueId = payload.rootQueueId || entry.id;
+  const rootTaskId = payload.rootTaskId || taskId;
+  const manualCompletion = manualCompletionOverrideForSpec(payload, {
+    queueAgent: AGENT,
+    queueId: entry.id,
+    taskId,
+  });
   const spec = {
     taskId,
     queueAgent: AGENT,
@@ -1840,9 +2033,14 @@ function makeSpec(entry) {
     rootQueueId,
     rootTaskId,
     parentTaskId: payload.parentTaskId || null,
+    nodeRetry: Number(latest.nodeRetry || 0),
+    engineRetry: Number(latest.engineRetry || 0),
+    retryReason: latest.retry_reason || null,
     consumedSteer: initialSteer.length,
     flowId: projectMode ? 'project-route' : sanitizeFlow(payload.flowId || 'review-loop'),
-    role: scoped ? 'supervisor' : (payload.role || roleFromAgent(AGENT)),
+    // 身份绑定队列不允许信封覆盖角色。历史上 queueAgent=repair 但 role=orchestrator
+    // 会让维修员加载 CEO prompt；专职角色必须以实际消费队列为准。
+    role: scoped ? 'supervisor' : RoleBoundaryRouting.enforcedRoleForQueue(AGENT, payload.role || roleFromAgent(AGENT)),
     projectId,
     title: payload.title || payload.shortTitle || payload.name || payload.idem || null,
     summary: payload.summary || null,
@@ -1852,11 +2050,36 @@ function makeSpec(entry) {
     bounds: payload.bounds || DEFAULT_BOUNDS,
     inputs: mergeInputs(payload.inputs, payload.attachments),
     attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
-    acceptance: structuredAcceptanceForTask(rawGoal, payload.acceptance || DEFAULT_ACCEPTANCE, projectId),
+    acceptance: structuredAcceptanceForTask(rawGoal, rawAcceptance, projectId, Object.assign({}, payload, {
+      visual_acceptance: visualAcceptance,
+    })),
+    acceptance_contract: payload.acceptance_contract || payload.acceptanceContract || null,
+    requiredRows: payload.requiredRows || payload.required_rows || null,
+    acceptance_handoff_retry_count: Number(payload.acceptance_handoff_retry_count || payload.acceptanceHandoffRetryCount || latest.nodeRetry || 0),
+    acceptance_handoff_corrected_contract: payload.acceptance_handoff_corrected_contract || null,
+    acceptance_handoff_recovery: payload.acceptance_handoff_recovery || null,
+    visual_acceptance: visualAcceptance,
+    visual_acceptance_human_gate: payload.visual_acceptance_human_gate === true
+      || payload.visualAcceptanceHumanGate === true
+      || payload.force_visual_acceptance === true
+      || payload.forceVisualAcceptance === true,
+    changePaths: payload.changePaths || payload.change_paths || payload.targetPaths || payload.target_paths || null,
     useOrchestrator: payload.useOrchestrator !== false,
     autoApproveHuman: payload.autoApproveHuman !== false,
     nodeTimeoutSec: payload.nodeTimeoutSec || payload.timeoutSec || null,
+    timeoutFailoverFence: payload.timeoutFailoverFence || payload.timeout_failover_fence || null,
+    repairTicketId: payload.repairTicketId || null,
+    sourceIncidentId: payload.sourceIncidentId || null,
+    scopeSchemaVersion: payload.scopeSchemaVersion || null,
+    scopeAction: payload.scopeAction || null,
+    scopeProvenance: payload.scopeProvenance || null,
+    scopeProof: payload.scopeProof || null,
+    scope_signature: payload.scope_signature || null,
+    requiredIndependentReceipts: payload.requiredIndependentReceipts || null,
+    independentReceipt: payload.independentReceipt || null,
   };
+  if (manualCompletion.override) spec.manual_completion_override = manualCompletion.override;
+  if (manualCompletion.audit) spec.manual_completion_override_audit = manualCompletion.audit;
   spec.resourceDomains = ResourceLocks.normalizeResourceRequest(Object.assign({}, payload, spec), {
     taskPatch: { queueAgent: AGENT },
   }).resourceDomains;
@@ -1866,9 +2089,7 @@ function makeSpec(entry) {
 function resourceLockTaskForQueuedEntry(entry) {
   const payload = payloadFrom(entry);
   const rawGoal = payload.goal || payload.message || payload.task || entry.task || '';
-  const projectId = isStarlaidProjectId(payload.projectId)
-    ? null
-    : (normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload));
+  const projectId = normalizeProjectId(payload.projectId) || projectFromAgent(AGENT) || inferProjectId(payload);
   const scoped = /^supervisor-/.test(AGENT);
   return Object.assign({}, payload, {
     queueAgent: AGENT,
@@ -1985,8 +2206,7 @@ async function claimNextRunnableEntry() {
   }
 
   if (!runnableIds.size) {
-    if (Date.now() - resourceSchedulerLastBlockedAt > 10 * 1000) {
-      resourceSchedulerLastBlockedAt = Date.now();
+    if (resourceBlockedPulse.shouldEmit(AGENT, resourceBlockedSignature(blocked))) {
       eventlog.emit('resource.scheduler.all_blocked', Object.assign({
         queueAgent: AGENT,
         blocked: blocked.slice(0, 8),
@@ -2120,9 +2340,20 @@ function runEngine(specFile, entry, lease) {
     };
     let child;
     try {
+      const childSpec = readJson(specFile) || {};
+      const childEnv = Object.assign({}, RuntimePaths.applyRuntimeEnv(process.env), {
+        // secretary-tools 只可凭这组运行时身份为 repair-lead 派工签发 scope proof；
+        // 签名密钥不进入环境，也不进入 prompt/eventlog。
+        YUTU6_EXEC_QUEUE_AGENT: AGENT,
+        YUTU6_EXEC_QUEUE_ID: String(entry.id || ''),
+        YUTU6_EXEC_TASK_ID: String(childSpec.taskId || path.basename(specFile, '.json')),
+        YUTU6_EXEC_ROOT_QUEUE_AGENT: String(childSpec.rootQueueAgent || AGENT || ''),
+        YUTU6_EXEC_ROOT_QUEUE_ID: String(childSpec.rootQueueId || entry.id || ''),
+        YUTU6_EXEC_ROOT_TASK_ID: String(childSpec.rootTaskId || childSpec.taskId || path.basename(specFile, '.json')),
+      });
       child = spawn(RuntimePaths.nodeBin(), [path.join(ROOT, 'engine-runner.js'), '--spec', specFile], {
         cwd: ROOT,
-        env: RuntimePaths.applyRuntimeEnv(process.env),
+        env: childEnv,
         detached: true,
         stdio: ['ignore', fd, fd],
       });
@@ -3515,6 +3746,40 @@ function autoRepairFingerprint(spec, reason) {
   return crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
 
+function autoRepairIncident(spec, entry) {
+  const payload = payloadFrom(entry || {});
+  return {
+    sourceQueueAgent: spec && spec.queueAgent || AGENT,
+    sourceQueueId: spec && spec.queueId || entry && entry.id || '',
+    taskId: spec && spec.taskId || entry && entry.taskId || payload.taskId || '',
+  };
+}
+
+function autoRepairIncidentFingerprint(incident) {
+  const key = [
+    incident && incident.sourceQueueAgent || '',
+    incident && incident.sourceQueueId || '',
+    incident && incident.taskId || '',
+  ].join('\n');
+  return crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
+}
+
+function sameAutoRepairIncident(record, incident) {
+  if (!record || typeof record !== 'object' || !incident) return false;
+  return String(record.sourceQueueAgent || '') === String(incident.sourceQueueAgent || '')
+    && String(record.sourceQueueId || '') === String(incident.sourceQueueId || '')
+    && String(record.taskId || '') === String(incident.taskId || '');
+}
+
+function latestAutoRepairIncident(state, incident) {
+  return Object.values(state && typeof state === 'object' ? state : {})
+    .filter(record => sameAutoRepairIncident(record, incident))
+    .reduce((latest, record) => {
+      if (!latest) return record;
+      return Date.parse(record.at || '') > Date.parse(latest.at || '') ? record : latest;
+    }, null);
+}
+
 function isExternalModelTransientFailure(reason) {
   const s = String(reason || '');
   return /(Invalid Authentication|unauthorized|forbidden|\b401\b|\b403\b|认证失败|鉴权失败|api key|apikey|token 无效|token失效|该模型当前访问量过大|稍后再试|rate.?limit|\b429\b|余额不足|额度不足|剩余额度|预扣费额度失败|insufficient balance|payment required|billing)/i.test(s);
@@ -3553,23 +3818,27 @@ function openAutoRepairTicket(spec, entry, reason, result) {
     return null;
   }
   const now = new Date();
-  const fingerprint = autoRepairFingerprint(spec, reason);
+  const reasonFingerprint = autoRepairFingerprint(spec, reason);
+  const incident = autoRepairIncident(spec, entry);
+  const incidentFingerprint = autoRepairIncidentFingerprint(incident);
   const state = readJsonDefault(AUTO_REPAIR_STATE, {});
-  const last = state[fingerprint] || {};
+  const last = latestAutoRepairIncident(state, incident) || {};
   const lastAt = last.at ? Date.parse(last.at) : 0;
   if (lastAt && Date.now() - lastAt < AUTO_REPAIR_COOLDOWN_MS) {
     eventlog.emit('repair.ticket.skipped', {
-      queueAgent: AGENT,
-      queueId: entry.id,
-      task: spec && spec.taskId || null,
-      reason: 'dedupe-cooldown',
-      fingerprint,
+      queueAgent: incident.sourceQueueAgent,
+      queueId: incident.sourceQueueId,
+      task: incident.taskId || null,
+      reason: 'incident-dedupe-cooldown',
+      incidentFingerprint,
+      reasonFingerprint,
+      lastReasonFingerprint: last.reasonFingerprint || null,
       lastTicketId: last.ticketId || null,
     });
     return null;
   }
   const title = `自动维修 ${AGENT}/${entry.id}`;
-  const ticketId = `auto-${now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${fingerprint}`;
+  const ticketId = `auto-${now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}-${incidentFingerprint}`;
   const evidence = [
     `queueAgent=${AGENT}`,
     `queueId=${entry.id}`,
@@ -3593,10 +3862,17 @@ function openAutoRepairTicket(spec, entry, reason, result) {
       problem: `队列任务失败,系统自动开维修工单。失败原因:${sanitizeReason(reason)}`,
       evidence,
       expectation: '维修主管读取工单后先判断根因、需求传递遗漏与架构风险;能安全修则修并验证,需要执行时分派 Codex 维修员;高危/不可逆操作停止并请求主人确认;完成后写回工单并通知主人。',
-      redlines: '高危/不可逆操作必须先给主人确认\n密钥/token/cookie/私钥不回显、不写日志\nStarlaid 排除\n不破现有功能; 能验证就写验证结果',
+      redlines: '高危/不可逆操作必须先给主人确认\n密钥/token/cookie/私钥不回显、不写日志\n不破现有功能; 能验证就写验证结果',
     });
   } catch (e) {
-    eventlog.emit('repair.ticket.create_failed', { queueAgent: AGENT, queueId: entry.id, task: spec && spec.taskId || null, reason: sanitizeReason(e.message), fingerprint });
+    eventlog.emit('repair.ticket.create_failed', {
+      queueAgent: AGENT,
+      queueId: entry.id,
+      task: spec && spec.taskId || null,
+      reason: sanitizeReason(e.message),
+      incidentFingerprint,
+      reasonFingerprint,
+    });
     return null;
   }
   const repairTask = {
@@ -3611,13 +3887,17 @@ function openAutoRepairTicket(spec, entry, reason, result) {
       '如需维修员执行,使用 secretary-tools queue-enqueue --agent repair --goal "...",并在复核后再结案。',
       `最后运行: node projects/控制台/secretary-tools.js repair-ticket-complete --id ${created.ticket.id} --result "<根因/处理/验证/架构判断/知识沉淀候选>"`,
     ].join('\n'),
-    bounds: '维修主管特权工单; 高危/不可逆操作先给主人确认; Starlaid 排除; 密钥不回显。',
+    bounds: '维修主管特权工单; 高危/不可逆操作先给主人确认; 密钥不回显。',
     acceptance: '主管完成链路核查、严重度分级、必要派工、复核和结案; 工单 status 变 done; 尝试飞书通知主人。',
     useOrchestrator: false,
     autoApproveHuman: false,
     nodeTimeoutSec: 600,
     engineSlotBypass: true,
     repairTicketId: created.ticket.id,
+    rootQueueAgent: spec && spec.rootQueueAgent || AGENT,
+    rootQueueId: spec && spec.rootQueueId || entry.id,
+    rootTaskId: spec && spec.rootTaskId || spec && spec.taskId || null,
+    parentTaskId: spec && spec.taskId || null,
     sourceFailure: {
       queueAgent: AGENT,
       queueId: entry.id,
@@ -3628,15 +3908,18 @@ function openAutoRepairTicket(spec, entry, reason, result) {
   const repairEntry = QueueAutoMerge.enqueue(QUEUE_ROOT, 'repair-lead', repairTask, { priority: 0, idem: `auto-repair:${created.ticket.id}`, eventlog, source: 'auto-repair' });
   created.repairQueueId = repairEntry.id;
   created.repairQueueAgent = 'repair-lead';
-  created.fingerprint = fingerprint;
-  state[fingerprint] = {
+  created.fingerprint = reasonFingerprint;
+  created.incidentFingerprint = incidentFingerprint;
+  state[incidentFingerprint] = {
     at: now.toISOString(),
     ticketId: created.ticket.id,
     repairQueueAgent: 'repair-lead',
     repairQueueId: repairEntry.id,
-    sourceQueueAgent: AGENT,
-    sourceQueueId: entry.id,
-    taskId: spec && spec.taskId || null,
+    sourceQueueAgent: incident.sourceQueueAgent,
+    sourceQueueId: incident.sourceQueueId,
+    taskId: incident.taskId || null,
+    incidentFingerprint,
+    reasonFingerprint,
   };
   writeJsonAtomic(AUTO_REPAIR_STATE, state);
   eventlog.emit('repair.ticket.enqueued', {
@@ -3646,7 +3929,9 @@ function openAutoRepairTicket(spec, entry, reason, result) {
     sourceQueueAgent: AGENT,
     sourceQueueId: entry.id,
     task: spec && spec.taskId || null,
-    fingerprint,
+    fingerprint: reasonFingerprint,
+    incidentFingerprint,
+    reasonFingerprint,
   });
   return created;
 }
@@ -3891,7 +4176,7 @@ function isRetryableEngineFailure(reason, result) {
   const quota = classifyQuotaExhaustion(reason, result);
   if (quota.isQuotaExhausted) return false;
   const text = String(reason || '');
-  if (/awaiting_human|needs[-_ ]?human|主人确认|软暂停|project\.route\.paused|Starlaid 排除范围/i.test(text)) return false;
+  if (/awaiting_human|needs[-_ ]?human|主人确认|软暂停|project\.route\.paused/i.test(text)) return false;
   return /node_failed|运行超时|timeout|ETIMEDOUT|被信号|退出码|spawn .*失败|failed without reason/i.test(text)
     || !!(result && result.signal)
     || !!(result && (result.code === 1 || result.code === 3));
@@ -3932,30 +4217,24 @@ function buildSecretaryEnvelope(payload, latest) {
   const raw = taskTextForSecretary(payload, latest);
   const projectId = inferProjectId(payload);
   if (!projectId) {
-    return { blocked: true, reason: '检测到 Starlaid 排除范围或项目归属需要主人确认,秘书已软暂停转交' };
+    return { blocked: true, reason: '无法安全确定项目归属,秘书已软暂停转交' };
   }
-  const context = SecretaryTools.buildContextText();
   const attachments = Array.isArray(payload.attachments) ? payload.attachments : [];
   const inputs = mergeInputs(payload.inputs, attachments);
-  const attachmentBlock = attachmentInputPaths(attachments).length
-    ? [
-      '图片附件(本地路径,可直接交给 Codex 多模态/文件读取):',
-      ...attachmentInputPaths(attachments).map((p, i) => `${i + 1}. ${p}`),
-    ].join('\n')
-    : '';
-  // 2026-07-03 架构审视 A-5:任务正文置于背景包之前——下游任何"保头截尾"截断(如董事会
-  // compact(base,5000))先砍的是背景包而不是老板正文。此前包前置曾把老板任务正文整段截丢(实证事故)。
+  const envelopeBounds = payload.bounds || DEFAULT_BOUNDS;
+  const envelopeAcceptance = payload.acceptance || 'CEO 完成项目归属判定,写 brief,入队项目主管;项目主管完成后更新 status/rollup。';
+  // 前门政策不变：非维修任务一律转 CEO 决策，再交项目主管。
+  // 秘书前门只给 CEO 项目归属和验收原子所需的最小信封。队列概览、
+  // 维修工单、能力清单、附件路径和任务级 inputs 保留在结构化字段中供主管使用，
+  // 不再把 SecretaryTools.buildContextText() 整包注入 CEO goal。
   const goal = [
-    '秘书补全稿:',
+    '秘书结构化信封:',
     '',
     `目标:${raw}`,
     `项目:${projectId}`,
-    attachmentBlock,
-    '边界:只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。',
-    '可用动作:必要时先用 secretary-tools 搜索/查能力/看队列/加公告板;非维修任务一律转 CEO 决策,由 CEO 再派主管/员工或专职队列。',
-    '验收:秘书已基于 board 背景补全并转交 CEO;CEO 写入项目 brief,派到对应项目主管或专职队列;事件日志可追踪;项目主管完成后更新 status 与 rollup。',
-    '',
-    context,
+    `边界:${envelopeBounds}`,
+    `验收:${envelopeAcceptance}`,
+    attachments.length ? `附件:${attachments.length} 个，仅传给项目主管，CEO 不读取。` : '',
   ].filter(Boolean).join('\n');
   const boardAssessment = BoardReview.shouldRunBoardReview({
     originalGoal: raw,
@@ -3972,12 +4251,15 @@ function buildSecretaryEnvelope(payload, latest) {
       originalGoal: raw,
       fromSecretary: true,
       boardReview: boardAssessment.important ? Object.assign({ required: true, source: 'secretary' }, boardAssessment) : { required: false, source: 'secretary', reason: boardAssessment.reason },
-      bounds: payload.bounds || DEFAULT_BOUNDS,
+      bounds: envelopeBounds,
       inputs,
       attachments,
-      acceptance: payload.acceptance || 'CEO 完成项目归属判定,写 brief,入队项目主管;项目主管完成后更新 status/rollup。',
+      acceptance: envelopeAcceptance,
       useOrchestrator: payload.useOrchestrator !== false,
       autoApproveHuman: payload.autoApproveHuman !== false,
+      requiredIndependentReceipts: Array.isArray(payload.requiredIndependentReceipts)
+        ? payload.requiredIndependentReceipts
+        : null,
     },
   };
 }
@@ -4036,6 +4318,92 @@ async function handleSecretary(entry) {
   eventlog.emit('queue.completed', { queueAgent: AGENT, queueId: entry.id, task: taskId, ok: true, status: 'done', projectId: envelope.projectId });
 }
 
+function consumeScopedBypassOrFallback(entry) {
+  const payload = payloadFrom(readRunningEntry(entry.id) || entry);
+  const routed = RoleBoundaryRouting.routeEnqueue(AGENT, payload, {
+    workspaceRoot: WORKDIR,
+    projectsDir: PROJECTS_DIR,
+    queueRoot: QUEUE_ROOT,
+  });
+  const assessment = routed.assessment;
+  if (!assessment || !assessment.applies) return { handled: false, assessment };
+  if (assessment.accepted) {
+    eventlog.emit('route.scoped_bypass.consumed', {
+      queueAgent: AGENT,
+      queueId: entry.id,
+      projectId: assessment.projectId,
+      rootQueueAgent: assessment.rootQueueAgent,
+      rootQueueId: assessment.rootQueueId,
+      rootTaskId: assessment.rootTaskId,
+      ticketId: assessment.ticketId,
+      issuerRole: assessment.issuerRole,
+      issuerQueueId: assessment.issuerQueueId,
+      issuerTaskId: assessment.issuerTaskId,
+      reason: assessment.reason,
+    });
+    return { handled: false, assessment };
+  }
+
+  const fallbackTask = routed.task;
+  const fallbackEntry = QueueAutoMerge.enqueue(QUEUE_ROOT, 'ceo', fallbackTask, {
+    priority: entry.priority != null ? entry.priority : 50,
+    eventlog,
+    source: 'scoped-bypass-fallback',
+  });
+  const rawAuditTaskId = String(payload.taskId || '').trim();
+  const auditTaskId = /^[\p{L}\p{N}_.-]+$/u.test(rawAuditTaskId)
+    ? rawAuditTaskId
+    : `scoped-fallback-${entry.id}`;
+  eventlog.emit('route.scoped_bypass.fallback', {
+    task: auditTaskId,
+    requestedQueueAgent: AGENT,
+    requestedQueueId: entry.id,
+    queueAgent: 'ceo',
+    queueId: fallbackEntry.id,
+    projectId: payload.projectId || null,
+    rootQueueAgent: payload.rootQueueAgent || null,
+    rootQueueId: payload.rootQueueId || null,
+    rootTaskId: payload.rootTaskId || null,
+    reason: assessment.reason,
+  });
+  eventlog.emit('queue.enqueued', {
+    queueAgent: 'ceo',
+    queueId: fallbackEntry.id,
+    priority: fallbackEntry.priority,
+    source: 'scoped-bypass-fallback',
+    sourceQueueAgent: AGENT,
+    sourceQueueId: entry.id,
+    rootQueueAgent: payload.rootQueueAgent || null,
+    rootQueueId: payload.rootQueueId || null,
+    rootTaskId: payload.rootTaskId || null,
+  });
+  eventlog.emit('edge.take', {
+    task: auditTaskId,
+    from: AGENT,
+    to: 'orchestrator',
+    projectId: payload.projectId || null,
+    reason: assessment.reason,
+  });
+  Q.finish(QUEUE_ROOT, AGENT, entry.id, 'done', {
+    reroutedTo: { queueAgent: 'ceo', queueId: fallbackEntry.id },
+    scopedBypassRejectReason: assessment.reason,
+  });
+  eventlog.emit('queue.completed', {
+    queueAgent: AGENT,
+    queueId: entry.id,
+    task: auditTaskId,
+    ok: true,
+    status: 'done',
+    rerouted: true,
+    downstreamQueueAgent: 'ceo',
+    downstreamQueueId: fallbackEntry.id,
+    rootQueueAgent: payload.rootQueueAgent || null,
+    rootQueueId: payload.rootQueueId || null,
+    rootTaskId: payload.rootTaskId || null,
+  });
+  return { handled: true, assessment, fallbackEntry };
+}
+
 function appendProjectStatus(projectId, spec, result) {
   if (!projectId || !result.ok) return;
   const stamp = new Date().toISOString();
@@ -4092,7 +4460,10 @@ async function handle(entry) {
   };
   try {
     eventlog.emit('queue.claimed', { queueAgent: AGENT, queueId: entry.id });
+    const scopedRoute = consumeScopedBypassOrFallback(entry);
+    if (scopedRoute.handled) return;
     spec = makeSpec(entry);
+    emitManualCompletionOverrideAudit(spec);
     noteRunningSpec(entry, spec);
     stopPreEngineWaitHeartbeat = startPreEngineWaitHeartbeat(entry, 'pre-engine-lock-wait');
     if (CEO_ACTIVE_TASK_SERIAL_LOCK_ENABLED) acquireActiveCeoTask(entry, spec);
@@ -4106,6 +4477,42 @@ async function handle(entry) {
       });
     }
     typeLock = await acquireRunnerTypeLock(entry, runnerType);
+    const postLockCancel = typeLock.canceled
+      ? { abort: true, reason: typeLock.reason }
+      : preEngineWaitAbortDecision(readRunningEntry(entry.id));
+    if (postLockCancel.abort) {
+      const latest = readRunningEntry(entry.id);
+      const finished = latest ? Q.finish(QUEUE_ROOT, AGENT, entry.id, 'canceled', Object.assign({
+        engine_code: null,
+        engine_signal: null,
+        error: null,
+        reason: postLockCancel.reason,
+      }, preEngineCancellationPatch(latest, postLockCancel.reason))) : null;
+      if (finished) {
+        eventlog.emit('queue.completed', {
+          queueAgent: AGENT,
+          queueId: entry.id,
+          task: spec.taskId,
+          ok: false,
+          status: 'canceled',
+          code: null,
+          signal: null,
+          reason: postLockCancel.reason,
+          rootQueueAgent: spec.rootQueueAgent || null,
+          rootQueueId: spec.rootQueueId || null,
+          rootTaskId: spec.rootTaskId || null,
+        });
+      }
+      return;
+    }
+    if (AGENT === 'repair' && runnerType === 'codex-privileged') {
+      if (stopPreEngineWaitHeartbeat) {
+        try { stopPreEngineWaitHeartbeat(); } catch (_) {}
+        stopPreEngineWaitHeartbeat = null;
+      }
+      const claimNoop = completeRepairClaimNoop(entry, spec, runnerType, typeLock);
+      if (claimNoop.handled) return;
+    }
     lease = shouldBypassEngineSlot(entry, spec, runnerType)
       ? bypassEngineSlot(entry, runnerType)
       : await acquireEngineSlot(entry, runnerType);
@@ -4137,6 +4544,7 @@ async function handle(entry) {
     let reason = effectiveOk ? null : (recordedFailure || engineFailureReason(result, spec));
     let downstream = null;
     let downstreamPropagated = false;
+    let independentReceiptResult = null;
     const quotaSignal = !effectiveOk ? classifyQuotaExhaustion(reason, result) : { isQuotaExhausted: false };
     if (!effectiveOk && quotaSignal.isQuotaExhausted) {
       eventlog.emit('quota.signal.detected', {
@@ -4157,6 +4565,35 @@ async function handle(entry) {
     if (!effectiveOk && maybeRetryEngineFailure(spec, entry, result, reason)) {
       return;
     }
+    if (effectiveOk && spec.independentReceipt) {
+      const receiptText = latestNodeResultText(spec.taskId, 'execute')
+        || latestNodeResultText(spec.taskId, 'implement')
+        || latestNodeResultText(spec.taskId, 'review');
+      const committed = IndependentRoleReceipts.commitRunReceipt(spec, receiptText, {
+        queueRoot: QUEUE_ROOT,
+        workspaceRoot: WORKDIR,
+        eventlog,
+      });
+      if (!committed.ok) {
+        effectiveOk = false;
+        reason = `independent_receipt_invalid:${committed.reason}`;
+      }
+    }
+    if (effectiveOk && Array.isArray(spec.requiredIndependentReceipts) && spec.requiredIndependentReceipts.length) {
+      // 独立角色等待期间先释放 runner/资源锁，父队列仍保持 running；避免回执链反向占槽卡死。
+      await releaseRunResources();
+      independentReceiptResult = await IndependentRoleReceipts.waitForReceipts(spec, {
+        queueRoot: QUEUE_ROOT,
+        workspaceRoot: WORKDIR,
+        eventlog,
+        enqueue(agent, task, enqueueOpts) {
+          return QueueAutoMerge.enqueue(QUEUE_ROOT, agent, task, Object.assign({}, enqueueOpts, { eventlog }));
+        },
+      });
+      effectiveOk = !!independentReceiptResult.ok;
+      reason = effectiveOk ? null : independentReceiptResult.reason;
+      result.independentReceipts = independentReceiptResult;
+    }
     if (effectiveOk && spec.flowId === 'project-route' && AGENT === 'ceo') {
       await releaseRunResources();
       downstream = await waitForProjectRouteDownstream(spec, entry);
@@ -4171,13 +4608,18 @@ async function handle(entry) {
       eventlog.emit('node.fail', { task: spec.taskId, node: 'engine-runner', attempt: 1, role: spec.role, reason, projectId: spec.projectId || null });
       eventlog.emit('task.failed', { task: spec.taskId, flow: spec.flowId, reason });
     }
-    const status = downstream ? downstream.status : (result.paused ? 'paused' : (result.canceled ? 'canceled' : (effectiveOk ? 'done' : 'failed')));
+    const status = downstream
+      ? downstream.status
+      : (independentReceiptResult && independentReceiptResult.paused
+        ? 'paused'
+        : (result.paused ? 'paused' : (result.canceled ? 'canceled' : (effectiveOk ? 'done' : 'failed'))));
     Q.finish(QUEUE_ROOT, AGENT, entry.id, status, {
       engine_code: result.code,
       engine_signal: result.signal || null,
       error: result.error || (!effectiveOk && !result.canceled && !result.paused ? reason : null),
       reason: status === 'paused' ? reason : undefined,
       downstream: downstream ? downstreamEventMeta(downstream) : undefined,
+      independentReceipts: independentReceiptResult || undefined,
     });
     if (/^supervisor-/.test(AGENT)) appendProjectStatus(spec.projectId, spec, Object.assign({}, result, { ok: effectiveOk }));
     const queueEvent = {
@@ -4292,7 +4734,8 @@ async function sweepStaleRunning() {
         eventlog.emit('queue.recovery.blocked', { queueAgent: AGENT, queueId: id, status: 'canceled', reason: 'runtime lock release blocked before cancel finish', locks: lockRelease.blocked });
         continue;
       }
-      Q.finish(QUEUE_ROOT, AGENT, id, 'canceled', e);
+      Q.finish(QUEUE_ROOT, AGENT, id, 'canceled', Object.assign({}, e,
+        preEngineCancellationPatch(e, 'cancel requested before worker restart')));
       eventlog.emit('queue.swept', { queueAgent: AGENT, queueId: id, status: 'canceled', reason: 'cancel requested before worker restart' });
       continue;
     }
@@ -4309,7 +4752,7 @@ async function sweepStaleRunning() {
       const { active, fresh } = activeDownstreamEntriesForRoot(root);
       if (fresh.length) {
         touchRunningWaitingDownstream(id, spec, fresh);
-        eventlog.emit('queue.running.keepalive', {
+        emitRunningKeepalive({
           queueAgent: AGENT,
           queueId: id,
           reason: e.waiting_downstream ? 'waiting for project-route downstream' : 'active project-route downstream prevents stale recovery',
@@ -4322,7 +4765,7 @@ async function sweepStaleRunning() {
       if (active.length) {
         const heartbeat = runningEngineHeartbeat(e);
         if (!heartbeat.stale) {
-          eventlog.emit('queue.running.keepalive', {
+          emitRunningKeepalive({
             queueAgent: AGENT,
             queueId: id,
             reason: 'project-route downstream exists but heartbeat is stale; parent heartbeat timeout will decide recovery',
@@ -4387,7 +4830,7 @@ async function sweepStaleRunning() {
         }
         const heartbeat = runningEngineHeartbeat(e);
         if (!heartbeat.stale) {
-          eventlog.emit('queue.running.keepalive', {
+          emitRunningKeepalive({
             queueAgent: AGENT,
             queueId: id,
             reason: 'waiting_downstream has no terminal result yet; waiting for heartbeat timeout before recovery',
@@ -4402,8 +4845,12 @@ async function sweepStaleRunning() {
     const lease = findLeaseForQueue(AGENT, id);
     const heartbeat = runningEngineHeartbeat(e);
     const engineAlive = pidLooksLike(enginePid, 'engine-runner.js');
+    const taskRecord = enginePid && !engineAlive ? readTaskRecord(runningSpec.taskId) : null;
+    const terminalTaskState = taskRecord && ['done', 'failed', 'canceled'].includes(taskRecord.state)
+      ? taskRecord.state
+      : null;
     if (!enginePid && heartbeat.at && !heartbeat.stale) {
-      eventlog.emit('queue.running.keepalive', {
+      emitRunningKeepalive({
         queueAgent: AGENT,
         queueId: id,
         enginePid: null,
@@ -4414,10 +4861,85 @@ async function sweepStaleRunning() {
       });
       continue;
     }
+    if (enginePid && !engineAlive && heartbeat.at && !heartbeat.stale) {
+      emitRunningKeepalive({
+        queueAgent: AGENT,
+        queueId: id,
+        enginePid,
+        ownerPid: lease && (lease.ownerPid || lease.pid) || e.owner_pid || e.lease_owner_pid || null,
+        reason: 'engine pid exited; waiting for active worker to settle queue completion',
+        settling: true,
+        task: runningSpec.taskId || null,
+        taskState: taskRecord && taskRecord.state || null,
+        heartbeatAt: heartbeat.at || null,
+        heartbeatAgeMs: heartbeat.ageMs,
+      });
+      continue;
+    }
+    if (enginePid && !engineAlive && terminalTaskState && (!heartbeat.at || heartbeat.stale)) {
+      const terminalReason = terminalTaskState === 'done'
+        ? null
+        : sanitizeReason(
+          latestTaskFailureReason(runningSpec.taskId)
+          || taskRecord && taskRecord.done_gate && taskRecord.done_gate.reason
+          || taskRecord && (taskRecord.reason || taskRecord.error)
+          || terminalTaskState
+        );
+      const lockRelease = await releaseQueueRuntimeLocks(AGENT, id, 'terminal taskstore settlement', {
+        meta: { queueAgent: AGENT, queueId: id, task: runningSpec.taskId || null, taskState: terminalTaskState },
+      });
+      if (lockReleaseBlocked(lockRelease)) {
+        eventlog.emit('queue.recovery.blocked', {
+          queueAgent: AGENT,
+          queueId: id,
+          status: terminalTaskState,
+          reason: 'runtime lock release blocked before terminal taskstore settlement',
+          locks: lockRelease.blocked,
+        });
+        continue;
+      }
+      Q.finish(QUEUE_ROOT, AGENT, id, terminalTaskState, {
+        taskId: runningSpec.taskId || null,
+        error: terminalTaskState === 'failed' ? terminalReason : null,
+        reason: terminalTaskState === 'canceled' ? terminalReason : undefined,
+        recovered_at: new Date().toISOString(),
+        recovered_reason: 'taskstore already terminal; settled queue without engine resume',
+      });
+      const queueEvent = {
+        queueAgent: AGENT,
+        queueId: id,
+        task: runningSpec.taskId || null,
+        ok: terminalTaskState === 'done',
+        status: terminalTaskState,
+        code: null,
+        signal: null,
+        reason: terminalReason,
+        reconciled: 'taskstore-terminal',
+        rootQueueAgent: runningSpec.rootQueueAgent || null,
+        rootQueueId: runningSpec.rootQueueId || null,
+        rootTaskId: runningSpec.rootTaskId || null,
+      };
+      eventlog.emit('queue.completed', queueEvent);
+      if (CEO_ACTIVE_TASK_SERIAL_LOCK_ENABLED) releaseActiveCeoTaskIfComplete(runningSpec, terminalTaskState);
+      if (terminalTaskState === 'done') {
+        notifyProjectDone(runningSpec);
+      } else if (terminalTaskState === 'failed') {
+        const repairTicket = openAutoRepairTicket(runningSpec, e, terminalReason, { code: null, signal: null });
+        notifyQueueIssueTiered(runningSpec, e, terminalReason, repairTicket);
+      }
+      eventlog.emit('queue.swept', {
+        queueAgent: AGENT,
+        queueId: id,
+        status: terminalTaskState,
+        task: runningSpec.taskId || null,
+        reason: 'taskstore already terminal; settled queue without engine resume',
+      });
+      continue;
+    }
     if (heartbeat.stale) {
       const progress = runningRecentExplicitProgress(e);
       if (engineAlive && progress.fresh) {
-        eventlog.emit('queue.running.keepalive', {
+        emitRunningKeepalive({
           queueAgent: AGENT,
           queueId: id,
           enginePid,
@@ -4479,7 +5001,7 @@ async function sweepStaleRunning() {
         recoverRunningEntry(id, e, recoveredReason);
         continue;
       }
-      eventlog.emit('queue.running.keepalive', {
+      emitRunningKeepalive({
         queueAgent: AGENT,
         queueId: id,
         enginePid,
@@ -4512,28 +5034,60 @@ function workerInFlightLimit() {
   return QUEUE_WORKER_MAX_IN_FLIGHT;
 }
 
+function shouldExitIdleWorker(opts = {}) {
+  const persistent = opts.persistent == null ? QUEUE_WORKER_PERSISTENT : !!opts.persistent;
+  const idleExitMs = opts.idleExitMs == null ? QUEUE_WORKER_IDLE_EXIT_MS : Math.max(0, Number(opts.idleExitMs) || 0);
+  const activeCount = Math.max(0, Number(opts.activeCount) || 0);
+  const hasQueued = !!opts.hasQueued;
+  const idleSince = Number(opts.idleSince) || 0;
+  const now = Number(opts.now) || Date.now();
+  return !persistent && idleExitMs > 0 && activeCount === 0 && !hasQueued && idleSince > 0 && now - idleSince >= idleExitMs;
+}
+
+function queueWorkerFailureDescriptor(entry, error, now = Date.now()) {
+  const rawReason = sanitizeReason(error && error.message || error);
+  const queueId = entry && entry.id || 'unknown';
+  if (/^resource lock wait timeout after \d+ms$/i.test(rawReason)) {
+    return {
+      kind: 'resource-lock-timeout',
+      taskId: `resource-lock-timeout-${now}-${queueId}`,
+      flowId: 'resource-lock-timeout',
+      rawReason,
+      reportReason: rawReason,
+    };
+  }
+  return {
+    kind: 'worker-crash',
+    taskId: `worker-crash-${now}-${queueId}`,
+    flowId: 'worker-crash',
+    rawReason,
+    reportReason: `queue worker crashed: ${rawReason}`,
+  };
+}
+
 async function handleClaimedEntry(entry) {
   try {
     await handle(entry);
   } catch (e) {
+    const failure = queueWorkerFailureDescriptor(entry, e);
     try { Q.finish(QUEUE_ROOT, AGENT, entry.id, 'failed', { error: e.message }); } catch (_) {}
     const syntheticSpec = {
-      taskId: `worker-crash-${Date.now()}-${entry.id}`,
+      taskId: failure.taskId,
       queueAgent: AGENT,
       queueId: entry.id,
       rootQueueAgent: payloadFrom(entry).rootQueueAgent || (AGENT === 'ceo' ? 'ceo' : null),
       rootQueueId: payloadFrom(entry).rootQueueId || (AGENT === 'ceo' ? entry.id : null),
       rootTaskId: payloadFrom(entry).rootTaskId || null,
-      flowId: 'worker-crash',
+      flowId: failure.flowId,
       role: (payloadFrom(entry).role || roleFromAgent(AGENT)),
       projectId: inferProjectId(payloadFrom(entry)),
     };
-    eventlog.emit('node.fail', { task: syntheticSpec.taskId, node: 'queue-worker', attempt: 1, role: syntheticSpec.role, reason: sanitizeReason(e.message), projectId: syntheticSpec.projectId || null });
-    eventlog.emit('task.failed', { task: syntheticSpec.taskId, flow: syntheticSpec.flowId, reason: sanitizeReason(e.message) });
-    eventlog.emit('queue.completed', { queueAgent: AGENT, queueId: entry.id, task: syntheticSpec.taskId, ok: false, status: 'failed', reason: sanitizeReason(e.message), rootQueueAgent: syntheticSpec.rootQueueAgent || null, rootQueueId: syntheticSpec.rootQueueId || null, rootTaskId: syntheticSpec.rootTaskId || null });
-    if (CEO_ACTIVE_TASK_SERIAL_LOCK_ENABLED) releaseActiveCeoTaskIfComplete(syntheticSpec, 'worker-crash');
-    const repairTicket = openAutoRepairTicket(syntheticSpec, entry, `queue worker crashed: ${sanitizeReason(e.message)}`, { code: null, signal: null });
-    notifyQueueIssueTiered(syntheticSpec, entry, `queue worker crashed: ${sanitizeReason(e.message)}`, repairTicket);
+    eventlog.emit('node.fail', { task: syntheticSpec.taskId, node: 'queue-worker', attempt: 1, role: syntheticSpec.role, reason: failure.rawReason, failureKind: failure.kind, projectId: syntheticSpec.projectId || null });
+    eventlog.emit('task.failed', { task: syntheticSpec.taskId, flow: syntheticSpec.flowId, reason: failure.rawReason, failureKind: failure.kind });
+    eventlog.emit('queue.completed', { queueAgent: AGENT, queueId: entry.id, task: syntheticSpec.taskId, ok: false, status: 'failed', reason: failure.rawReason, failureKind: failure.kind, rootQueueAgent: syntheticSpec.rootQueueAgent || null, rootQueueId: syntheticSpec.rootQueueId || null, rootTaskId: syntheticSpec.rootTaskId || null });
+    if (CEO_ACTIVE_TASK_SERIAL_LOCK_ENABLED) releaseActiveCeoTaskIfComplete(syntheticSpec, failure.kind);
+    const repairTicket = openAutoRepairTicket(syntheticSpec, entry, failure.reportReason, { code: null, signal: null });
+    notifyQueueIssueTiered(syntheticSpec, entry, failure.reportReason, repairTicket);
   } finally {
     releaseClaimedResourceReservation(entry);
   }
@@ -4547,8 +5101,20 @@ async function main() {
   const reloadDirs = defaultReloadDirs(__dirname);
   const bootSourceRevision = computeSourceRevision(reloadDirs);
   let lastCodeCheck = Date.now();
+  let codeReloadPending = false;
+  let pendingSourceRevision = null;
+  let idleSince = null;
   const activeHandles = new Set();
-  eventlog.emit('queue.worker.start', { queueAgent: AGENT, pid: process.pid, maxInFlight: workerInFlightLimit(), maxConcurrency: ENGINE_MAX_CONCURRENCY, sourceRevision: bootSourceRevision.slice(0, 12) });
+  eventlog.emit('queue.worker.start', {
+    queueAgent: AGENT,
+    pid: process.pid,
+    maxInFlight: workerInFlightLimit(),
+    maxConcurrency: ENGINE_MAX_CONCURRENCY,
+    runtimeConfigSource: RUNTIME_SETTINGS_BOOT.source,
+    persistent: QUEUE_WORKER_PERSISTENT,
+    idleExitMs: QUEUE_WORKER_PERSISTENT ? 0 : QUEUE_WORKER_IDLE_EXIT_MS,
+    sourceRevision: bootSourceRevision.slice(0, 12),
+  });
   while (true) {
     if (Date.now() - lastSweep >= RUNNING_SWEEP_MS) {
       await sweepStaleRunning();
@@ -4557,35 +5123,102 @@ async function main() {
       maybeFlushP1DigestAtDayCut();
     }
     if (await waitIfWorkerSuperseded(activeHandles)) continue;
-    // P0-B 热重载:仅在空闲(无在途引擎)时复查核心代码指纹;变了 → 优雅退出,server 用新码重启。
-    // 绝不打断在途引擎(activeHandles>0 时跳过),贯彻"等在途收尾、不强杀活引擎"。
-    if (activeHandles.size === 0 && Date.now() - lastCodeCheck >= CODE_RELOAD_CHECK_MS) {
+    // P0-B 热重载:运行中也复查核心代码指纹。发现变化后进入 drain，停止 claim 新任务；
+    // 已在途引擎自然收尾后再优雅退出。持续有任务时不能因 activeHandles 永不归零而饿死换代。
+    if (Date.now() - lastCodeCheck >= CODE_RELOAD_CHECK_MS) {
       lastCodeCheck = Date.now();
       const rev = computeSourceRevision(reloadDirs);
-      if (rev !== bootSourceRevision) {
-        eventlog.emit('queue.worker.code_reload', { queueAgent: AGENT, pid: process.pid, from: bootSourceRevision.slice(0, 12), to: rev.slice(0, 12) });
-        process.exit(0); // process.once('exit') 释放 pidfile;server.ensureQueueWorker 用新代码重启
+      const decision = codeReloadDecision({
+        bootRevision: bootSourceRevision,
+        currentRevision: rev,
+        pending: codeReloadPending,
+        activeCount: activeHandles.size,
+      });
+      if (decision.newlyPending) {
+        codeReloadPending = true;
+        pendingSourceRevision = rev;
+        eventlog.emit('queue.worker.code_reload_pending', {
+          queueAgent: AGENT,
+          pid: process.pid,
+          from: bootSourceRevision.slice(0, 12),
+          to: rev.slice(0, 12),
+          activeCount: activeHandles.size,
+          reason: 'source-changed-draining',
+        });
       }
     }
+    if (codeReloadPending) {
+      const decision = codeReloadDecision({
+        bootRevision: bootSourceRevision,
+        currentRevision: pendingSourceRevision || bootSourceRevision,
+        pending: true,
+        activeCount: activeHandles.size,
+      });
+      if (decision.shouldExit) {
+        eventlog.emit('queue.worker.code_reload', {
+          queueAgent: AGENT,
+          pid: process.pid,
+          from: bootSourceRevision.slice(0, 12),
+          to: String(pendingSourceRevision || '').slice(0, 12),
+          drained: true,
+          activeCount: 0,
+        });
+        return; // process.once('exit') 释放 pidfile;server.ensureQueueWorker 用新代码重启
+      }
+      await Promise.race([Promise.race(activeHandles), sleep(250)]);
+      continue;
+    }
     if (activeHandles.size >= workerInFlightLimit()) {
+      idleSince = null;
       await Promise.race(activeHandles);
+      continue;
+    }
+    // A safe console restart creates this fixed barrier before checking/stopping
+    // idle workers. Do not claim new work while it is active; in-flight work is
+    // allowed to finish and the helper aborts if canonical running files exist.
+    if (fs.existsSync(CONSOLE_RESTART_BARRIER)) {
+      idleSince = null;
+      if (activeHandles.size) await Promise.race([Promise.race(activeHandles), sleep(250)]);
+      else await sleep(250);
       continue;
     }
     if (AGENT === 'ceo' && CEO_ACTIVE_TASK_SERIAL_LOCK_ENABLED) {
       const next = peekQueuedEntry(AGENT);
       if (!next) {
-        if (activeHandles.size) await Promise.race([Promise.race(activeHandles), sleep(800)]);
-        else await sleep(800);
+        if (activeHandles.size) {
+          idleSince = null;
+          await Promise.race([Promise.race(activeHandles), sleep(800)]);
+        } else {
+          if (!idleSince) idleSince = Date.now();
+          if (shouldExitIdleWorker({ idleSince, activeCount: 0, hasQueued: false })) {
+            eventlog.emit('queue.worker.idle_exit', { queueAgent: AGENT, pid: process.pid, idleMs: Date.now() - idleSince });
+            return;
+          }
+          await sleep(800);
+        }
         continue;
       }
+      idleSince = null;
       await waitForCeoActiveTaskTurn(next);
     }
     const entry = await claimNextRunnableEntry();
     if (!entry) {
-      if (activeHandles.size) await Promise.race([Promise.race(activeHandles), sleep(800)]);
-      else await sleep(800);
+      const queued = peekQueuedEntry(AGENT);
+      if (activeHandles.size || queued) {
+        idleSince = null;
+        if (activeHandles.size) await Promise.race([Promise.race(activeHandles), sleep(800)]);
+        else await sleep(800);
+      } else {
+        if (!idleSince) idleSince = Date.now();
+        if (shouldExitIdleWorker({ idleSince, activeCount: 0, hasQueued: false })) {
+          eventlog.emit('queue.worker.idle_exit', { queueAgent: AGENT, pid: process.pid, idleMs: Date.now() - idleSince });
+          return;
+        }
+        await sleep(800);
+      }
       continue;
     }
+    idleSince = null;
     const task = handleClaimedEntry(entry);
     activeHandles.add(task);
     task.finally(() => activeHandles.delete(task));
@@ -4620,6 +5253,10 @@ module.exports = {
 	    lockRootForCeoEntry,
 	    lockRootForSpec,
 	    makeSpec,
+	    completeRepairClaimNoop,
+	    emitManualCompletionOverrideAudit,
+	    manualCompletionOverrideForSpec,
+	    buildSecretaryEnvelope,
     buildProjectDoneNotice,
     conciseNotifyTaskName,
     defaultProjectId,
@@ -4648,19 +5285,28 @@ module.exports = {
 	    prefixedNotifyTitle,
 	    releaseQueueRuntimeLocks,
 	    runningNoProgress,
+	    preEngineWaitAbortDecision,
+	    preEngineCancellationPatch,
 	    resourceDomainsForTask: ResourceLocks.normalizeResourceRequest,
     shouldSkipProjectDoneNotice,
 	    shouldBypassEngineSlot,
 	    runEngine,
 	    sameActiveRoot,
+	    readEngineEventsSince,
+	    downstreamRefsFromEvents,
 	    descendantEntriesForRoot,
+	    emitRunningKeepalive,
+	    projectRouteEventReaderSnapshot: () => projectRouteEventReader.snapshot(),
 	    emitProjectRouteFinal,
 	    runningEngineHeartbeat,
 	    summarizeDownstreamResult,
 	    sweepStaleRunning,
 	    sweepActiveCeoTaskLock,
 	    workerPidFileRecordOwned,
-	    waitForCeoActiveTaskTurn,
-	    waitForProjectRouteDownstream,
+    waitForCeoActiveTaskTurn,
+    waitForProjectRouteDownstream,
+	    shouldExitIdleWorker,
+	    queueWorkerFailureDescriptor,
+	    runtimeSettingsBoot: { engineMaxConcurrency: RUNTIME_SETTINGS_BOOT.engineMaxConcurrency, source: RUNTIME_SETTINGS_BOOT.source },
 	  },
 	};

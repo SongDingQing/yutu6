@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yutu6-critical-action-receipt@1",
+  "title": "Yutu6 redacted critical action receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schema_ref", "receipt_id", "generated_at", "task_id", "availability",
+    "unavailable_reason", "action", "affected_files", "evidence_refs", "final_state", "security", "limits"
+  ],
+  "properties": {
+    "schema": { "const": "yutu6-critical-action-receipt@1" },
+    "schema_ref": { "const": "projects/控制台/quality-ops/schemas/critical-action-receipt.schema.json" },
+    "receipt_id": { "type": "string", "pattern": "^receipt-[a-f0-9]{24}$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "availability": { "enum": ["available", "unavailable"] },
+    "unavailable_reason": {
+      "type": ["string", "null"],
+      "enum": [null, "action_not_allowlisted", "exit_code_unavailable", "evidence_unavailable", "summary_length_limit"]
+    },
+    "action": { "anyOf": [{ "$ref": "process-summary.contract.schema.json#/$defs/action" }, { "type": "null" }] },
+    "affected_files": { "$ref": "process-summary.contract.schema.json#/$defs/refs" },
+    "evidence_refs": { "$ref": "process-summary.contract.schema.json#/$defs/refs" },
+    "final_state": { "enum": ["completed", "failed"] },
+    "security": { "$ref": "process-summary.contract.schema.json#/$defs/security" },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_receipt_chars", "max_items_per_list"],
+      "properties": {
+        "max_receipt_chars": { "type": "integer", "minimum": 2048, "maximum": 32768 },
+        "max_items_per_list": { "const": 32 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "availability": { "const": "available" } }, "required": ["availability"] },
+      "then": {
+        "properties": {
+          "unavailable_reason": { "const": null },
+          "action": { "$ref": "process-summary.contract.schema.json#/$defs/action" },
+          "evidence_refs": { "minItems": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "unavailable_reason": { "type": "string" },
+          "action": { "type": "null" }
+        }
+      }
+    }
+  ]
+}

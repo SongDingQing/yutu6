@@ -18,7 +18,7 @@
  *
  * env 开关:BULLETIN_WEEKLY_CLEANUP_ENABLED=0 时 CLI 直接跳过(默认开;只影响 CLI,不影响模块函数)。
  *
- * 红线:Starlaid 一律排除;密钥不回显;不删除文件,只改卡片状态;失败不重试破坏现场。
+ * 红线:密钥不回显;不删除文件,只改卡片状态;失败不重试破坏现场。
  *
  * 用法:
  *   node tools/bulletin-weekly-cleanup.js                # dry-run,打印计划
@@ -156,7 +156,7 @@ function buildPlan(cards, opts = {}) {
 
   // 规则 a + b
   for (const card of active) {
-    if (isExemptCard(card)) continue;
+    if (isExemptCard(card) || isRepairCard(card)) continue;
     if (card.status === 'enabled' && card.queueId) {
       const hit = queueEntryLookup(queueRoot, card.target, card.queueId);
       if (hit && (hit.state === 'done' || hit.state === 'failed')
@@ -175,7 +175,7 @@ function buildPlan(cards, opts = {}) {
   }
 
   // 规则 c:同 queueId / 同标题前缀去重(保留最新;维修卡不做标题前缀合并)
-  const remaining = active.filter(c => !archivedIds.has(c.id) && !isExemptCard(c));
+  const remaining = active.filter(c => !archivedIds.has(c.id) && !isExemptCard(c) && !isRepairCard(c));
   const groups = new Map();
   for (const card of remaining) {
     const keys = [];
@@ -239,7 +239,7 @@ function summaryMarkdown(plan, extra = {}) {
     `# 公告板周清算摘要 · ${pretty}`,
     '',
     '> bulletin-weekly-cleanup(拍板 Q8)自动产出。归档=卡片留在 cards.json、status=archived,可人工翻案;不是删除。',
-    '> 豁免:维修工单卡不清算;清算摘要卡自身下轮豁免。红线:Starlaid 排除、密钥不回显。',
+    '> 豁免:维修工单卡不清算;清算摘要卡自身下轮豁免。红线:密钥不回显。',
     '',
     '## 总览',
     '',

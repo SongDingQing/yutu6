@@ -25,6 +25,21 @@
    "path": "tests/secret-hygiene.test.js",
    "line_sha12": "435d481e0791",
    "reason": "密钥卫生测试的构造假密钥夹具(非真实密钥);行内容变则哈希失效"
+  },
+  {
+   "path": "projects/控制台/direct-completion-override.js",
+   "line_sha12": "30ead2297a30",
+   "reason": "代码变量传递误报: privateKeyInput 是运行时对象引用,不是字面密钥"
+  },
+  {
+   "path": "projects/控制台/tests/capability-preflight.test.js",
+   "line_sha12": "38192d33bacf",
+   "reason": "能力预检脱敏测试的构造假密钥夹具,非真实密钥"
+  },
+  {
+   "path": "projects/控制台/tools/implement-checkpoint-experiment-test.js",
+   "line_sha12": "a30d413cf9fd",
+   "reason": "实现检查点脱敏实验的固定 HTTP Basic 假夹具,非真实凭据"
   }
  ]
 }

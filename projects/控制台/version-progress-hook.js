@@ -544,7 +544,6 @@ function declaredChangedFiles(task, gate) {
     const file = f.trim();
     if (seen.has(file)) continue;
     seen.add(file);
-    if (/Starlaid|星桥/i.test(file)) continue; // 红线:排除范围不提交
     if (SECRET_PATH_RE.test(file)) continue;   // 红线:密钥路径不提交
     out.push(file);
   }

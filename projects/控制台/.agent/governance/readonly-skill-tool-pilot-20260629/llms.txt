@@ -1,0 +1,50 @@
+# 控制台只读治理试点
+
+Purpose: compact, non-runtime metadata for three existing Console tools.
+
+Status:
+- `pilot_only`
+- `readonly_governance`
+- `not_runtime_contract`
+
+This directory does not approve automatic routing, does not install an external
+runtime, and does not create execution constraints. Runtime use requires a later
+`.js` consumer plus regression tests.
+
+Scope:
+- project: 控制台
+- current refresh: 2026-07-05
+- original pilot date: 2026-06-29
+- selected objects are tools only:
+  - `console.engine.review_loop`
+  - `console.secretary.queue_organize`
+  - `console.tools.serial_smoke_test`
+
+Use:
+- Start with `AGENTS.md` for boundary rules.
+- Use `apm.yml` as the readable ledger.
+- Use `apm.lock.yaml` for SHA256 verification.
+- Verify with `shasum -a 256 <hash_object>`.
+
+Rules:
+- Hash algorithm is SHA256.
+- Hash object is the full working-tree bytes of the listed source file.
+- The current lock is tied to its `git.head_short` and dirty-worktree caveat.
+- Missing license is recorded as `UNKNOWN`, not guessed.
+- `license: UNKNOWN` sets `requires_human_review: true`.
+- Medium/high permissions set `requires_human_review: true`.
+- Permission entries list names and intended uses only; never record secrets.
+
+Selected objects:
+- `console.engine.review_loop`: async review-loop worker. High side effects; human review required.
+- `console.secretary.queue_organize`: queue organizer. Dry-run is read-oriented; apply writes queue state; human review required.
+- `console.tools.serial_smoke_test`: smoke harness that writes artifacts and spawns workers; human review required.
+
+Boundaries:
+- no external runtime install
+- no bulk migration of old skills/tools
+- no edits to governed source files
+- no actual network/model/process/secret side effects during this metadata refresh
+- no secrets in output or logs
+- login/OAuth/2FA/system authorization stay manual
+- Starlaid/星桥 excluded

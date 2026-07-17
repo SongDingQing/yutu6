@@ -26,7 +26,6 @@ function main() {
   assert.strictEqual(result.ok, true, result.errors.join('\n'));
   assert.strictEqual(templates.schema_version, '2026-06-23.office-image-template.v3');
   assert.strictEqual(templates.source_of_truth, 'memory/办公室生图设计规范.md');
-  assert.strictEqual(templates.starlaid_excluded, true);
   assert(templates.shared_style.grid.minimum_visible_thickness_px >= 24, 'tile thickness contract must be explicit');
   assert.strictEqual(templates.shared_style.grid.integer_grid_required, true, 'V3 must require integer grid');
   assert.strictEqual(templates.shared_style.grid.complete_footprint_required, true, 'V3 must require complete footprints');
@@ -72,13 +71,6 @@ function main() {
   const noRefResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, { referenceImage: '' }), templates);
   assert.strictEqual(noRefResult.ok, false, 'missing reference must block generation');
   assert(noRefResult.errors.some(e => e.includes('referenceImage is required')), 'missing reference reason must be explicit');
-
-  const starlaidResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
-    taskId: 'Starlaid-leak',
-    requirement: 'Generate a Starlaid office sprite from this template for a different project.'
-  }), templates);
-  assert.strictEqual(starlaidResult.ok, false, 'Starlaid must be rejected');
-  assert(starlaidResult.errors.some(e => e.includes('excluded project')), 'excluded project reason must be explicit');
 
   const experimentalResult = Checker.validateGenerationSpec(Object.assign({}, baseSpec, {
     referenceImage: 'projects/控制台/artifacts/office-assets/style-reference/office-style-reference-v2-pending.png',

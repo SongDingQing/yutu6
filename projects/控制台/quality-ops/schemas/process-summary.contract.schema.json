@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yutu6-process-summary-contract@2",
+  "title": "Yutu6 allowlisted redacted process summary contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "schema_ref", "generated_at", "availability", "unavailable_reason",
+    "runner", "actions", "affected_files", "evidence_refs", "final_state", "security", "limits"
+  ],
+  "properties": {
+    "schema": { "const": "yutu6-process-summary-contract@2" },
+    "schema_ref": { "const": "projects/控制台/quality-ops/schemas/process-summary.contract.schema.json" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "availability": { "enum": ["available", "unavailable"] },
+    "unavailable_reason": {
+      "type": ["string", "null"],
+      "enum": [null, "action_not_allowlisted", "exit_code_unavailable", "evidence_unavailable", "runner_trace_unavailable", "summary_length_limit"]
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "affected_files": { "$ref": "#/$defs/refs" },
+    "evidence_refs": { "$ref": "#/$defs/refs" },
+    "final_state": { "enum": ["completed", "failed"] },
+    "security": { "$ref": "#/$defs/security" },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_summary_chars", "max_items_per_list"],
+      "properties": {
+        "max_summary_chars": { "type": "integer", "minimum": 2048, "maximum": 32768 },
+        "max_items_per_list": { "const": 32 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "availability": { "const": "available" } }, "required": ["availability"] },
+      "then": {
+        "properties": {
+          "unavailable_reason": { "const": null },
+          "actions": { "minItems": 1 },
+          "evidence_refs": { "minItems": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "unavailable_reason": { "type": "string" },
+          "actions": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "exit_code"],
+      "properties": {
+        "kind": { "enum": ["command", "tool"] },
+        "name": {
+          "enum": ["bash", "claude", "codex", "git", "hermes", "mock", "node", "npm", "npx", "openai_http", "peekaboo", "pnpm", "python", "python3", "quality_ops_ingest", "quality_ops_schedule", "quality_ops_weekly", "sh", "tool_harness", "yarn", "zsh"]
+        },
+        "exit_code": { "type": "integer" }
+      }
+    },
+    "refs": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 320 }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hidden_chain_of_thought_saved", "raw_command_arguments_saved", "raw_sensitive_output_saved", "redaction_applied"],
+      "properties": {
+        "hidden_chain_of_thought_saved": { "const": false },
+        "raw_command_arguments_saved": { "const": false },
+        "raw_sensitive_output_saved": { "const": false },
+        "redaction_applied": { "const": true }
+      }
+    }
+  }
+}

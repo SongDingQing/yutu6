@@ -2,12 +2,13 @@
 'use strict';
 
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const DoneGate = require('../shared/engine/done-gate');
-const { runFlow } = require('../shared/engine/engine');
+const { loadFlow, runFlow } = require('../shared/engine/engine');
 const { TaskStore } = require('../shared/engine/taskstore');
 
 const repoRoot = path.resolve(__dirname, '..');
@@ -90,9 +91,41 @@ function withVisualFixtureEvidence(fn) {
   const codexReport = path.join(root, 'codex-scope-review.md');
   fs.writeFileSync(screenshot, 'fixture image placeholder\n');
   fs.writeFileSync(codexReport, 'codex fixture review\n');
+  const screenshotPath = path.relative(repoRoot, screenshot).split(path.sep).join('/');
+  const screenshotSha = crypto.createHash('sha256').update(fs.readFileSync(screenshot)).digest('hex');
+  const images = [{ path: screenshotPath, sha256: screenshotSha }];
+  const trace = {
+    schema: 'codex-cli-image-trace-v1',
+    source: 'runner-spawn-argv',
+    tool: 'codex exec --image',
+    runner: 'codex',
+    images,
+  };
+  const traceFile = path.join(root, 'visual-input.json');
+  const traceBytes = Buffer.from(`${JSON.stringify(trace, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(traceFile, traceBytes);
+  const runtimeVisualInput = {
+    schema: 'codex-cli-image-v1',
+    attached: true,
+    source: trace.source,
+    tool: trace.tool,
+    runner: trace.runner,
+    trace_path: path.relative(repoRoot, traceFile).split(path.sep).join('/'),
+    trace_sha256: crypto.createHash('sha256').update(traceBytes).digest('hex'),
+    images,
+  };
   try {
     return fn({
       evidence: `${screenshot}; ${codexReport}; node tests/done-gate.test.js exit 0`,
+      root,
+      screenshot,
+      codexReport,
+      runtimeVisualInput,
+      visualObservations: [{
+        path: screenshotPath,
+        sha256: screenshotSha,
+        observation: '画面可见标题、左侧办公室列表、状态条和舞台边框。',
+      }],
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -181,6 +214,189 @@ function testReviewFailCannotDone() {
   assert.match(gate.reason, /review\.pass 未通过/);
 }
 
+function negativeStructuredReview(acceptance, status = '部分', verdict = 'partial') {
+  const review = structuredReview(acceptance, { status });
+  review.pass = false;
+  review.severity = 'medium';
+  review.notes = '独立复审发现验收未满足并打回；已核 tests/done-gate.test.js，测试证据 exit 0。';
+  review.verification.verdict = verdict;
+  review.verification.acceptance_table = review.verification.acceptance_table.map(row => Object.assign({}, row, {
+    notes: `${row.point} 的负向复审证据已核，当前状态=${status}`,
+  }));
+  return review;
+}
+
+function negativeReviewVars(status = '部分', verdict = 'partial') {
+  const goal = '验证负向 review 能进入返工分支';
+  const acceptance = structuredAcceptance(goal, '负向复审发现缺陷时必须返回 implement');
+  return {
+    goal,
+    acceptance,
+    implementation: structuredImplementation(acceptance),
+    review: negativeStructuredReview(acceptance, status, verdict),
+  };
+}
+
+function testNegativeReviewAcceptanceCanReworkButCannotFinish() {
+  for (const status of ['完成', '部分', '未完成']) {
+    const vars = negativeReviewVars(status, status === '完成' ? 'false' : 'partial');
+    const hardReview = DoneGate.validateReviewHardEvidence(vars, { workspaceRoot: repoRoot });
+    assert.strictEqual(hardReview.ok, true, `${status}: ${hardReview.reason}`);
+
+    const finalGate = DoneGate.validateReviewLoopCompletion(reviewLoopTask(vars), {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(finalGate.ok, false, `${status} negative review must never finish the flow`);
+    assert.match(finalGate.reason, /review\.pass 未通过/);
+  }
+}
+
+function testNegativeReviewAcceptanceStillFailsClosed() {
+  const cases = [
+    {
+      label: 'missing row',
+      mutate(vars) { vars.review.verification.acceptance_table = []; },
+      reason: /缺少结构化验收表逐行填写/,
+    },
+    {
+      label: 'blank evidence',
+      mutate(vars) { vars.review.verification.acceptance_table[0].evidence = ''; },
+      reason: /证据位置为空/,
+    },
+    {
+      label: 'unverifiable evidence',
+      mutate(vars) { vars.review.verification.acceptance_table[0].evidence = 'projects/控制台/__missing_negative_review_evidence__.md:1'; },
+      reason: /证据不可核或不存在/,
+    },
+    {
+      label: 'illegal status',
+      mutate(vars) { vars.review.verification.acceptance_table[0].status = 'pending'; },
+      reason: /未完成/,
+    },
+    {
+      label: 'positive verdict conflict',
+      mutate(vars) { vars.review.verification.verdict = 'true'; },
+      reason: /verdict 未确认负向\/部分结论/,
+    },
+  ];
+
+  for (const item of cases) {
+    const vars = negativeReviewVars();
+    item.mutate(vars);
+    const gate = DoneGate.validateReviewHardEvidence(vars, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, `${item.label} must fail closed`);
+    assert.match(gate.reason, item.reason, item.label);
+  }
+
+  const positive = negativeReviewVars('部分', 'true');
+  positive.review.pass = true;
+  const positiveGate = DoneGate.validateReviewHardEvidence(positive, { workspaceRoot: repoRoot });
+  assert.strictEqual(positiveGate.ok, false, 'positive review must still require every acceptance row completed');
+  assert.match(positiveGate.reason, /第1行 未完成/);
+}
+
+function testNegativeReviewMayAuditMissingVisualDocumentsWithoutPixelClaims() {
+  const point = '任务验收: setup UI 页面必须附可核视觉证据';
+  const acceptance = [
+    'setup UI 页面调整完成并附视觉证据。',
+    '',
+    '## 结构化验收表',
+    '',
+    '| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |',
+    '|---|---|---|---|',
+    `| ${point} | 未完成 |  |  |`,
+  ].join('\n');
+  const implementation = baseImplementation(['tests/done-gate.test.js']);
+  implementation.acceptance_table = [{
+    point,
+    status: '完成',
+    evidence: 'tests/done-gate.test.js:1',
+    notes: `${point} 的实现声明待主管核验`,
+  }];
+  const review = baseReview(['tests/done-gate.test.js']);
+  review.pass = false;
+  review.severity = 'medium';
+  review.notes = '仅作视觉证据目录缺件审计：未找到截图，未对画面内容作裁决。';
+  review.verification.verdict = 'partial';
+  review.verification.checked.push('implementation.acceptance_table', 'visual evidence directory listing');
+  review.verification.evidence = [{
+    kind: 'analysis',
+    path: 'tests/done-gate.test.js',
+    summary: 'visual_evidence_count=0；证据目录未找到截图，只据缺件事实打回。',
+  }];
+  review.verification.acceptance_table = [{
+    point,
+    status: '部分',
+    evidence: 'tests/done-gate.test.js:1',
+    notes: `${point} 缺少截图，当前只完成文档缺件审计`,
+  }];
+
+  const gate = DoneGate.validateReviewHardEvidence({
+    goal: 'setup UI 页面调整',
+    acceptance,
+    implementation,
+    review,
+  }, { workspaceRoot: repoRoot });
+  assert.strictEqual(gate.ok, true, gate.reason);
+
+  review.verification.evidence[0].summary = '复审证据文件存在，未记录图片目录枚举结果。';
+  const assertionOnlyGate = DoneGate.validateReviewHardEvidence({
+    goal: 'setup UI 页面调整',
+    acceptance,
+    implementation,
+    review,
+  }, { workspaceRoot: repoRoot });
+  assert.strictEqual(assertionOnlyGate.ok, false, 'notes-only missing-image assertion must not bypass visual review');
+  assert.match(assertionOnlyGate.reason, /peekaboo 图片截图/);
+}
+
+function testNegativeReviewTakesRealReviewLoopReworkEdge() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'done-gate-negative-review-flow-'));
+  try {
+    const events = [];
+    const goal = '验证负向 review 通过节点合同后走回 implement';
+    const acceptance = structuredAcceptance(goal, '负向复审必须走 review 到 implement 的返工边');
+    let reviewCount = 0;
+    const result = runFlow({
+      flow: loadFlow(path.join(repoRoot, 'shared/routing/flows/review-loop.yaml')),
+      taskId: 'negative-review-rework-edge',
+      taskstore: new TaskStore(path.join(root, 'tasks')),
+      eventlog: { emit(type, data) { events.push(Object.assign({ type }, data || {})); } },
+      workspaceRoot: repoRoot,
+      vars: { goal, acceptance, bounds: 'engine regression fixture' },
+      runner(node, ctx) {
+        if (node.id === 'implement') {
+          const implementation = structuredImplementation(acceptance);
+          implementation.receipt = {
+            taskId: ctx.taskId,
+            specFingerprint: ctx.spec_fingerprint,
+            changedFiles: implementation.changed_files,
+            tests: ['node tests/done-gate.test.js exit 0'],
+            artifacts: ['tests/done-gate.test.js:1'],
+            verdict: 'done',
+            blocked_required_specs: [],
+          };
+          return { vars: { implementation }, evidence: { type: 'test', path: 'tests/done-gate.test.js' } };
+        }
+        reviewCount += 1;
+        const review = reviewCount === 1
+          ? negativeStructuredReview(acceptance, '部分', 'partial')
+          : structuredReview(acceptance);
+        return { vars: { review }, evidence: { type: 'review', path: 'tests/done-gate.test.js' } };
+      },
+    });
+
+    assert.strictEqual(result.ok, true, result.reason);
+    assert(events.some(event => event.type === 'node.end' && event.node === 'review' && event.loop === 1), 'negative review must emit node.end');
+    assert(events.some(event => event.type === 'edge.take' && event.from === 'review' && event.to === 'implement'), 'negative review must take review→implement');
+    assert(!events.some(event => event.type === 'done_gate.review_invalid'), 'negative review must not be reclassified as invalid');
+    assert(!events.some(event => event.type === 'node.fail'), 'valid negative review loop must not emit node.fail');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testClaimedMissingFileCannotDone() {
   const missing = 'projects/控制台/__missing_done_gate_fixture__.js';
   const task = reviewLoopTask({
@@ -223,6 +439,152 @@ function testStructuredAcceptanceHeaderDoesNotForceDeliveryEvidence() {
   );
 }
 
+function testNegativeVisualSemanticsDoNotInjectOrTriggerVisualGate() {
+  for (const phrase of ['视觉NA', '视觉 NA', '视觉N/A', '视觉 N/A', '视觉不适用', '视觉 不适用']) {
+    assert.strictEqual(
+      DoneGate.positiveVisualRequirement(phrase),
+      false,
+      `${phrase} must be treated as an exact negative visual declaration`,
+    );
+    const phraseAcceptance = structuredAcceptance('纯引擎契约回归', `契约测试可重复执行；${phrase}`);
+    assert(
+      !DoneGate.parseStructuredAcceptanceRows(phraseAcceptance).some(row => /^视觉\/UI证据/.test(row.point)),
+      `${phrase} must not auto-inject a visual row`,
+    );
+  }
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement('视觉NA但需修改真实 UI 页面布局'),
+    true,
+    'negative visual metadata must not suppress real UI work in the same sentence',
+  );
+
+  const defaultAcceptance = structuredAcceptance(
+    '纯引擎事件链回归',
+    '事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图',
+  );
+  assert(
+    !DoneGate.parseStructuredAcceptanceRows(defaultAcceptance).some(row => /^视觉\/UI证据/.test(row.point)),
+    'default no-visual policy must not auto-inject a visual row',
+  );
+
+  const incidentReference = '- 风险/偏差: Claude Fable 5 董事: 绕过 orchestrator 后若任务链元数据(rootQueueId/rootTaskId)不再由 CEO 节点补齐，rollup/董事会审计链会断(参考案例:ui-optimizer 案例事件必须带任务链)';
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement(incidentReference),
+    false,
+    'a ui-optimizer audit reference must not be treated as current UI work',
+  );
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement('build pipeline 只核事件链与回执'),
+    false,
+    'the letters ui inside an ordinary English identifier must not trigger the visual gate',
+  );
+  for (const reference of [
+    '参考案例: shared/agents/ui-optimizer/prompt.md:1，仅要求任务链元数据完整',
+    '证据路径: projects/控制台/public/workspace.html:120，仅用于历史审计链定位',
+  ]) {
+    assert.strictEqual(
+      DoneGate.positiveVisualRequirement(reference),
+      false,
+      `${reference} must remain reference-only`,
+    );
+  }
+  const incidentAcceptance = structuredAcceptance(
+    `按角色边界裁剪 orchestrator 与维修路由\n${incidentReference}`,
+    '自动测试证明普通非维修任务仍保持 secretary→CEO→supervisor 路由。',
+  );
+  assert(
+    !DoneGate.parseStructuredAcceptanceRows(incidentAcceptance).some(row => /^视觉\/UI证据/.test(row.point)),
+    'the incident handoff must not inject an unrelated visual acceptance row',
+  );
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement('参考案例: ui-optimizer；本轮必须提供 Peekaboo 截图'),
+    true,
+    'an explicit visual evidence request must override reference-only metadata',
+  );
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement('参考案例: ui-optimizer；本轮修改真实 UI 页面布局'),
+    true,
+    'real UI modification work must override reference-only metadata',
+  );
+
+  const rootGoal = [
+    '质量运营先做工具与 hook 清单，监管评估阻塞风险；对 AHR-26..30 产出兼容迁移设计和 contract tests。',
+    "- 风险/偏差: 董事: 验收表含'视觉/UI证据: peekaboo截图'行,但本任务无 UI 面;需按规范写 NA+理由。",
+    "- 修订建议: 验收表'视觉/UI证据'行明确标 NA 并写理由(纯引擎/测试任务无 UI 面),避免 done gate 误判。",
+  ].join('\n');
+  const rootAcceptance = [
+    '1. contract tests 覆盖兼容路径并给出可重复命令。',
+    '2. 视觉/UI证据：NA——本任务仅涉及引擎、hook、兼容设计与自动化测试，无 UI 或视觉验收面，不要求 Peekaboo 截图。',
+  ].join('\n');
+  const acceptance = structuredAcceptance(rootGoal, rootAcceptance);
+  const rows = DoneGate.parseStructuredAcceptanceRows(acceptance);
+  assert(rows.some(row => /视觉\/UI证据：NA/.test(row.point)), 'negative orchestrator acceptance item must be preserved');
+  assert(!rows.some(row => /^视觉\/UI证据/.test(row.point)), 'negative orchestrator item must not become an explicit visual gate row');
+  const gate = DoneGate.validateStructuredAcceptanceTable({
+    goal: rootGoal,
+    acceptance,
+    implementation: structuredImplementation(acceptance),
+    review: structuredReview(acceptance),
+  }, { workspaceRoot: repoRoot });
+  assert.strictEqual(gate.ok, true, gate.reason);
+
+  const explicitVisualAcceptance = [
+    '结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)',
+    '| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |',
+    '|---|---|---|---|',
+    '| 视觉/UI证据: N/A | 未完成 |  |  |',
+  ].join('\n');
+  const explicitGate = DoneGate.validateStructuredAcceptanceTable({
+    goal: '纯引擎任务但信封已有显式视觉行',
+    acceptance: explicitVisualAcceptance,
+    implementation: structuredImplementation(explicitVisualAcceptance),
+  }, { workspaceRoot: repoRoot, requireReview: false });
+  assert.strictEqual(explicitGate.ok, false, 'an existing explicit visual row must remain fail-closed');
+  assert.match(explicitGate.reason, /peekaboo 图片截图/);
+}
+
+function testAcceptanceNumberingOnlySplitsAtExplicitBoundaries() {
+  const expectedItems = [
+    '保留 AHR-26..30、timeoutMs=100、IP=127.0.0.1、浮点数=3.14 和 key=42 原文；这些数字与点都是条目正文，不得切断配置和值。',
+    '第二条明确验收保持完整。',
+  ];
+  const acceptance = structuredAcceptance(
+    '纯引擎编号解析回归',
+    expectedItems.map((item, index) => `${index + 1}. ${item}`).join(''),
+  );
+  const taskPoints = DoneGate.parseStructuredAcceptanceRows(acceptance)
+    .map(row => row.point)
+    .filter(point => /^任务验收: /.test(point));
+  assert.deepStrictEqual(
+    taskPoints,
+    expectedItems.map(item => `任务验收: ${item}`),
+    'only explicit numbered item boundaries may split acceptance prose',
+  );
+}
+
+function testPositiveVisualSemanticsStillInjectAndFailClosed() {
+  assert.strictEqual(
+    DoneGate.positiveVisualRequirement('修改真实 UI 页面布局；不需要视觉时无需截图'),
+    true,
+    'a default negative screenshot clause must not suppress real UI modification work',
+  );
+  const acceptance = structuredAcceptance(
+    '优化真实 UI 页面布局和按钮样式',
+    '交付页面改动并验证交互',
+  );
+  assert(
+    DoneGate.parseStructuredAcceptanceRows(acceptance).some(row => /^视觉\/UI证据/.test(row.point)),
+    'real UI work must still auto-inject the explicit visual row',
+  );
+  const gate = DoneGate.validateStructuredAcceptanceTable({
+    goal: '优化真实 UI 页面布局和按钮样式',
+    acceptance,
+    implementation: structuredImplementation(acceptance),
+  }, { workspaceRoot: repoRoot, requireReview: false });
+  assert.strictEqual(gate.ok, false, 'real UI work without images must fail closed');
+  assert.match(gate.reason, /peekaboo 图片截图/);
+}
+
 function testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows() {
   const goal = [
     '项目主管(控制台)执行 CEO brief。原始目标:',
@@ -230,6 +592,7 @@ function testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows() {
     '',
     'cc-connect(chenhg5)把 AI 编程 agent 双向桥接到飞书/微信/Telegram/钉钉等消息平台,手机随时随地对话、多数平台无需公网 IP。',
     '研究相对玉兔6(现仅 hermes 单向飞书通知)可借鉴的优点:①双向指令(手机发→玉兔6执行→回复);②手机远程派单/看进度;③无需公网IP的连接方式。',
+    '董事会评议:默认执行; 轮次 1/1; 记录见 memory/decisions.md。',
   ].join('\n');
   const acceptance = structuredAcceptance(
     goal,
@@ -307,7 +670,11 @@ function testQueueMergeHardRegressionCoveragePasses() {
   });
   assert.strictEqual(gate.ok, true, gate.reason);
   const required = DoneGate.requiredHardRegressionRules(task.vars);
-  assert(required.some(rule => rule.id === 'queue_merge_integrity'));
+  const queueRule = required.find(rule => rule.id === 'queue_merge_integrity');
+  assert(queueRule);
+  assert.strictEqual(queueRule.mode, 'active');
+  assert(String(queueRule.reason || '').trim());
+  assert(Array.isArray(queueRule.incident_refs) && queueRule.incident_refs.length > 0);
 }
 
 function testQueueMergeHardRegressionReadsReferencedEvidenceArtifact() {
@@ -389,6 +756,39 @@ function testQueueIdDedupAdviceDoesNotTriggerQueueMergeRegression() {
   });
   const required = DoneGate.requiredHardRegressionRules(task.vars);
   assert(!required.some(rule => rule.id === 'queue_merge_integrity'), 'queueId/rootQueueId dedup advice must not trigger queue merge hard regression');
+  const gate = DoneGate.validateReviewLoopCompletion(task, {
+    workspaceRoot: repoRoot,
+    requireDeliveryEvidence: true,
+  });
+  assert.strictEqual(gate.ok, true, gate.reason);
+}
+
+function testTaskMetadataContentDedupDoesNotTriggerQueueMergeRegression() {
+  const task = reviewLoopTask({
+    goal: [
+      '项目主管(控制台)执行 CEO brief。原始目标:董事会背景包去重并按引用复用。',
+      '队列引导消息(启动前已注入):',
+      '主人明确批准当前控制台重构继续执行。批准范围仅限根任务 903a1c1b / 子任务 17f56b05：董事会背景包去重、context_ref 与 fallback prompt；不授权其他待拍板事项。',
+    ].join('\n'),
+    acceptance: '稳定背景按有标题边界的完整块去重且仅保留一份；任务目标及角色专属语义完整保留。',
+    implementation: baseImplementation([
+      'projects/控制台/board-context-ref.js',
+      'projects/控制台/tests/board-context-ref.test.js',
+      'projects/控制台/status.md',
+      'projects/控制台/artifacts/board-context-ref-cr-1784213060660-17f56b05/structured-acceptance.md',
+    ]),
+    review: baseReview([
+      'projects/控制台/board-context-ref.js',
+      'projects/控制台/tests/board-context-ref.test.js',
+      'projects/控制台/status.md',
+      'projects/控制台/artifacts/board-context-ref-cr-1784213060660-17f56b05/structured-acceptance.md',
+    ]),
+  });
+  const required = DoneGate.requiredHardRegressionRules(task.vars);
+  assert(
+    !required.some(rule => rule.id === 'queue_merge_integrity'),
+    'task/root-task metadata next to content dedup must not trigger queue merge hard regression',
+  );
   const gate = DoneGate.validateReviewLoopCompletion(task, {
     workspaceRoot: repoRoot,
     requireDeliveryEvidence: true,
@@ -702,8 +1102,27 @@ function testStructuredAcceptanceRejectsOnlyStatementNotes() {
   assert.match(gate.reason, /使用不可核声明作证据/);
 }
 
+function testStructuredAcceptanceAllowsPlaceholderWordInExplanatoryNotes() {
+  const acceptance = structuredAcceptance(
+    'LiteLLM canary 分析, 对照 memory/decisions.md 第534行',
+    '在 控制台 项目 scope 内跑 review-loop',
+  );
+  const notes = 'N/A 仅表示该普通行不产生额外视觉产物；专项测试与文件证据仍已提供。';
+  const task = reviewLoopTask({
+    goal: 'LiteLLM canary 分析, 对照 memory/decisions.md 第534行',
+    acceptance,
+    implementation: structuredImplementation(acceptance, { notes }),
+    review: structuredReview(acceptance, { notes }),
+  });
+  const gate = DoneGate.validateReviewLoopCompletion(task, {
+    workspaceRoot: repoRoot,
+    requireDeliveryEvidence: true,
+  });
+  assert.strictEqual(gate.ok, true, gate.reason);
+}
+
 function testVisualStructuredAcceptanceAllowsDisclosureStatementNotes() {
-  withVisualFixtureEvidence(({ evidence }) => {
+  withVisualFixtureEvidence(({ evidence, runtimeVisualInput, visualObservations }) => {
     const acceptance = structuredAcceptance(
       'UI 只读评估',
       '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
@@ -715,6 +1134,8 @@ function testVisualStructuredAcceptanceAllowsDisclosureStatementNotes() {
     const review = baseReview(['tests/done-gate.test.js']);
     review.verification.checked = review.verification.checked.concat(['implementation.acceptance_table']);
     review.verification.acceptance_table = acceptanceTable;
+    review.verification.runtime_visual_input = runtimeVisualInput;
+    review.verification.visual_observations = visualObservations;
     const task = reviewLoopTask({
       goal: 'UI 只读评估',
       acceptance,
@@ -730,7 +1151,7 @@ function testVisualStructuredAcceptanceAllowsDisclosureStatementNotes() {
 }
 
 function testAutoVisualRowDoesNotForceDecisionRows() {
-  withVisualFixtureEvidence(({ evidence }) => {
+  withVisualFixtureEvidence(({ evidence, runtimeVisualInput, visualObservations }) => {
     const goal = [
       '项目主管(控制台)执行 CEO brief。原始目标:',
       '请 CEO/主管判断是否起草《控制台 a11y 组件行为清单 v0》：从 WAI-ARIA APG 与 React Aria 提炼按钮、菜单、tabs、combobox、dialog 等高频控件的 role/name/state/focus/keyboard 验收项，作为控制台前端人工自查和 computer-use grounding 门禁。',
@@ -772,6 +1193,8 @@ function testAutoVisualRowDoesNotForceDecisionRows() {
     const review = baseReview(['tests/done-gate.test.js']);
     review.verification.checked = review.verification.checked.concat(['implementation.acceptance_table']);
     review.verification.acceptance_table = acceptanceTable;
+    review.verification.runtime_visual_input = runtimeVisualInput;
+    review.verification.visual_observations = visualObservations;
     const task = reviewLoopTask({
       goal,
       acceptance,
@@ -803,6 +1226,146 @@ function testVisualStructuredAcceptanceRequiresPeekabooAndCodex() {
   });
   assert.strictEqual(gate.ok, false);
   assert.match(gate.reason, /peekaboo 截图|Codex/);
+}
+
+function testVisualImplementationRequiresEvidenceButNotReviewReceipt() {
+  withVisualFixtureEvidence(({ evidence, screenshot, codexReport }) => {
+    const goal = 'UI implementation 阶段结构化视觉验收';
+    const acceptance = structuredAcceptance(
+      goal,
+      '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
+    );
+    function makeVars(rowEvidence) {
+      const implementation = baseImplementation(['tests/done-gate.test.js']);
+      implementation.acceptance_table = filledAcceptanceRowsWithEvidence(
+        acceptance,
+        rowEvidence,
+        'implementation visual evidence fixture',
+      );
+      return { goal, acceptance, implementation };
+    }
+
+    let gate = DoneGate.validateImplementationLogicChain(makeVars(evidence), { workspaceRoot: repoRoot });
+    assert.strictEqual(
+      gate.ok,
+      true,
+      `implementation must not require the future review-owned runtime receipt: ${gate.reason}`,
+    );
+
+    gate = DoneGate.validateImplementationLogicChain(
+      makeVars(`${codexReport}; node tests/done-gate.test.js exit 0`),
+      { workspaceRoot: repoRoot },
+    );
+    assert.strictEqual(gate.ok, false, 'implementation without a real Peekaboo image must fail closed');
+    assert.match(gate.reason, /peekaboo 图片截图/);
+
+    gate = DoneGate.validateImplementationLogicChain(
+      makeVars(`${screenshot}; node tests/done-gate.test.js exit 0`),
+      { workspaceRoot: repoRoot },
+    );
+    assert.strictEqual(gate.ok, false, 'implementation without a Codex comparison report must fail closed');
+    assert.match(gate.reason, /未同时包含.*Codex 复核报告|Codex 对照设计挑错证据/);
+  });
+}
+
+function testVisualReviewRequiresRunnerOwnedTraceAndPerImageObservation() {
+  withVisualFixtureEvidence(({ evidence, root, runtimeVisualInput, visualObservations }) => {
+    const goal = 'UI 视觉复审，禁止沿用上轮 critique 代替真实开图';
+    const acceptance = structuredAcceptance(
+      goal,
+      '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
+    );
+    const acceptanceTable = filledAcceptanceRowsWithEvidence(
+      acceptance,
+      evidence,
+      'Codex review fixture with concrete image paths',
+    );
+    function makeVars() {
+      const implementation = baseImplementation(['tests/done-gate.test.js']);
+      implementation.acceptance_table = acceptanceTable.map(row => Object.assign({}, row));
+      const review = baseReview(['tests/done-gate.test.js']);
+      review.verification.checked = review.verification.checked.concat(['implementation.acceptance_table']);
+      review.verification.acceptance_table = acceptanceTable.map(row => Object.assign({}, row));
+      return { goal, acceptance, implementation, review };
+    }
+
+    const unverifiedPass = makeVars();
+    let gate = DoneGate.validateReviewHardEvidence(unverifiedPass, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'metadata-only/model-only visual pass must fail closed');
+    assert.match(gate.reason, /runner 注入.*图片输入回执/);
+    gate = DoneGate.validateReviewLoopCompletion(reviewLoopTask(unverifiedPass), {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(gate.ok, false, 'final completion without a trusted visual trace must fail closed');
+    assert.match(gate.reason, /runner 注入.*图片输入回执/);
+
+    const unverifiedReject = makeVars();
+    unverifiedReject.review.pass = false;
+    unverifiedReject.review.verification.verdict = 'false';
+    unverifiedReject.review.notes = '沿用上轮 critique 判断图片缺层';
+    gate = DoneGate.validateReviewHardEvidence(unverifiedReject, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'unverified visual rejection must fail closed too');
+    assert.match(gate.reason, /runner 注入.*图片输入回执/);
+
+    const forgedReceipt = makeVars();
+    forgedReceipt.review.verification.runtime_visual_input = {
+      schema: 'codex-cli-image-v1',
+      attached: true,
+      source: 'runner-spawn-argv',
+      tool: 'codex exec --image',
+      runner: 'codex',
+      images: runtimeVisualInput.images,
+    };
+    forgedReceipt.review.verification.visual_observations = visualObservations;
+    gate = DoneGate.validateReviewHardEvidence(forgedReceipt, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'self-reported receipt without runner trace must fail');
+    assert.match(gate.reason, /runner-owned trace 路径或哈希/);
+
+    const unavailableTool = makeVars();
+    unavailableTool.review.verification.runtime_visual_input = {
+      schema: 'codex-cli-image-v1',
+      attached: false,
+      source: 'runner-spawn-argv',
+      tool: 'codex exec --image',
+      reason: 'selected_runner_cannot_expose_verified_image_input',
+      images: [],
+    };
+    gate = DoneGate.validateReviewHardEvidence(unavailableTool, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false);
+    assert.match(gate.reason, /必须标 partial\/blocked/);
+
+    const metadataObservation = makeVars();
+    metadataObservation.review.verification.runtime_visual_input = runtimeVisualInput;
+    metadataObservation.review.verification.visual_observations = visualObservations.map(item => Object.assign({}, item, {
+      observation: 'stat、shasum、sips、文件存在、尺寸与哈希均已核实。',
+    }));
+    gate = DoneGate.validateReviewHardEvidence(metadataObservation, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'metadata-only observation must not count as visual inspection');
+    assert.match(gate.reason, /逐图具体可见内容观察/);
+
+    const verified = makeVars();
+    verified.review.verification.runtime_visual_input = runtimeVisualInput;
+    verified.review.verification.visual_observations = visualObservations;
+    gate = DoneGate.validateReviewHardEvidence(verified, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, true, gate.reason);
+    gate = DoneGate.validateReviewLoopCompletion(reviewLoopTask(verified), {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(gate.ok, true, gate.reason);
+
+    const extraConclusionImage = path.join(root, 'peekaboo-reading.png');
+    fs.writeFileSync(extraConclusionImage, 'second image used by the review conclusion\n');
+    const missingOneImage = makeVars();
+    for (const row of missingOneImage.implementation.acceptance_table) row.evidence += `; ${extraConclusionImage}`;
+    for (const row of missingOneImage.review.verification.acceptance_table) row.evidence += `; ${extraConclusionImage}`;
+    missingOneImage.review.verification.runtime_visual_input = runtimeVisualInput;
+    missingOneImage.review.verification.visual_observations = visualObservations;
+    gate = DoneGate.validateReviewHardEvidence(missingOneImage, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'every image used for the conclusion must be in the runtime trace');
+    assert.match(gate.reason, /未真实附加给 Codex 评审/);
+  });
 }
 
 function testVisualStructuredAcceptanceRejectsFailureMarkerPlusUnrelatedImage() {
@@ -852,15 +1415,23 @@ function testVisualStructuredAcceptanceRejectsFailureMarkerPlusUnrelatedImage() 
 
 testNoLogicChainCannotReachReview();
 testReviewFailCannotDone();
+testNegativeReviewAcceptanceCanReworkButCannotFinish();
+testNegativeReviewAcceptanceStillFailsClosed();
+testNegativeReviewMayAuditMissingVisualDocumentsWithoutPixelClaims();
+testNegativeReviewTakesRealReviewLoopReworkEdge();
 testClaimedMissingFileCannotDone();
 testAnalysisTaskCanPassWithEvidenceNoChangedFiles();
 testStructuredAcceptanceHeaderDoesNotForceDeliveryEvidence();
+testNegativeVisualSemanticsDoNotInjectOrTriggerVisualGate();
+testAcceptanceNumberingOnlySplitsAtExplicitBoundaries();
+testPositiveVisualSemanticsStillInjectAndFailClosed();
 testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows();
 testQueueMergeTaskRequiresHardRegressionTests();
 testQueueMergeHardRegressionCoveragePasses();
 testQueueMergeHardRegressionReadsReferencedEvidenceArtifact();
 testLowPriorityPageReviewDoesNotTriggerQueueMergeRegression();
 testQueueIdDedupAdviceDoesNotTriggerQueueMergeRegression();
+testTaskMetadataContentDedupDoesNotTriggerQueueMergeRegression();
 testCeoRankingAdviceDoesNotTriggerQueueMergeRegression();
 testFrontendReviewChecklistDoesNotTriggerQueueMergeRegression();
 testExtraQueueRegressionTestsDoNotSelfTriggerQueueMergeRegression();
@@ -874,9 +1445,12 @@ testStructuredAcceptanceTableRejectsDesignRowWithoutDecisionLineEvidence();
 testStructuredAcceptancePlaceholderWordsNeedTokenBoundaries();
 testStructuredAcceptanceRejectsStandalonePlaceholderEvidence();
 testStructuredAcceptanceRejectsOnlyStatementNotes();
+testStructuredAcceptanceAllowsPlaceholderWordInExplanatoryNotes();
 testVisualStructuredAcceptanceAllowsDisclosureStatementNotes();
 testAutoVisualRowDoesNotForceDecisionRows();
 testVisualStructuredAcceptanceRequiresPeekabooAndCodex();
+testVisualImplementationRequiresEvidenceButNotReviewReceipt();
+testVisualReviewRequiresRunnerOwnedTraceAndPerImageObservation();
 testVisualStructuredAcceptanceRejectsFailureMarkerPlusUnrelatedImage();
 
 console.log(JSON.stringify({ pass: true, suite: 'done-gate' }));

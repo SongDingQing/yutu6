@@ -21,9 +21,9 @@ nodes:
 
 edges:                           # 边 = Jinja2 条件转移,读上一步结果与状态
   - { from: implement, to: review }
-  - { from: review, to: implement, when: "{{ review.pass == false and loop < max_loops }}" }
-  - { from: review, to: human,     when: "{{ review.severity == 'high' or loop >= max_loops }}" }
-  - { from: review, to: done,      when: "{{ review.pass == true }}" }
+  - { from: review, to: human,     when: "{{ review.routing == 'manual_review' or review.routing == 'loop_limit' }}" }
+  - { from: review, to: implement, when: "{{ review.routing == 'rework' and review.pass == false and loop < max_loops }}" }
+  - { from: review, to: done,      when: "{{ review.routing == 'approve' and review.pass == true }}" }
   - { from: human,  to: implement, when: "{{ human.decision == 'revise' }}" }
   - { from: human,  to: done,      when: "{{ human.decision == 'approve' }}" }
 

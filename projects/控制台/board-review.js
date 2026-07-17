@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const DecisionToken = require('./decision-token');
+const BoardContextRef = require('./board-context-ref');
+const BoardEvidenceMerge = require('./board-evidence-merge');
+const InteractionTrace = require('../../shared/engine/interaction-trace');
 
 const DEFAULT_MAX_ROUNDS = 1;
 const DEFAULT_CONFIG_FILE = path.join(__dirname, 'config.json');
@@ -17,28 +20,28 @@ const DIRECTORS = [
     id: 'board_deepseek',
     role: 'board_deepseek',
     name: 'DeepSeek 董事',
-    model: 'DeepSeek(new-api)',
-    runner: 'new-api',
+    model: 'DeepSeek(官方直连)',
+    runner: 'deepseek-board-direct',
   },
   {
     id: 'board_glm52',
     role: 'board_glm52',
     name: 'GLM-5.2 董事',
-    model: 'GLM-5.2(zhipu-glm)',
-    runner: 'zhipu-glm',
+    model: 'GLM-5.2(Coding Plan 直连)',
+    runner: 'zhipu-board-direct',
   },
   {
     id: 'board_claude',
     role: 'board_claude',
-    name: 'Claude 董事(暂用 Opus-4.8)',
-    model: 'Claude Opus-4.8(claude-opus-4-8)',
-    runner: 'claude-opus-4-8',
+    name: 'Claude Fable 5 董事',
+    model: 'Claude Fable 5(claude-fable-5)',
+    runner: 'claude-fable-5',
   },
   {
     id: 'board_opus48',
     role: 'board_opus48',
-    name: 'Codex/GPT-5.5 最终董事',
-    model: 'Codex(GPT-5.5)',
+    name: 'GPT-5.6-Sol 最终董事',
+    model: 'GPT-5.6-Sol(codex)',
     runner: 'codex',
     final: true,
   },
@@ -132,12 +135,16 @@ const STRUCTURED_AREA_ALIASES = {
 };
 
 function compact(text, max = 500) {
-  const s = String(text || '')
+  const s = InteractionTrace.redact(String(text || ''))
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[redacted]')
     .replace(/((?:NEW_API_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY|api[_-]?key|token|secret|password)[A-Za-z0-9_ -]*[=:]\s*)[^\s,'"}]+/ig, '$1[redacted]')
     .replace(/\s+/g, ' ')
     .trim();
   return s.length > max ? `${s.slice(0, Math.max(0, max - 1))}…` : s;
+}
+
+function safeBoardText(value, max = 500) {
+  return compact(InteractionTrace.redact(String(value || '')), max);
 }
 
 function shortTask(text, max = 42) {
@@ -415,11 +422,11 @@ function normalizeIssues(value) {
 }
 
 function runnerAbsenceSummary(reason) {
-  return `董事缺席: runner 调用失败${reason ? `:${compact(reason, 260)}` : ''}`;
+  return `董事缺席: runner 调用失败${reason ? `:${safeBoardText(reason, 260)}` : ''}`;
 }
 
 function parseOpinion(out, director, round) {
-  const fail = out && out.fail ? compact(out.fail, 360) : '';
+  const fail = out && out.fail ? safeBoardText(out.fail, 360) : '';
   let data = null;
   const vars = out && out.vars || {};
   data = vars.board_review || vars.boardReview || vars.final_decision || null;
@@ -434,10 +441,19 @@ function parseOpinion(out, director, round) {
     }
   }
   data = data && typeof data === 'object' ? data : {};
-  const issues = normalizeIssues(data.issues || data.risks || data.findings || data.problems);
+  const issueRecords = BoardEvidenceMerge.normalizeProposalRecords(
+    data.issues || data.risks || data.findings || data.problems,
+    'issue',
+  );
+  const suggestionRecords = BoardEvidenceMerge.normalizeProposalRecords(
+    data.suggestions || data.actions || data.fixes,
+    'suggestion',
+  );
+  const issues = issueRecords.map(record => record.text);
   const absent = !!fail;
-  const level = absent ? 'low' : riskLevel(data.risk_level || data.risk || 'low');
-  const canExecute = absent ? true : boolValue(data.can_execute != null ? data.can_execute : data.safe_to_execute, level === 'low');
+  const level = absent ? 'high' : riskLevel(data.risk_level || data.risk || 'low');
+  // 缺席不是“赞成”。单席缺席可由其他董事继续评议，但这张意见本身绝不能成为放行票。
+  const canExecute = absent ? false : boolValue(data.can_execute != null ? data.can_execute : data.safe_to_execute, level === 'low');
   const hardBlock = boolValue(data.hard_block != null ? data.hard_block : data.blocking, false);
   const misjudgmentRisk = boolValue(
     data.misjudgment_risk != null ? data.misjudgment_risk : data.opus_misjudgment_risk,
@@ -453,8 +469,9 @@ function parseOpinion(out, director, round) {
     hard_block: hardBlock,
     misjudgment_risk: misjudgmentRisk,
     issues,
-    suggestions: normalizeIssues(data.suggestions || data.actions || data.fixes),
-    summary: absent ? runnerAbsenceSummary(fail) : compact(data.summary || data.conclusion || data.reason || (issues[0] || ''), 300),
+    suggestions: suggestionRecords.map(record => record.text),
+    proposal_records: [...issueRecords, ...suggestionRecords],
+    summary: absent ? runnerAbsenceSummary(fail) : safeBoardText(data.summary || data.conclusion || data.reason || (issues[0] || ''), 300),
     failed: false,
     absent,
     runner_failed: absent,
@@ -462,7 +479,7 @@ function parseOpinion(out, director, round) {
   };
 }
 
-function makeDirectorGoal({ director, round, maxRounds, instruction, planText, previousRounds, projectId }) {
+function makeLegacyDirectorGoal({ director, round, maxRounds, instruction, planText, previousRounds, projectId }) {
   const finalNote = director.final && round === maxRounds
     ? '你是最终放行判断者。本轮结束后必须明确判断 misjudgment_risk: 只有存在红线、越界、密钥/授权、严重队列/路由事故或明确不可执行硬阻断时填 true;普通优化建议、测试补强和可控风险填 false 并允许默认执行。'
     : '本轮重点是事前评审: 找理解偏差、边界漏洞、架构/性能/并发风险和遗漏验收,但区分“建议修订”和“硬阻断”。不要把普通改进建议当成否决。';
@@ -487,14 +504,77 @@ function makeDirectorGoal({ director, round, maxRounds, instruction, planText, p
     '',
     '输出要求:',
     '- 必须列出具体风险或说明为什么无问题并给出可验证依据。',
+    '- issues/suggestions 中每项使用对象，保留 text、claim_key、stance、evidence_refs(path:line)、evidence_level；红线另填 redline_type，复现实验另填 reproduction(command/status/exit_code)。',
     '- 合理改动应允许通过:普通建议写进 issues/suggestions,但 can_execute 仍为 true,misjudgment_risk 仍为 false。',
     '- 只有红线、越界、密钥/授权、严重队列/路由事故或明确不可执行硬阻断,才设置 can_execute:false 或 hard_block:true。',
     '- 不要泄露或要求任何密钥/token/登录。',
-    '- 只评议这条控制台任务,Starlaid 排除。',
+    '- 只评议这条控制台任务,不扩展到无关项目。',
     '',
     '最后输出 JSON:',
     '```json',
-    '{"board_review":{"risk_level":"low|medium|high","can_execute":true,"hard_block":false,"misjudgment_risk":false,"issues":["具体问题"],"suggestions":["具体修订"],"summary":"一句结论"}}',
+    '{"board_review":{"risk_level":"low|medium|high","can_execute":true,"hard_block":false,"misjudgment_risk":false,"issues":[{"text":"具体问题","claim_key":"稳定主题键","stance":"assert","evidence_refs":["projects/控制台/文件:行"],"evidence_level":"none|claim|trace|reproducible","redline_type":null,"reproduction":null}],"suggestions":[{"text":"具体修订","claim_key":"稳定主题键","stance":"support","evidence_refs":[],"evidence_level":"none"}],"summary":"一句结论"}}',
+    '```',
+  ].join('\n');
+}
+
+function makeDirectorGoal({ director, round, maxRounds, instruction, planText, previousRounds, projectId, boardContext }) {
+  if (!boardContext || boardContext.enabled !== true) {
+    return makeLegacyDirectorGoal({ director, round, maxRounds, instruction, planText, previousRounds, projectId });
+  }
+  const finalNote = director.final && round === maxRounds
+    ? '你是最终放行判断者。本轮结束后必须明确判断 misjudgment_risk: 只有存在红线、越界、密钥/授权、严重队列/路由事故或明确不可执行硬阻断时填 true;普通优化建议、测试补强和可控风险填 false 并允许默认执行。'
+    : '本轮重点是事前评审: 找理解偏差、边界漏洞、架构/性能/并发风险和遗漏验收,但区分“建议修订”和“硬阻断”。不要把普通改进建议当成否决。';
+  const previous = previousRounds.length
+    ? previousRounds.map(r => `第 ${r.round} 轮整合: ${compact(r.summary, 500)}`).join('\n')
+    : '无';
+  const current = BoardContextRef.splitSecretaryContextPack(instruction);
+  const taskInstruction = current.taskText || boardContext.instruction.taskText || String(instruction || '').trim();
+  const planTask = boardContext.plan.taskText || BoardContextRef.splitSecretaryContextPack(planText).taskText;
+  const taskHash = BoardContextRef.sha256(taskInstruction);
+  const planHash = BoardContextRef.sha256(planTask);
+  const planSection = planTask && planHash === taskHash
+    ? `task_goal_ref:sha256:${taskHash}（与“当前待执行指令”逐字相同，仅复用内容；CEO/秘书计划摘要这一语义标签仍保留）`
+    : (planTask || '(无)');
+  const inlineFragments = [
+    (current.preamble || boardContext.instruction.preamble)
+      ? `当前指令未去重片段（无标题边界，按安全规则原样保留）:\n${current.preamble || boardContext.instruction.preamble}`
+      : '',
+    boardContext.plan.preamble ? `计划摘要未去重片段（无标题边界，按安全规则原样保留）:\n${boardContext.plan.preamble}` : '',
+  ].filter(Boolean);
+  return [
+    `董事会事前评审任务 · ${director.name} · 第 ${round}/${maxRounds} 轮`,
+    '',
+    finalNote,
+    '',
+    `项目:${projectId || '控制台'}`,
+    '',
+    '共享背景（同一只读 context_ref，禁止改写）:',
+    `context_ref:${boardContext.ref}`,
+    `context_sha256:${boardContext.sha256}`,
+    `context_manifest:${boardContext.manifest}`,
+    '读取规则:需要稳定背景时只读 context_ref；其中每段均按完整 Markdown 标题块做 SHA-256 校验。无法确认标题边界的片段已保留在本信封，不得自行猜测或删除。',
+    '',
+    '当前待执行指令:',
+    taskInstruction,
+    '',
+    'CEO/秘书计划摘要:',
+    planSection,
+    '',
+    ...inlineFragments.flatMap(fragment => [fragment, '']),
+    '前轮信息:',
+    previous,
+    '',
+    '输出要求:',
+    '- 必须列出具体风险或说明为什么无问题并给出可验证依据。',
+    '- issues/suggestions 中每项使用对象，保留 text、claim_key、stance、evidence_refs(path:line)、evidence_level；红线另填 redline_type，复现实验另填 reproduction(command/status/exit_code)。',
+    '- 合理改动应允许通过:普通建议写进 issues/suggestions,但 can_execute 仍为 true,misjudgment_risk 仍为 false。',
+    '- 只有红线、越界、密钥/授权、严重队列/路由事故或明确不可执行硬阻断,才设置 can_execute:false 或 hard_block:true。',
+    '- 不要泄露或要求任何密钥/token/登录。',
+    '- 只评议这条控制台任务,不扩展到无关项目。',
+    '',
+    '最后输出 JSON:',
+    '```json',
+    '{"board_review":{"risk_level":"low|medium|high","can_execute":true,"hard_block":false,"misjudgment_risk":false,"issues":[{"text":"具体问题","claim_key":"稳定主题键","stance":"assert","evidence_refs":["projects/控制台/文件:行"],"evidence_level":"none|claim|trace|reproducible","redline_type":null,"reproduction":null}],"suggestions":[{"text":"具体修订","claim_key":"稳定主题键","stance":"support","evidence_refs":[],"evidence_level":"none"}],"summary":"一句结论"}}',
     '```',
   ].join('\n');
 }
@@ -520,7 +600,14 @@ function stripSecretaryContextPack(text) {
   return s.slice(0, start).trim();
 }
 
-function buildRevisedInstruction(base, opinions, round) {
+function buildRevisedInstruction(base, opinions, round, opts = {}) {
+  if (opts.active === true && opts.mergeContract) {
+    return BoardEvidenceMerge.renderActiveRevision(
+      compact(stripSecretaryContextPack(base), 5000),
+      opts.mergeContract,
+      round,
+    );
+  }
   const issues = [];
   const suggestions = [];
   const absent = [];
@@ -545,12 +632,13 @@ function buildRevisedInstruction(base, opinions, round) {
   ].filter(Boolean).join('\n');
 }
 
-function integrateRound(instruction, opinions, round, maxRounds) {
+function integrateRound(instruction, opinions, round, maxRounds, opts = {}) {
   const present = opinions.filter(op => !op.absent);
   const absentCount = opinions.length - present.length;
+  const absenceMajority = opinions.length > 0 && absentCount > opinions.length / 2;
   const issueCount = present.reduce((n, op) => n + (op.issues || []).length, 0);
   const risky = opinions.filter(opinionNeedsMoreRounds);
-  const revisedInstruction = buildRevisedInstruction(instruction, opinions, round);
+  const revisedInstruction = buildRevisedInstruction(instruction, opinions, round, opts);
   const summaryParts = [
     `${risky.length ? `${risky.length} 位董事仍要求修订` : `${present.length} 位董事未阻断执行`}`,
     absentCount ? `${absentCount} 位董事缺席` : '',
@@ -560,10 +648,36 @@ function integrateRound(instruction, opinions, round, maxRounds) {
   return {
     issueCount,
     absentCount,
+    presentCount: present.length,
+    directorCount: opinions.length,
+    absenceMajority,
     riskyCount: risky.length,
-    shouldContinue: risky.length > 0 && round < maxRounds,
+    shouldContinue: !absenceMajority && risky.length > 0 && round < maxRounds,
     revisedInstruction,
     summary,
+  };
+}
+
+function absenceMajorityOpinion(opinions, integrated) {
+  const absent = (opinions || []).filter(op => op && op.absent);
+  const count = integrated && integrated.absentCount != null ? integrated.absentCount : absent.length;
+  const total = integrated && integrated.directorCount != null ? integrated.directorCount : (opinions || []).length;
+  return {
+    director: 'board_quorum',
+    name: '董事会法定席位',
+    model: 'system-gate',
+    risk_level: 'high',
+    can_execute: false,
+    hard_block: true,
+    misjudgment_risk: true,
+    absent: false,
+    failed: false,
+    issues: [
+      `本轮 ${count}/${total} 位董事缺席，已超过半数，无法形成有效事前评审。`,
+      ...absent.map(op => `${op.name}: ${op.absence_reason || op.summary || 'runner 调用失败'}`).slice(0, 4),
+    ],
+    suggestions: ['恢复足够董事 runner 后重试，或由主人在决策卡中明确拍板。'],
+    summary: `董事缺席过半(${count}/${total})，本轮不得自动放行。`,
   };
 }
 
@@ -635,6 +749,7 @@ function directorCooldownReason(director, artifactsRoot, now = Date.now()) {
 function markDirectorCooldown(director, reason, artifactsRoot, eventlog) {
   const classified = classifyRunnerHealthFailure(reason);
   if (!classified) return null;
+  const safeReason = safeBoardText(reason, 300);
   const now = Date.now();
   const untilMs = now + classified.cooldownMs;
   const file = healthFileFor(artifactsRoot);
@@ -643,7 +758,7 @@ function markDirectorCooldown(director, reason, artifactsRoot, eventlog) {
     director: director.id,
     runner: director.runner,
     kind: classified.kind,
-    reason: compact(reason, 300),
+    reason: safeReason,
     atMs: now,
     at: new Date(now).toISOString(),
     untilMs,
@@ -656,7 +771,7 @@ function markDirectorCooldown(director, reason, artifactsRoot, eventlog) {
     runner: director.runner,
     kind: classified.kind,
     until: state[director.id].until,
-    reason: compact(reason, 220),
+    reason: compact(safeReason, 220),
   });
   return state[director.id];
 }
@@ -826,7 +941,8 @@ function createOwnerDecisionCard({ spec, projectId, taskId, instruction, finalOp
       decisionId: id,
       approvedReason: 'owner decision card approved',
     },
-    useOrchestrator: false,
+    // 董事会现在位于 CEO 拆解之前；主人批准后仍须继续 CEO 规划。
+    useOrchestrator: spec.useOrchestrator !== false,
     autoApproveHuman: spec.autoApproveHuman !== false,
   });
   // 飞书决策卡真回调(拍板 Q12):每卡随机 secret,存进卡片记录;secret/token 不回显日志。
@@ -835,7 +951,7 @@ function createOwnerDecisionCard({ spec, projectId, taskId, instruction, finalOp
   const card = {
     id: `board-decision-${id}`,
     title: `董事会需拍板: ${shortTask(spec.originalGoal || spec.goal)}`,
-    desc: '单轮事前评审仍判存在硬阻断/误判风险。点击启用=批准继续执行。',
+    desc: '事前评审未满足自动放行条件。点击启用=批准继续进入 CEO 规划。',
     target: 'ceo',
     project: projectId || spec.projectId || '控制台',
     source: '董事会',
@@ -876,18 +992,24 @@ function createOwnerDecisionCard({ spec, projectId, taskId, instruction, finalOp
   };
   writeJsonAtomic(file, payload);
   const decisionUrl = consoleDecisionUrl(card.id);
-  // 拍板 Q12(老板 6/29):"两个选项作为两个按钮,按了就相当于决策"。
-  // 按钮直指控制台 /api/decision 回调,点即执行;第三个按钮保留控制台入口兜底。
-  // 已知边界:控制台只绑 127.0.0.1,手机上点按钮暂时不可达(LAN/桥接排后);届时只需改 config.json 的 baseUrl。
+  // 飞书原生 value 回调由 Hermes 长连接接收，再在本机调用 /api/decision。
+  // 卡片只携带非敏感 card_id/action；每卡 secret 和 HMAC token 始终留在本机。
   const secret = card.decisionSecret || '';
-  const base = consoleBaseUrl();
   const notifyExtra = (decisionCallbackEnabled && secret)
     ? {
         type: 'decision',
-        buttons: [
-          { label: '批准继续', url: DecisionToken.buttonUrl(base, card.id, 'approve', secret) },
-          { label: '驳回取消', url: DecisionToken.buttonUrl(base, card.id, 'reject', secret) },
-          { label: '打开控制台', url: decisionUrl },
+        actions: [
+          {
+            label: '批准继续',
+            type: 'primary',
+            value: { yutu6_decision_action: 'approve', card_id: card.id },
+          },
+          {
+            label: '驳回取消',
+            type: 'danger',
+            value: { yutu6_decision_action: 'reject', card_id: card.id },
+          },
+          { label: '打开控制台', type: 'default', url: decisionUrl },
         ],
       }
     : {
@@ -900,7 +1022,7 @@ function createOwnerDecisionCard({ spec, projectId, taskId, instruction, finalOp
       `任务: ${shortTask(spec.originalGoal || spec.goal, 32)}`,
       `风险: ${compact(finalOpinion && (finalOpinion.summary || (finalOpinion.issues || [])[0]) || '单轮事前评审仍判硬阻断/误判风险', 80)}`,
       (decisionCallbackEnabled && secret)
-        ? `操作: 点「批准继续」=启用执行,点「驳回取消」=取消该任务;也可打开控制台处理 ${card.id}。`
+        ? `操作: 在飞书内点「批准继续」=启用执行,点「驳回取消」=取消该任务;无需打开浏览器。`
         : `操作: 点击卡片按钮打开控制台待办 ${card.id}，点启用才继续。`,
     ].join('\n'),
     notifyExtra,
@@ -908,12 +1030,14 @@ function createOwnerDecisionCard({ spec, projectId, taskId, instruction, finalOp
   return { id, file, card, notifyResult };
 }
 
-async function runDirectorOpinion({ director, round, maxRounds, instruction, previousRounds, opts, taskId, projectId, settlementFile, expectedDirectors }) {
+async function runDirectorOpinion({ director, round, maxRounds, instruction, previousRounds, boardContext, opts, taskId, projectId, settlementFile, expectedDirectors }) {
   const eventlog = opts.eventlog;
   const cliRunner = opts.cliRunner;
   const node = { id: `board-${director.id}-r${round}`, agent_role: director.role };
   const dctx = Object.assign({}, opts.ctx || {}, {
-    goal: makeDirectorGoal({ director, round, maxRounds, instruction, planText: opts.planText || '', previousRounds, projectId }),
+    goal: makeDirectorGoal({ director, round, maxRounds, instruction, planText: opts.planText || '', previousRounds, projectId, boardContext }),
+    boardLegacyGoal: makeLegacyDirectorGoal({ director, round, maxRounds, instruction, planText: opts.planText || '', previousRounds, projectId }),
+    boardContextRef: boardContext,
     acceptance: '输出董事会挑刺 JSON; 不改文件; 不回显密钥。',
     projectId,
     boardReviewRound: round,
@@ -927,16 +1051,30 @@ async function runDirectorOpinion({ director, round, maxRounds, instruction, pre
     out = { fail: cooldown, skipped: true };
   } else {
     try {
-      if (cliRunner && typeof cliRunner.runNodeAsync === 'function') out = await cliRunner.runNodeAsync(node, dctx, round);
+      if (cliRunner && typeof cliRunner.runBoardNodeAsync === 'function') out = await cliRunner.runBoardNodeAsync(node, dctx, round);
+      else if (cliRunner && typeof cliRunner.runNodeAsync === 'function') out = await cliRunner.runNodeAsync(node, dctx, round);
       else out = await Promise.resolve(cliRunner(node, dctx, round));
       out = out || {};
     } catch (e) {
       out = { fail: e && e.message || String(e) };
     }
+    if (out && out.fail) out = Object.assign({}, out, { fail: safeBoardText(out.fail, 500) });
     if (out && out.fail) markDirectorCooldown(director, out.fail, opts.artifactsRoot, eventlog);
   }
   const finishedAt = Date.now();
+  const attempts = out && out.board_failover && Array.isArray(out.board_failover.attempts)
+    ? out.board_failover.attempts
+    : [];
+  const selectedAttempt = attempts.find(row => row && row.ok) || attempts[attempts.length - 1] || null;
+  const sourceRunner = selectedAttempt && selectedAttempt.runner || director.runner;
   const opinion = Object.assign(parseOpinion(out, director, round), {
+    proposer_role: director.role,
+    canonical_role: BoardEvidenceMerge.canonicalRole(director.role),
+    source_task: taskId,
+    source_trace: out && out.evidence && out.evidence.path || null,
+    source_runner: sourceRunner,
+    reasoning_source_id: `${director.role}:${sourceRunner}`,
+    transport_fallback_used: !!(out && out.board_failover && out.board_failover.used_fallback),
     started_at: new Date(startedAt).toISOString(),
     finished_at: new Date(finishedAt).toISOString(),
     duration_ms: Math.max(0, finishedAt - startedAt),
@@ -1004,6 +1142,115 @@ async function runBoardReview(opts) {
   let instruction = String(spec.goal || opts.ctx && opts.ctx.goal || '').trim();
   const originalInstruction = instruction;
   const previousRounds = [];
+  let boardContext = null;
+  const mergeActivation = BoardEvidenceMerge.activationState({
+    approvalFile: opts.boardEvidenceMergeApprovalFile,
+    env: opts.env || process.env,
+  });
+  if (mergeActivation.active) {
+    try {
+    const prepared = BoardContextRef.prepareBoardContextRef({
+      instruction,
+      planText: opts.planText || '',
+      taskId,
+      artifactsRoot,
+      workspaceRoot: opts.ctx && opts.ctx.workspaceRoot || path.resolve(__dirname, '../..'),
+    });
+    if (prepared.enabled) {
+      const legacyPrompts = panel.map(director => makeLegacyDirectorGoal({
+        director,
+        round: 1,
+        maxRounds,
+        instruction,
+        planText: opts.planText || '',
+        previousRounds: [],
+        projectId,
+      }));
+      const materializedPrompts = panel.map((director, index) => {
+        const thin = makeDirectorGoal({
+          director,
+          round: 1,
+          maxRounds,
+          instruction,
+          planText: opts.planText || '',
+          previousRounds: [],
+          projectId,
+          boardContext: prepared,
+        });
+        const delivered = BoardContextRef.materializeContextOnce(thin, prepared);
+        return delivered.ok ? delivered.goal : legacyPrompts[index];
+      });
+      const measurement = BoardContextRef.measurePromptReduction(legacyPrompts, materializedPrompts);
+      if (measurement.lower_input_tokens) {
+        const metricsFile = path.join(path.dirname(prepared.contextFile), 'prompt-reduction.json');
+        const workspaceRoot = opts.ctx && opts.ctx.workspaceRoot || path.resolve(__dirname, '../..');
+        const metricsPathRaw = path.relative(workspaceRoot, metricsFile);
+        const metricsPath = metricsPathRaw && !metricsPathRaw.startsWith(`..${path.sep}`) && !path.isAbsolute(metricsPathRaw)
+          ? metricsPathRaw.split(path.sep).join('/')
+          : metricsFile;
+        BoardContextRef.writeJsonAtomic(metricsFile, {
+          schema: 'yutu6-board-context-ref-metrics@1',
+          task_id: taskId,
+          context_ref: prepared.ref,
+          context_manifest: prepared.manifest,
+          semantic_equivalence: prepared.semanticEquivalent ? 'verified_exact_titled_blocks_and_server_materialization' : 'unverified',
+          usage_status: 'pending_provider_response',
+          panel: panelIds,
+          role_count: panel.length,
+          original_block_count: prepared.originalBlockCount,
+          unique_block_count: prepared.uniqueBlockCount,
+          reused_block_copies: prepared.reusedBlockCopies,
+          measurement,
+        });
+        boardContext = Object.assign({}, prepared, { metrics: metricsPath, measurement });
+        eventlog && eventlog.emit('board.review.context_ref.prepared', {
+          task: taskId,
+          projectId,
+          context_ref: prepared.ref,
+          context_sha256: prepared.sha256,
+          manifest: prepared.manifest,
+          metrics: metricsPath,
+          semantic_equivalence: true,
+          role_count: panel.length,
+          original_block_count: prepared.originalBlockCount,
+          unique_block_count: prepared.uniqueBlockCount,
+          local_estimate_only: true,
+          reduced_estimated_input_tokens: measurement.reduced_estimated_input_tokens,
+          reduction_ratio: measurement.reduction_ratio,
+        });
+      } else {
+        eventlog && eventlog.emit('board.review.context_ref.skipped', {
+          task: taskId,
+          projectId,
+          reason: 'no_measured_input_token_reduction',
+        });
+      }
+    } else {
+      eventlog && eventlog.emit('board.review.context_ref.skipped', {
+        task: taskId,
+        projectId,
+        reason: prepared.reason,
+      });
+    }
+  } catch (error) {
+    // Context reuse is an optimization. Any parse/write/verification problem keeps
+    // the legacy full prompt so uncertain blocks are never dropped.
+    eventlog && eventlog.emit('board.review.context_ref.skipped', {
+      task: taskId,
+      projectId,
+      reason: `context_ref_error:${safeBoardText(error && error.message || error, 240)}`,
+    });
+    boardContext = null;
+    }
+  } else {
+    eventlog && eventlog.emit('board.review.context_ref.skipped', {
+      task: taskId,
+      projectId,
+      reason: mergeActivation.reason,
+      feature_flag: mergeActivation.feature_flag,
+      owner_approved: mergeActivation.owner_approved,
+    });
+  }
   eventlog && eventlog.emit('board.review.required', {
     task: taskId,
     projectId,
@@ -1026,6 +1273,7 @@ async function runBoardReview(opts) {
       maxRounds,
       instruction,
       previousRounds,
+      boardContext,
       opts,
       taskId,
       projectId,
@@ -1033,8 +1281,66 @@ async function runBoardReview(opts) {
       expectedDirectors: panel.length,
     })));
     eventlog && eventlog.emit('board.review.parallel.end', { task: taskId, projectId, round, directorCount: panel.length, tier: tiering.tier, directors: panelIds });
-    const integrated = integrateRound(instruction, opinions, round, maxRounds);
-    previousRounds.push({ round, opinions, summary: integrated.summary, revisedInstruction: integrated.revisedInstruction });
+    let mergeContract = null;
+    let mergeArtifact = null;
+    if (mergeActivation.shadow_enabled || mergeActivation.active) {
+      try {
+        mergeContract = BoardEvidenceMerge.buildMergeContract(opinions, {
+          taskId,
+          round,
+          active: mergeActivation.active,
+          ownerApproval: mergeActivation.approval_record,
+          suggestionApprovals: opts.boardSuggestionApprovals || [],
+          reproductionReceipts: opts.boardReproductionReceipts || [],
+          reproductionReceiptsTrusted: opts.boardReproductionReceiptsTrusted === true,
+          workspaceRoot: opts.ctx && opts.ctx.workspaceRoot || path.resolve(__dirname, '../..'),
+        });
+        mergeArtifact = BoardEvidenceMerge.writeMergeContract(mergeContract, { artifactsRoot, taskId, round });
+        eventlog && eventlog.emit(mergeActivation.active
+          ? 'board.review.evidence_merge.active'
+          : 'board.review.evidence_merge.shadow', {
+          task: taskId,
+          projectId,
+          round,
+          artifact: mergeArtifact,
+          item_count: mergeContract.item_count,
+          classifications: mergeContract.items.reduce((out, item) => {
+            out[item.classification] = (out[item.classification] || 0) + 1;
+            return out;
+          }, {}),
+          active: mergeActivation.active,
+          owner_approved: mergeActivation.owner_approved,
+        });
+      } catch (error) {
+        eventlog && eventlog.emit('board.review.evidence_merge.failed_closed', {
+          task: taskId,
+          projectId,
+          round,
+          reason: safeBoardText(error && error.message || error, 300),
+          active: mergeActivation.active,
+        });
+        mergeContract = null;
+        mergeArtifact = null;
+      }
+    }
+    const integrated = integrateRound(instruction, opinions, round, maxRounds, {
+      active: mergeActivation.active,
+      mergeContract,
+    });
+    previousRounds.push({
+      round,
+      opinions,
+      summary: integrated.summary,
+      revisedInstruction: integrated.revisedInstruction,
+      evidence_merge_activation: {
+        active: mergeActivation.active,
+        feature_flag: mergeActivation.feature_flag,
+        owner_approved: mergeActivation.owner_approved,
+        reason: mergeActivation.reason,
+      },
+      evidence_merge_contract: mergeContract,
+      evidence_merge_artifact: mergeArtifact,
+    });
     eventlog && eventlog.emit('board.review.round.end', {
       task: taskId,
       projectId,
@@ -1042,10 +1348,73 @@ async function runBoardReview(opts) {
       maxRounds,
       issueCount: integrated.issueCount,
       absentCount: integrated.absentCount,
+      presentCount: integrated.presentCount,
+      directorCount: integrated.directorCount,
+      absenceMajority: integrated.absenceMajority,
       riskyCount: integrated.riskyCount,
       continue: integrated.shouldContinue,
     });
     instruction = integrated.revisedInstruction;
+    if (integrated.absenceMajority) {
+      const quorumOpinion = absenceMajorityOpinion(opinions, integrated);
+      const card = createOwnerDecisionCard({
+        spec,
+        projectId,
+        taskId,
+        instruction,
+        finalOpinion: quorumOpinion,
+        rounds: previousRounds,
+        artifactsRoot,
+        notify: opts.notify,
+      });
+      appendDecisionMemory(memoryFile, {
+        stamp: new Date().toISOString(),
+        task: spec.originalGoal || originalInstruction,
+        reason: assessment.reason,
+        labels: assessment.labels || [],
+        rounds: round,
+        maxRounds,
+        status: '等待主人拍板',
+        summary: quorumOpinion.summary,
+        decisionId: card.id,
+      });
+      eventlog && eventlog.emit('board.review.quorum_lost', {
+        task: taskId,
+        projectId,
+        round,
+        absentCount: integrated.absentCount,
+        presentCount: integrated.presentCount,
+        directorCount: integrated.directorCount,
+        decisionId: card.id,
+        bulletinId: card.card && card.card.id,
+        tier: tiering.tier,
+        directors: panelIds,
+      });
+      eventlog && eventlog.emit('board.review.await_owner', {
+        task: taskId,
+        projectId,
+        rounds: round,
+        maxRounds,
+        reason: 'director_absence_majority',
+        decisionId: card.id,
+        bulletinId: card.card && card.card.id,
+        tier: tiering.tier,
+        directors: panelIds,
+      });
+      return {
+        required: true,
+        ok: false,
+        paused: true,
+        reason: `董事缺席过半(${integrated.absentCount}/${integrated.directorCount}),已生成决策卡 ${card.card.id}`,
+        decisionId: card.id,
+        card,
+        rounds: previousRounds,
+        maxRounds,
+        assessment,
+        tier: tiering.tier,
+        directors: panelIds,
+      };
+    }
     if (!integrated.shouldContinue) {
       if (integrated.riskyCount > 0 && round >= maxRounds) break;
       appendDecisionMemory(memoryFile, {
@@ -1156,8 +1525,10 @@ module.exports = {
     boardReviewMaxRounds,
     parseOpinion,
     integrateRound,
+    absenceMajorityOpinion,
     opinionNeedsMoreRounds,
     makeDirectorGoal,
+    makeLegacyDirectorGoal,
     createOwnerDecisionCard,
     shortTask,
     consoleDecisionUrl,
@@ -1173,5 +1544,7 @@ module.exports = {
     rotatingDirectorFor,
     reviewTierFor,
     HIGH_RISK_TIER_AREAS,
+    prepareBoardContextRef: BoardContextRef.prepareBoardContextRef,
+    measurePromptReduction: BoardContextRef.measurePromptReduction,
   },
 };

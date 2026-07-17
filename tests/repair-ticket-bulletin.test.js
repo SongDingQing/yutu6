@@ -43,6 +43,9 @@ function main() {
     assert.deepStrictEqual(completed.removedBulletins, ['repair-manual-ticket']);
     assert.strictEqual(completed.memoryReview.queued, true);
     assert.strictEqual(completed.memoryReview.queueAgent, 'memory-officer');
+    assert.strictEqual(completed.yuanxiao.attempted, false);
+    assert(fs.existsSync(path.join(artifactsDir, 'repair-reports', 'manual-ticket.html')), 'completion must generate one fixed HTML report');
+    assert.strictEqual(completed.report.file, 'artifacts/repair-reports/manual-ticket.html');
     assert(!Tools.bulletinSummary().cards.some(card => card.id === 'repair-manual-ticket'));
     const memoryQueued = Q.list(artifactsDir, 'memory-officer').queued;
     assert.strictEqual(memoryQueued.length, 1);

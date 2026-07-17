@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const Q = require('../../shared/engine/queue');
 const QueueOrganizer = require('../../shared/engine/queue-organizer');
+const RepairCloseoutHandshake = require('./repair-closeout-handshake');
 
 function nowIso() {
   return new Date().toISOString();
@@ -230,10 +231,9 @@ function emit(eventlog, type, data) {
 
 function autoMergeAfterEnqueue(root, agent, entry, opts = {}) {
   if (!enabled(opts)) return { applied: false, reason: 'disabled' };
-  if (!safeAgent(agent) || /starlaid/i.test(agent)) return { applied: false, reason: 'excluded-agent' };
+  if (!safeAgent(agent)) return { applied: false, reason: 'invalid-agent' };
 
   const projectId = projectIdFor(agent, entry && entry.task, opts);
-  if (/starlaid/i.test(String(projectId || ''))) return { applied: false, reason: 'excluded-project' };
 
   const plan = QueueOrganizer.makePlan(root, {
     agents: [agent],
@@ -319,7 +319,18 @@ function autoMergeAfterEnqueue(root, agent, entry, opts = {}) {
 }
 
 function enqueue(root, agent, task, opts = {}) {
-  const entry = Q.enqueue(root, agent, task, opts);
+  const enqueueOpts = Object.assign({}, opts, {
+    id: opts.id || crypto.randomBytes(4).toString('hex'),
+  });
+  const closeout = RepairCloseoutHandshake.createManager({
+    queueRoot: root,
+    eventlog(type, payload) { emit(opts.eventlog, type, payload); },
+  });
+  const entry = closeout.enqueueWithFence({
+    agent,
+    task,
+    queueId: enqueueOpts.id,
+  }, () => Q.enqueue(root, agent, task, enqueueOpts));
   entry.autoMerge = autoMergeAfterEnqueue(root, agent, entry, opts);
   return entry;
 }
