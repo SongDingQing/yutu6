@@ -63,6 +63,13 @@ function trustedReceipt({ root, receiptId, taskId, item, role, traceRef, command
 }
 
 async function main() {
+  const receiptSchema = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'config', 'board-reproduction-receipt.schema.json'),
+    'utf8',
+  ));
+  assert.strictEqual(receiptSchema.$id, BoardEvidenceMerge.REPRODUCTION_RECEIPT_SCHEMA);
+  assert.strictEqual(receiptSchema.additionalProperties, false);
+  assert(receiptSchema.required.includes('integrity_sha256'));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'board-evidence-merge-'));
   try {
     const projectRoot = path.join(root, 'projects', '控制台');
@@ -395,9 +402,23 @@ async function main() {
       cliRunner: {
         async runBoardNodeAsync(node, ctx) {
           disabledSeen.push(ctx.goal);
-          return { vars: { board_review: {
+          const resultPath = path.join(projectRoot, 'traces', `live-${node.agent_role}.json`);
+          fs.writeFileSync(resultPath, '{"runner":"controlled-test"}\n');
+          return { evidence: { path: resultPath }, vars: { board_review: {
             risk_level: 'low', can_execute: true, hard_block: false, misjudgment_risk: false,
-            issues: [], suggestions: [], summary: `${node.agent_role} disabled gate ok`,
+            issues: node.agent_role === 'board_glm52' ? [{
+              text: 'self-reported severe routing reproduction must stay in arbitration',
+              claim_key: 'disabled-self-report-redline',
+              stance: 'assert',
+              redline_type: 'severe_routing',
+              evidence_refs: ['projects/控制台/evidence.md:2'],
+              reproduction: {
+                command: 'node projects/控制台/tests/never-executed-redline.js',
+                status: 'reproduced',
+                exit_code: 0,
+              },
+            }] : [],
+            suggestions: [], summary: `${node.agent_role} disabled gate ok`,
           } } };
         },
       },
@@ -410,6 +431,14 @@ async function main() {
     assert(disabledSeen.every(goal => goal.includes('this complete block must remain inline')));
     assert(disabledReview.rounds[0].evidence_merge_contract);
     assert.strictEqual(disabledReview.rounds[0].evidence_merge_contract.mode, 'shadow_only');
+    const disabledSelfReport = byClaim(disabledReview.rounds[0].evidence_merge_contract,
+      'disabled-self-report-redline');
+    assert.strictEqual(disabledSelfReport.classification, 'owner_decision');
+    assert.strictEqual(disabledSelfReport.promotion_rule, 'MERGE-R3-UNVERIFIED-REDLINE-ARBITRATION');
+    assert.strictEqual(disabledSelfReport.sources[0].reproduction_verification.reason,
+      'trusted_receipt_id_missing');
+    assert.match(disabledSelfReport.source_trace,
+      /^projects\/控制台\/traces\/live-board_glm52\.json:1$/);
     assert.strictEqual(disabledReview.rounds[0].evidence_merge_activation.active, false);
     assert(!disabledReview.revisedGoal.includes(BoardEvidenceMerge.CONTRACT_SCHEMA),
       'shadow merge evidence must not rewrite the existing production acceptance prompt');

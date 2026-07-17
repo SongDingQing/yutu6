@@ -395,6 +395,31 @@ function readText(file, max = 8000) {
   }
 }
 
+function projectEvidenceLineRef(file, workspaceRoot) {
+  if (!file) return null;
+  const root = path.resolve(workspaceRoot || path.resolve(__dirname, '../..'));
+  const projectRoot = path.join(root, 'projects', '控制台');
+  const absolute = path.isAbsolute(String(file)) ? path.resolve(String(file)) : path.resolve(root, String(file));
+  let stat;
+  try { stat = fs.lstatSync(absolute); } catch (_) { return null; }
+  if (!stat.isFile() || stat.isSymbolicLink()) return null;
+  let real;
+  let realRoot;
+  let realProjectRoot;
+  try {
+    real = fs.realpathSync(absolute);
+    realRoot = fs.realpathSync(root);
+    realProjectRoot = fs.realpathSync(projectRoot);
+  } catch (_) { return null; }
+  const realRelative = path.relative(realProjectRoot, real);
+  if (!realRelative || realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) return null;
+  let lines;
+  try { lines = fs.readFileSync(real, 'utf8').split(/\r?\n/); } catch (_) { return null; }
+  const firstContentLine = lines.findIndex(line => String(line || '').trim());
+  if (firstContentLine < 0) return null;
+  return `${path.relative(realRoot, real).split(path.sep).join('/')}:${firstContentLine + 1}`;
+}
+
 function riskLevel(value) {
   const s = String(value || '').toLowerCase();
   if (/high|高|critical|严重/.test(s)) return 'high';
@@ -1071,7 +1096,10 @@ async function runDirectorOpinion({ director, round, maxRounds, instruction, pre
     proposer_role: director.role,
     canonical_role: BoardEvidenceMerge.canonicalRole(director.role),
     source_task: taskId,
-    source_trace: out && out.evidence && out.evidence.path || null,
+    source_trace: projectEvidenceLineRef(
+      out && out.evidence && out.evidence.path,
+      opts.ctx && opts.ctx.workspaceRoot,
+    ),
     source_runner: sourceRunner,
     reasoning_source_id: `${director.role}:${sourceRunner}`,
     transport_fallback_used: !!(out && out.board_failover && out.board_failover.used_fallback),
@@ -1524,6 +1552,7 @@ module.exports = {
     readBoardReviewControl,
     boardReviewMaxRounds,
     parseOpinion,
+    projectEvidenceLineRef,
     integrateRound,
     absenceMajorityOpinion,
     opinionNeedsMoreRounds,

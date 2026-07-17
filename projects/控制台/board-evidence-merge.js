@@ -261,8 +261,10 @@ function verifyReproductionReceipt(row, opts = {}) {
     return reproductionFailure(claim, 'trusted_receipt_channel_disabled');
   }
   const receipts = Array.isArray(opts.reproductionReceipts) ? opts.reproductionReceipts : [];
-  const receipt = receipts.find(candidate => candidate && candidate.receipt_id === claim.receipt_id);
-  if (!receipt) return reproductionFailure(claim, 'trusted_receipt_not_found');
+  const matchingReceipts = receipts.filter(candidate => candidate && candidate.receipt_id === claim.receipt_id);
+  if (!matchingReceipts.length) return reproductionFailure(claim, 'trusted_receipt_not_found');
+  if (matchingReceipts.length !== 1) return reproductionFailure(claim, 'trusted_receipt_id_ambiguous');
+  const receipt = matchingReceipts[0];
   const keys = Object.keys(receipt).sort();
   if (JSON.stringify(keys) !== JSON.stringify(REPRODUCTION_RECEIPT_FIELDS)) {
     return reproductionFailure(claim, 'trusted_receipt_shape_invalid', claim.receipt_id);
@@ -278,7 +280,7 @@ function verifyReproductionReceipt(row, opts = {}) {
     || receipt.evidence_binding_sha256 !== opts.evidenceBinding
     || receipt.command_sha256 !== reproductionCommandHash(claim.command)
     || receipt.status !== 'reproduced'
-    || Number(receipt.exit_code) !== 0) {
+    || receipt.exit_code !== 0) {
     return reproductionFailure(claim, 'trusted_receipt_binding_invalid', claim.receipt_id);
   }
   const startedAt = Date.parse(receipt.started_at || '');
