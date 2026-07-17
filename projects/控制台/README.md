@@ -7,6 +7,7 @@
 ```bash
 bash ~/玉兔6工作区/projects/控制台/start.sh
 # 浏览器开 http://localhost:41218,右上角切 runner
+# 兼容旧验收书签:http://127.0.0.1:8799/workspace(同一服务实例,不是第二套引擎)
 ```
 
 > 必须在**装了 codex 的同一台机器**上启动 —— 服务端要 spawn Codex CLI。
@@ -66,6 +67,13 @@ bash projects/控制台/tools/install-ram-watchdog-launchd.sh --write-only
 - 预置保护至少包含 `kernel_task`、`launchd`、`WindowServer`、`loginwindow`、`Finder`、看护器自身 PID/父 PID、控制台队列 worker/running engine PID;能检测到前台 App 时会临时加入保护名单。
 - 看护器自身 RSS 默认上限 256MB;超限会写入 `status.json`/事件日志,daemon 模式会退出交由 launchd 重启。
 
+### 控制平面内存边界
+
+- 非持久 queue worker 在无在途、无排队任务后默认空闲 5 分钟自动退出;`QUEUE_WORKER_IDLE_EXIT_MS=0` 可关闭回收。`repair-lead,repair` 由 `PERSISTENT_QUEUE_AGENTS` 保持常驻,新任务仍由事件唤醒 + 10 秒监督兜底自动拉起。
+- 工作区使用 `/api/queues/overview` 一次读取全部 agent 队列;旧 `/api/queue/:agent` 保留为兼容/写操作接口。服务端队列快照默认缓存 1.5 秒(`QUEUE_OVERVIEW_CACHE_MS`),只减少重复磁盘扫描,不改变队列文件权威性。
+- 页面可见时事件/队列每 2.5 秒刷新,公告板每 10 秒刷新;页面隐藏时停止这些轮询,恢复可见后立即补刷。后台 worker/engine 不依赖网页轮询。
+- `/api/health` 返回当前 server 的 `rss/heap/external` 字节数,用于修改前后基线;它只是观测,不会自动杀进程。
+
 每日复盘 + 硬化定时(北京时间凌晨5点):
 
 ```bash
@@ -78,7 +86,7 @@ bash projects/控制台/tools/install-daily-governance-hardening-launchd.sh --un
 node projects/控制台/tools/daily-governance-hardening.js --json
 ```
 
-到点由 `tools/daily-governance-hardening.js` 向队列投递两条任务:`governance`(监管/复盘:复盘当天问题+维修、经验沉淀到 `memory/`)与 `quality_ops`(质量运营/硬化:跑 smoke 测试 + 资源检查 + 可回退硬化建议)。**不重复**:用北京日期拼确定性 id(`gov-review-YYYYMMDD` / `qops-harden-YYYYMMDD`),投递前扫描该 agent 全部状态目录,命中即跳过,即使休眠唤醒多次触发也只入队一次。**时区**:launchd `StartCalendarInterval` 走本机本地时区;若本机改为 UTC,需把 `DGH_HOUR=21` 或改 plist 的 `Hour`。运行记录落 `artifacts/daily-governance-hardening/run-YYYYMMDD.jsonl`。Starlaid 一律排除。
+到点由 `tools/daily-governance-hardening.js` 向队列投递两条任务:`governance`(监管/复盘:复盘当天问题+维修、经验沉淀到 `memory/`)与 `quality_ops`(质量运营/硬化:跑 smoke 测试 + 资源检查 + 可回退硬化建议)。**不重复**:用北京日期拼确定性 id(`gov-review-YYYYMMDD` / `qops-harden-YYYYMMDD`),投递前扫描该 agent 全部状态目录,命中即跳过,即使休眠唤醒多次触发也只入队一次。**时区**:launchd `StartCalendarInterval` 走本机本地时区;若本机改为 UTC,需把 `DGH_HOUR=21` 或改 plist 的 `Hour`。运行记录落 `artifacts/daily-governance-hardening/run-YYYYMMDD.jsonl`。
 
 ## 主要 runner
 | runner | 实际执行 | 备注 |
@@ -97,7 +105,7 @@ node projects/控制台/tools/daily-governance-hardening.js --json
 - `workdir`(runner 执行目录)默认指向工作区根 `../..`;`includeHistory/historyMax` 控制是否把近几轮历史拼进 prompt。
 
 ## 排错
-- 网页打不开 / 连接失败 → 多半是**服务没在跑**或**端口不对**。确认 `start.sh` 在跑;默认端口 41218,要换端口:`PORT=8888 bash start.sh`(同时浏览器也开同一个端口)。
+- 网页打不开 / 连接失败 → 多半是**服务没在跑**或**端口不对**。确认 `start.sh` 在跑;正式端口 41218,兼容别名 8799;要临时换端口:`PORT=8888 bash start.sh`(显式 PORT 默认不继承兼容别名)。
 - 选 Codex 报"不在 PATH" → 在**新开的终端**里确认 `which codex`;CLI 装好后 PATH 可能要重开终端。
 - 卡住不回 → CLI 可能在等审批/权限;看"过程日志",或按上面调 `config.json` 的参数。
 

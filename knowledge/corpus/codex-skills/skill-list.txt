@@ -20,10 +20,6 @@ simulaid-taptap-release-gate
 simulaid-ui-regression-review
 simulaid-unity-maintenance
 skill-standard-reviewer
-starlaid-game-development
-starlaid-image-generation
-starlaid-test-maintenance
-starlaid-unity-maintenance
 user-clipboard-response
 yuanxiao-command-expander
 yuanxiao-mobile-file-inbox

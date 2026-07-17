@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>记忆官提炼 · 视觉验收</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#5f6b7c; --line:#d7deea; --blue:#2357c6; --green:#18794e; --bg:#f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    main { max-width:1280px; margin:0 auto; padding:36px 42px 44px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:24px; }
+    h1 { margin:0 0 8px; font-size:30px; letter-spacing:.01em; }
+    .sub { color:var(--muted); font-size:15px; }
+    .badge { white-space:nowrap; background:#e7f6ee; color:var(--green); border:1px solid #b7e2cb; padding:8px 12px; border-radius:999px; font-weight:700; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    section { background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px 24px; box-shadow:0 6px 20px rgba(27,45,78,.06); }
+    section.full { grid-column:1 / -1; }
+    h2 { margin:0 0 14px; font-size:20px; color:var(--blue); }
+    h3 { margin:16px 0 6px; font-size:16px; }
+    p { margin:0; font-size:16px; line-height:1.72; }
+    .source { margin-top:14px; color:var(--muted); font-size:14px; border-top:1px dashed var(--line); padding-top:12px; }
+    ul { margin:8px 0 0; padding-left:22px; }
+    li { margin:8px 0; font-size:16px; line-height:1.55; }
+    code { font-family:"SFMono-Regular",Consolas,monospace; background:#eef3fb; border-radius:5px; padding:1px 4px; font-size:.92em; }
+    .ok { color:var(--green); font-weight:700; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>记忆官提炼 · 最终视觉验收</h1>
+      <div class="sub">任务 cr-1784202733653-repair-memory-cb7df35ff7 · 2026-07-16</div>
+    </div>
+    <div class="badge">去重合并 · 边界合规</div>
+  </header>
+
+  <div class="grid">
+    <section>
+      <h2>可泛化维修经验</h2>
+      <h3>问题模式</h3>
+      <p>高竞争文件资源锁缺公平授予时，合法长持锁与后到抢占会使旧 waiter 饥饿到超时；worker 仍存活，却可能被误报为 worker crash。</p>
+      <h3>根因</h3>
+      <p>授予只看当前 holders；轮询重写 <code>requested_at</code> 使顺序漂移；wait 审计无节流、公共写域过宽、失败类型未分账又会放大并掩盖问题。</p>
+      <h3>解法 / 预防</h3>
+      <p>稳定 <code>requested_at + token</code>，对冲突 waiter 实施有界公平；按状态或时窗节流审计；缩小写域；将 <code>resource-lock-timeout</code> 作为独立 <code>failureKind</code>。</p>
+      <div class="source">权威来源：memory/experience.md:313-315</div>
+    </section>
+
+    <section>
+      <h2>项目技术映射</h2>
+      <p><strong>控制台 → 文件资源锁有界公平、wait 审计节流与锁超时分账</strong></p>
+      <ul>
+        <li><code>projects/控制台/resource-locks.js</code>：稳定顺序、旧 waiter 防抢占、审计节流。</li>
+        <li><code>projects/控制台/ceo-worker.js</code>：锁超时独立终态分类。</li>
+        <li><code>projects/控制台/tools/resource-locks-smoke-test.js</code>：公平、时间戳、节流、失败分类回归。</li>
+        <li><code>tests/resource-lock-inference.test.js</code>：普通 project-route 不占公共 <code>queue-state</code> 写域。</li>
+      </ul>
+      <div class="source">权威来源：memory/entities.md:24</div>
+    </section>
+
+    <section class="full">
+      <h2>Codex 对照设计挑错 · 核对项</h2>
+      <ul>
+        <li><span class="ok">通过</span>：原 7 月 5 日同族条目被更新合并，没有重复堆一条工单流水。</li>
+        <li><span class="ok">通过</span>：经验条目具备“问题模式 → 根因 → 解法/预防/自动化”完整结构。</li>
+        <li><span class="ok">通过</span>：实体条目符合“项目 → 技术/方案 → 文件路径/用途”映射格式。</li>
+        <li><span class="ok">通过</span>：未记录工单 ID、进程号、计数、通知状态等一次性现场细节；未包含凭据值。</li>
+      </ul>
+    </section>
+  </div>
+</main>
+</body>
+</html>

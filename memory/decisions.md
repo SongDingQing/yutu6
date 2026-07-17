@@ -15,6 +15,7 @@
 - **董事会评议机制**(2026-06-21):重要架构任务必须先由 DeepSeek(new-api)、GLM-5.2(zhipu-glm)、GPT-5.5(codex)、Opus-4.8(claude) 四董事挑刺评议,最多 3 轮;默认安全直接执行,唯一阻断是第 3 轮后 Opus 仍判误判风险,此时生成需主人点击的决策卡。
 - **重启韧性双向门**(2026-06-23 监管复盘定):watchdog/console 重启既要防"杀活引擎"(已有),也要防"重启不上"——起新进程前必须确认旧进程端口已释放(轮询 free,超时 SIGKILL 升级)再 `bind`;"重启失败"(EADDRINUSE)与"重启太频繁"(节流)分两条处理路径,前者连续 N 次失败升级告警主人,不无脑 cooldown 空转。原因:2026-06-23 端口 41218 占用致重启自我级联、控制台夜间宕机 ~3 小时。
 - **失败必可观测 + 工单闭环 SLA**(2026-06-23 监管复盘定):engine-runner 任何非 0 退出前必落带 `exit_code`/stderr 尾部的 `node.fail` 与 run 目录证据,禁止"退出码 1;未写明原因"黑盒;`dedupe-cooldown` 静默压制重复工单达阈值要升级人工/根因(压制≠解决);每日复盘统计 `status: todo` 悬挂工单与最老悬挂时长,超时升级主人;`infra_restart` 类只重入队不开重复工单。原因:2026-06-23 `worker_code/oldjump` exit-1 零产物、6 张工单全悬挂、25 次冷却压制掩盖严重性。
+- **董事会 codex 模型升 GPT-5.6-Sol**(2026-07-10):codex CLI 全局模型 `gpt-5.5`→`gpt-5.6-sol`(`~/.codex/config.toml`),所有 codex agent(董事会终审席 `board_opus48` + worker_code/repair/orchestrator/supervisor 等)统一升级;董事会显示名同步 `Codex/GPT-5.5`→`Codex/GPT-5.6-Sol`。原因:老板要董事会用最新 sol,但 codex 是**全局共享模型**(无 per-agent 参数),全局升级一行搞定、无漏改风险、同订阅无额外成本。`runner:'codex'` 标识不变(底层模型升级,不影响路由)。**gpt-5.6-sol 需 codex CLI ≥0.144**:0.140 报 `requires a newer version of Codex`,已 `codex update` 升 0.140→0.144.1,再验证 gpt-5.6-sol 返回 `MODEL OK` 通过。**教训:改全局模型/runner 配置后必跑一次最小调用验证**——本次验证抓住了"配置改成当前 CLI 不支持的模型 → 全 codex agent(董事会/worker/repair) 400 崩"的隐患,否则会带病运行。codex 品牌"改名 chatgpt":升级装源 = `chatgpt.com/codex/install.sh`,印证 Codex 已**并入 ChatGPT 品牌**,但 **CLI 命令仍是 `codex`**,执行层(runner/命令)不动;要改的只有显示称呼(可选,待老板定)。
 
 ## 董事会评议 2026-06-21T11:58:47.363Z
 - 任务:创建新智能体【前端设计师】(系统办公室)+ 后端工程师交接: 1) 建前端设计师 agent,runner=zhipu-glm(GLM-5.2),**专职页面/前端修改**(workspace.html 等 UI)。归属控制台,系统办公室工位。 2) 后端工程师(worker_code/codex)和前端设计师**交…
@@ -24,7 +25,7 @@
 - 理由:第3轮 Opus 未判误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-21T12:06:37.987Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-keyword (引擎/路由/agent体系/版本发布)
 - 轮次:3/3
 - 结论:等待主人拍板
@@ -32,7 +33,7 @@
 - 决策卡:board-20260621120637-5b8ae64c
 
 ## 董事会评议 2026-06-21T12:07:22.062Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-keyword (引擎/路由/agent体系/版本发布)
 - 轮次:1/3
 - 结论:默认执行
@@ -76,7 +77,7 @@
 - **重启需保活在途引擎**(2026-06-22 监管复盘):console/watchdog 重启与 cleanup-runtime **不得批量杀心跳新鲜的活引擎**——重启前 drain/quiesce,只清确已失联的;重启窗口内的 SIGTERM 标 `infra_restart`,重入队但不计 maxRetry、不开维修工单;"无进展判死"须与心跳续约联合判定。原因:当日重启 5 次引发 SIGTERM 集群+无进展误判+4 张悬挂工单,根因是把重启当无副作用操作。详见 [[knowledge/归档/复盘-20260622.md]] 与 experience「重启即清扫即杀活」。
 
 ## 董事会评议 2026-06-22T08:34:00.845Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -384,7 +385,7 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-22T17:15:17.324Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -419,7 +420,7 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-22T21:00:09.192Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -531,7 +532,7 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-23T21:00:06.735Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -555,7 +556,7 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-24T21:00:05.189Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -574,7 +575,7 @@
 - 理由:4 位董事未阻断执行; issue=9
 
 ## 董事会评议 2026-06-25T21:00:05.484Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -585,7 +586,7 @@
 - **连续多窗口红的 smoke 必须强制开维修工单归因,不停在硬化报告「建议开单」**(2026-06-26,NR10 提级):起因——mechanisms-smoke 连续第 3+ 窗口红(code 1 AssertionError),硬化报告每窗口写「建议开单」但无人开,断言始终未定位。决策:任一 smoke 连续 ≥2 窗口红,自动/强制开维修工单读全量断言、定位失败、归因(回归/环境/真 bug),结案附断言定位 + 修复/豁免 + 复跑绿;daily 硬化脚本不在脚本内特权修复。原因:只给摘要无 owner 的失败永远悬而不决。
 
 ## 董事会评议 2026-06-26T21:00:04.620Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -601,14 +602,14 @@
 - **NR15 关注度上调(代价非零)+ done-gate「无能力即 false」文化固化为正例**(2026-06-28,续核):本窗 7/7 写文件任务恒 `runner.tool_harness.upgrade`;边界处 `qops-harden-20260628` 首跳落无 FS 纯文本 runner 自报 `done=false reason=runner_no_fs_or_exec` 再升级 codex 完成——既证 NR15 恒定多一跳非零成本(偶产空耗 done=false 尝试,关注度上调仍不开工单、属 config 级初选优化),又是「无证据/无能力即 false」门禁文化生效的标准正例,应保留固化。
 
 ## 董事会评议 2026-06-27T21:00:05.622Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
 - 理由:4 位董事未阻断执行; issue=0
 
 ## 董事会评议 2026-06-28T21:00:05.837Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -676,7 +677,8 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 控制台能力库标准治理提案 2026-06-29(待批)
-- **控制台 Skills 插件化接口标准先部分采纳为 v0 manifest 提案,未批前不得当运行规范执行**:现状 `secretary-tools.js`、`tools/`、`engine-runner.js` 分别代表同步 CLI/写队列管理动作、长任务工具脚本、异步有状态流程 worker,不能用单一同步契约抹平。提案要求每个可自动路由的 Skill manifest 至少声明 `manifest_version`、`contract_version`、`execution_mode(sync|async|stream)`、`state_model`、`input_schema`、`output_schema`、`redline_operations`、`idempotent`/`idempotency_key`、`timeout_ms`、`concurrency_domains`、统一错误 `{code,message,retryable,details}` 与 `legacy_policy`。红线枚举基线包括 `file_read/file_write/queue_mutation/process_spawn/network_request/secret_env_access/notification_send/gui_control/external_model_call/env_mutation/install_dependency/git_operation/destructive_delete/cross_project_write`,其中密钥不回显、登录/OAuth/扫码/2FA 交主人手动、Starlaid/星桥硬排除。样例映射已覆盖 `secretary-tools.js queue-organize`、`tools/serial-smoke-test.js`、`engine-runner review-loop`;建议以 CEO/主管批准日为 T,T+7 补 3 个试点 manifest,T+14 写类/高红线能力补齐,T+30 只读 legacy 补齐或从 hot 层隐藏。完整草案见 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md`。注意:按 NR11/NR13,任何字段进入运行时消费前必须另交 .js 消费点与回归测试,本条本身只是一条待批治理提案。
+- **控制台 Skills 插件化接口标准先部分采纳为 v0 manifest 提案,未批前不得当运行规范执行**:现状 `secretary-tools.js`、`tools/`、`engine-runner.js` 分别代表同步 CLI/写队列管理动作、长任务工具脚本、异步有状态流程 worker,不能用单一同步契约抹平。提案要求每个可自动路由的 Skill manifest 至少声明 `manifest_version`、`contract_version`、`execution_mode(sync|async|stream)`、`state_model`、`input_schema`、`output_schema`、`redline_operations`、`idempotent`/`idempotency_key`、`timeout_ms`、`concurrency_domains`、统一错误 `{code,message,retryable,details}` 与 `legacy_policy`。红线枚举基线包括 `file_read/file_write/queue_mutation/process_spawn/network_request/secret_env_access/notification_send/gui_control/external_model_call/env_mutation/install_dependency/git_operation/destructive_delete/cross_project_write`,其中密钥不回显、登录/OAuth/扫码/2FA 交主人手动。样例映射已覆盖 `secretary-tools.js queue-organize`、`tools/serial-smoke-test.js`、`engine-runner review-loop`;建议以 CEO/主管批准日为 T,T+7 补 3 个试点 manifest,T+14 写类/高红线能力补齐,T+30 只读 legacy 补齐或从 hot 层隐藏。完整草案见 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md`。注意:按 NR11/NR13,任何字段进入运行时消费前必须另交 .js 消费点与回归测试,本条本身只是一条待批治理提案。
+- **2026-07-05 current 修订只补 proposal 治理约束,仍不得当运行规范执行**:本轮以 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-current-1783242659963-20260705.md` 作为 2026-06-29 草案的 current 补丁,明确 `proposal_only/policy_only/not_runtime_contract/runtime_consumed=false`,v0 manifest 基线引用 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md:48`;补齐 legacy 兼容性矩阵/迁移路径、`errors.code` 小枚举、`concurrency_domains` 命名粒度、写类 `taskId+rootQueueId+queueId+idempotency_key` 稳定重试与 done fencing 准入。任务证据保留 `taskId=cr-1783242659963-8fc955fb`,`rootQueueId=d1b5be32`,`queueId=8fc955fb`;任何字段进入 `.js` 消费前仍必须按 NR11/NR13 另配消费点和回归测试。
 
 ## 董事会评议 2026-06-29T05:36:47.699Z
 - 任务:请 CEO 决策:是否将 Unity/团结工作流方法论列为 board/insights 长期条目,按 SO 事件/变量、项目协作规范、UPM 包治理三类维护后续候选;若采纳,由主管转成文档任务,不执行代码接入。
@@ -708,14 +710,14 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-06-29T21:06:05.178Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
 - 理由:4 位董事未阻断执行; issue=0
 
 ## 董事会评议 2026-06-30T21:06:05.662Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -904,7 +906,7 @@
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
 
 ## 董事会评议 2026-07-01T21:06:02.608Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -1030,7 +1032,7 @@
 - 理由:2 位董事未阻断执行; 2 位董事缺席; issue=3
 
 ## 董事会评议 2026-07-02T21:06:05.091Z
-- 任务:修引擎项目归属判断,确保记忆集成、修维修机制、Gitee 接入等系统级任务可路由。 边界:只处理 projects/控制台/ 与明确输入; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动。 CEO plan 红线复述: 如果涉及 Starlaid 或星桥,立即停止并不处理。
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
 - 触发:architecture-action-evidence (引擎/路由/版本发布)
 - 轮次:1/1
 - 结论:默认执行
@@ -1049,3 +1051,421 @@
 - 轮次:1/1
 - 结论:默认执行
 - 理由:2 位董事未阻断执行; 1 位董事缺席; issue=2
+
+## 董事会评议 2026-07-03T21:06:01.750Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+- **系统升级方向 13 题已拍板**(2026-07-03,由 2026-07-04 监管复盘沉淀):闲置角色归档,重复任务过多或 skill 复杂时自动展开专职智能体;HR 接 runner.quality 做角色绩效;小任务由 CEO 可直通主管,跨项目/仲裁/队列管控仍归 CEO;两周内稳定性最高优先;quality_ops 承接端到端金丝雀巡检;故障按 P0/P1/P2 分级且飞书只发 P0+P1 日报;每周日 CEO 自动清算公告板;教训按任务类型结构化注入;自省优化每周轮换 1 个核心模块;董事会分级评审;优先做飞书决策按钮真回调;成长方向以自治为主、交互补急用。
+- **架构审视 C 类 5 项按推荐方式执行**(2026-07-03,由 2026-07-04 监管复盘沉淀):交接文件夹寄生 `engine-runs/<任务>/`,pair 关系进 meta;指针化只在 prompt 层,队列判定层保全文;watchdog 降权首期只对 worker-heartbeat-stale 降为重拉单 worker,running-* 保留整机重启观察;智谱额度熔断+指数退避,候选池全空则排队等恢复并升级告警;特权维修员写路径白名单首版限定工作区内 `projects/控制台`、`shared`、`board`、`tests`、`templates`,越界先告警并记录事件,gate 侧以 git status 比对不信自报。
+- **秘书与维修主管由 Claude Code 接管**(2026-07-03,由 2026-07-04 监管复盘沉淀):secretary runner 从 codex 切到 claude,repair-lead 从 codex-privileged 切到 claude-code;维修员 repair 仍为 codex-privileged;前门绑定、machine 配置和 failover subscription.claude 通道同步恢复,codex 保留为 prefer 链兜底;背景是 Claude CLI 认证恢复后重新接管秘书和维修主管职责。
+
+## 董事会评议 2026-07-04T21:06:05.884Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-05T02:08:54.750Z
+- 任务:待拍板: 董事会纯 API runner 缺席/降级策略 自省发现: 董事会已有 DeepSeek/GLM/Kimi/Codex 席位,但 runners.yaml 标记 kimi-k2 为 key 未验证/此前有 401 风险; 纯 API runner 失败时应在工位显示缺席,并触发维修/配置任务,不能阻塞主流程…
+- 触发:explicit-important-architecture (路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T02:33:33.034Z
+- 任务:请决定是否安排一个只读 PoC：选一份公开或脱敏 Unity/团结构建输出，生成构建报告/CSV/SQLite 差异样例，验证是否值得沉淀为通用工程工作流模板；不接入运行时代码，不处理私有仓库凭据。
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:1 位董事未阻断执行; 1 位董事缺席; issue=3
+
+## 董事会评议 2026-07-05T03:58:40.937Z
+- 任务:请主管评审一页设计：为 seen-repos / borrowed watch / capability_registry 增加 source_url、license、validated、trust_tier、last_verified_at、next_review_at 字段；先做数据结构与迁移边界评审，不引外部运…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T04:40:29.743Z
+- 任务:安排一次不引入外部运行时的设计评审:参考 AgentOps 的 session/agent/operation span、Phoenix 的 OTLP trace+eval 数据模型、NVIDIA llm-router 的成本/质量/延迟评测 notebook,先定义控制台 LLM 调用日志、评分与路由离线评测口径;…
+- 触发:architecture-action-evidence (agent体系/路由/性能与资源/数据架构)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T05:18:38.219Z
+- 任务:评估在控制台现有 2-3 个 skill/tool 上做一次只读治理试点:用 AGENTS.md/llms.txt 做 agent-facing 入口,用 apm.yml/apm.lock.yaml 思路记录来源、版本/哈希、许可证、权限、是否需人审;不安装外部运行时,不批量迁移历史。
+- 触发:architecture-action-evidence (并发与锁/agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T05:39:44.746Z
+- 任务:请 CEO 决定是否开一张纯文档设计卡:参考 Orloj 的 manifest/status/controller 与 durable handoff 词表、NeMo Agent Toolkit 的并行/优先级/A2A-MCP 观测字段、Turnfile 的纯文本审计与人类仲裁流程,起草《控制台任务 DAG/交接协议…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T05:56:05.944Z
+- 任务:请 CEO 决定是否开一张纯文档/RFC 设计卡:为控制台任务队列定义失败处置契约,至少覆盖 retryPolicy(失败类型/次数/退避)、DLQ/redrive、lease/heartbeat 超时回收、pause/stop/recover 状态、失败审计字段。该动作不安装依赖、不改运行代码,先供主管评审迁移边界。
+- 触发:architecture-action-evidence (队列/数据架构/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=10
+
+## 董事会评议 2026-07-05T06:28:52.640Z
+- 任务:请 CEO 决定是否开一张纯文档/RFC 设计卡:为控制台 computer-use 定义观察/动作契约 v0,至少覆盖 accessibility-tree-first 观察、截图/视觉 grounding fallback、snapshot_id/ref、STALE_REF/AMBIGUOUS_TARGET/PE…
+- 触发:architecture-action-evidence (数据架构/agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:1 位董事未阻断执行; 1 位董事缺席; issue=4
+
+## 董事会评议 2026-07-05T06:43:45.899Z
+- 任务:请主管评审一页设计：为 seen-repos / borrowed watch / capability_registry 增加 source_url、license、validated、trust_tier、last_verified_at、next_review_at 字段；先做数据结构与迁移边界评审，不引外部运…
+- 触发:architecture-action-evidence (数据架构/性能与资源)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T09:10:58.857Z
+- 任务:评估引入插件化的接口标准,定义控制台 Skills 的输入输出描述与调用约束,并在 memory/decisions.md 中沉淀控制台能力库的标准治理提案。
+- 触发:architecture-action-evidence (数据架构/性能与资源/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=9
+
+## 董事会评议 2026-07-05T09:45:20.756Z
+- 任务:可选:请 CEO 安排 1-2 小时阅读 Swarm README 与 LangGraph StateGraph 文档,判断是否抽取 handoff 语义 + 状态图模式用于控制台多智能体路由、任务 DAG 与交接协议;只借鉴设计不引入运行时依赖;落地前由主管复核许可证与活跃度。
+- 触发:architecture-action-evidence (路由/agent体系/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=5
+
+## 董事会评议 2026-07-05T10:22:07.552Z
+- 任务:请 CEO 判断是否将 LiteLLM 的 router(按 model 路由 + fallback + cooldown)与 cost tracking(按 model/token 聚合)模式作为控制台 LLM 网关的借鉴基线;洞察员仅提供借鉴分析,不替主管落地、不安装依赖、不修改运行代码
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:2 位董事未阻断执行; issue=7
+
+## 董事会评议 2026-07-05T10:39:42.271Z
+- 任务:洞察员降本:给 insights.md / seen-repos 做『冷热分离 + 渐进披露』(借鉴 anthropics/skills 的 progressive disclosure)。 现状:board/insights/insights.md 已约 309KB 且每批 +~18KB,洞察员每次运行倾向把巨大历…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T12:06:03.957Z
+- 任务:评估 NVIDIA/SkillSpector(https://github.com/NVIDIA/SkillSpector)作为能力库『按需拉外部 skill』入库前的安全扫描门。步骤:①在 localhost 用纯静态模式(--no-llm,可选接本地 Ollama/vLLM 端点)对现有候选/已拉外部 skill…
+- 触发:architecture-action-evidence (并发与锁/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T12:57:41.906Z
+- 任务:给控制台办公室视图(workspace.html office 视图)加两项可视化,借鉴 agents-in-the-office(https://github.com/gukosowa/agents-in-the-office)与 claude-office(https://github.com/paulrobel…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T13:01:49.990Z
+- 任务:给控制室加一块『LLM 网关可观测面板』,补第四批自陈的缺口。借鉴 Helicone(https://github.com/Helicone/helicone)的 session/trace 数据模型 + Portkey-AI/gateway(https://github.com/Portkey-AI/gateway…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T13:53:03.175Z
+- 任务:给玉兔6 任务队列/引擎补『崩溃恢复』,消除孤儿 running 任务。现状(已读码核对 shared/engine/queue.js + engine.js):claim() 把队首任务原子 mv 到 running/ 只记 started_at,无 lease/心跳,引擎也无『启动时扫 running/ 重认领』…
+- 触发:architecture-action-evidence (引擎/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-05T21:06:06.740Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-06T08:12:02.648Z
+- 任务:查看 Simulaid 主世界页面(SimulaidGameUI 主世界相关 partial),对其布局的 UI 渲染做精修。用「自省优化」skill(.claude/skills/self-review-optimize)驱动:对该模块穷尽挑刺→逐条优化意见→分级执行,明确有收益的自动改、有争议或影响现有功能的整理…
+- 触发:architecture-action-evidence (性能与资源)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-06T08:49:41.599Z
+- 任务:审视 Simulaid 代码主架构,找出不够紧凑/不够高效的编码(重复、臃肿、低效路径、可合并的 partial 等),做出优化修改并保证可回滚;完成后把优化结果(改了什么、收益、风险)用飞书发给老板(shared/agents/ui-optimizer/notify-feishu.sh, --type progre…
+- 触发:architecture-action-evidence (版本发布/agent体系/性能与资源)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-07T02:16:25.693Z
+- 任务:meowa产出走采纳/不采纳卡片审核 + 飞书汇报五要素格式(老板2026-07-06要求) ① meowa 额度可用(老板已确认有额度),但每个生成物(人物/怪物动画、图等)生成后,必须用飞书决策卡片(notify-feishu.sh --type decision,两按钮 采纳|不采纳,URL 指向 /api/d…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-10T08:41:31.272Z
+- 任务:内测教训关系图谱:kb.sqlite 加 entities/relations 表,memory-officer 提炼教训后自动把"根因→做法"作有向边入库,query.py 加 --graph 模式做 2-3 跳关联。走内测灰度不全量。
+- 触发:architecture-action-evidence (性能与资源/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-10T09:06:13.298Z
+- 任务:复用现有金丝雀/周清算定时底座,增加"主动推送"通道(定时扫描结果推老板飞书/元宵)。先做一个最小样例(如定时扫 awesome-list 新项目主动上报),推送失败要作独立工单上报。
+- 触发:architecture-action-evidence (版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-10T10:01:29.073Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-10T10:02:08.240Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-10T10:03:56.090Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-10T10:08:52.776Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-10T10:13:23.964Z
+- 任务:修引擎项目归属判断,确保记忆集成、维修机制和 Gitee 接入等系统级任务可路由。边界:只处理 projects/控制台/ 与明确输入;密钥不回显;登录/授权交主人手动。
+- 触发:architecture-action-evidence (引擎/路由/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:3 位董事未阻断执行; 1 位董事缺席; issue=0
+
+## 董事会评议 2026-07-10T13:12:28.110Z
+- 任务:秘书补全稿: 目标:simullaid 游戏现在有点问题，角色才 9 级为什么会有这么多的天赋点，是不是现在的检查机制有问题？修复一下 项目:控制台 图片附件(本地路径,可直接交给 Codex 多模态/文件读取): 1. projects/控制台/artifacts/task-attachments/20260710…
+- 触发:explicit-important-architecture (性能与资源/引擎/版本发布/路由/并发与锁/数据架构)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-10T13:36:57.307Z
+- 任务:秘书补全稿: 目标:刚刚我下达的人物，怎么直接就显示 CEO 规划 主管规划 后端程序员这些都完成了？我才刚刚输入任务？修复一下 项目:控制台 图片附件(本地路径,可直接交给 Codex 多模态/文件读取): 1. projects/控制台/artifacts/task-attachments/20260710/mr…
+- 触发:explicit-important-architecture (性能与资源/引擎/版本发布/路由/并发与锁/数据架构)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-13T09:04:26.254Z
+- 任务:秘书补全稿: 目标:办公楼视图下应该不是让我自己选择这几个动画，而是在不同状态下播放不同的动画，比如目前没有任务的时候董事长就在看书，目前有任务执行的时候就是打字，刚刚发布人物的时候会播放交接文件的动画 项目:控制台 图片附件(本地路径,可直接交给 Codex 多模态/文件读取): 1. projects/控制台/a…
+- 触发:explicit-important-architecture (版本发布/性能与资源/引擎/路由/数据架构/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-13T09:40:01.646Z
+- 任务:秘书补全稿: 目标:红线这一行下面要修改下，让我能够直观的看到最新的一行进展，只刷新最新的一行，滚动展示，这样能让我知道任务在执行中 项目:控制台 图片附件(本地路径,可直接交给 Codex 多模态/文件读取): 1. projects/控制台/artifacts/task-attachments/20260713/…
+- 触发:explicit-important-architecture (性能与资源/引擎/版本发布/路由/数据架构/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-14T01:19:12.917Z
+- 任务:工作区交互升级:右键删除待拍板任务 + 右上角设置中心。 用户截图显示任务板“队列”中的公告板 todo 卡“低内存模式:模型并发上限 3→2(需拍板)”。 需求: 1. 对不想拍板的任务,用户可在网页任务卡上右键打开自定义菜单并删除。首要支持 bulletin status=todo/待拍板卡,调用现有 POST …
+- 触发:architecture-action-evidence (数据架构/引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-14T07:34:32.281Z
+- 任务:质量运营先做工具与 hook 清单，监管评估阻塞风险；对 AHR-26..30 产出兼容迁移设计和 contract tests，未经主人再次确认不切换全局 blocking hook。
+- 触发:architecture-action-evidence (并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-14T08:55:52.229Z
+- 任务:先审计现有 engine/runner 对 AHR-17..25 的覆盖，删去已实现项，只对真实缺口设计 PoC；故障注入验证并确保可回滚，不改现有事件协议兼容性。
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-14T09:01:21.471Z
+- 任务:秘书补全稿: 目标:将 GitHub 仓库 SongDingQing/yutu6 产品化为通用玉兔6发行版。公共仓库移除只属于 Simulaid/模拟纪元的项目技能、项目路由、Wiki、交接与历史记录，但绝不删除本机 /Users/yutu6/TuanjieProjects/Simulaid 或本机私有能力。保留秘书…
+- 触发:explicit-important-architecture (并发与锁/性能与资源/引擎/版本发布/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T03:05:00.807Z
+- 任务:按角色边界裁剪 orchestrator 与维修路由 类别:role_boundary 问题:已 scoped 的 repair/IT execute 不再强制前置 orchestrator；CEO 只做项目归属和验收原子，不在根节点扫描 eventlog/usage 或替主管做技术方案。需要 quality_ops…
+- 触发:architecture-action-evidence (路由/agent体系/引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T05:17:34.098Z
+- 任务:trace process-summary 完整性门与降级标记 类别:hook 问题:trace 完成时校验 task.redacted、result.redacted、process-summary.redacted 与 manifest 四件套；写操作/发布任务的 summary 至少保留命令、退出码、目标摘要和…
+- 触发:architecture-action-evidence (版本发布/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T05:49:25.008Z
+- 任务:按任务类型条件化注入视觉验收行 类别:hook 问题:在任务信封/结构化验收表生成 hook 中，只对显式 UI、视觉、截图、版式或用户可见页面变更注入 Peekaboo+Codex 视觉行；非视觉任务用结构化 not_applicable 状态表达，不允许以“完成+不适用”混填。补 memory_officer、r…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T08:03:31.714Z
+- 任务:合法负向 review 必须留在同一 task review-loop 类别:test 问题:把结构合同校验与业务 verdict 分离：只要 review JSON/验收表结构有效，pass=false 就路由回 implement，而不是 node.fail/queue.retry；新增含“主人批准前维持未启用状…
+- 触发:architecture-action-evidence (路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T08:51:57.070Z
+- 任务:独立 reviewer 必须携带可追溯 provenance receipt 类别:process 问题:凡任务要求多角色独立复核，每份记录必须绑定独立 taskId/traceId、角色、runner、显式 prompt hash、输出 hash、时间窗和终态事件；只有文件内自称 reviewer_task_pat…
+- 触发:architecture-action-evidence (数据架构/引擎/并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T10:18:31.604Z
+- 任务:把 loop-engineering 评分从模板碎片升级为语义验收原子 类别:test 问题:生成 standards 时过滤“模板、md、表头、分隔线”等格式碎片，直接使用 orchestrator/owner 的逐项 acceptance、风险门和停止条件；review 必须对每个原子给证据与 verdict，s…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T12:54:57.903Z
+- 任务:以最新权威终态事件生成链路状态 类别:test 问题:修正 quality-ops batch/chain 状态聚合：按 root_task_id 读取最新 project.route.done/task.done/queue.completed 或对应 failed 终态，子 trace 的早期失败只计为节点失败，…
+- 触发:architecture-action-evidence (并发与锁/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T12:59:15.279Z
+- 任务:分离 repair-lead 与 repair 的特权执行槽并记录接管链 类别:role_boundary 问题:repair-lead 只做归因、派工、独立复核和关票；实际代码变更必须有单独 repair trace。为两角色建立不互相阻塞的受控特权槽或让 lead 在派工前释放执行槽；任何 manual take…
+- 触发:architecture-action-evidence (并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T13:04:26.211Z
+- 任务:已完成维修票的 claim-time 确定性 no-op 类别:script 问题:repair 队列 claim 或应用 steer 后，在持锁状态解析目标 ticket_id 并重读票据；若状态明确为 done 且 steer 指示 no-op，则用脚本生成最小结构化 no-op 回执并直接完成，不再进入 orc…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T13:08:09.276Z
+- 任务:长实现节点持久 checkpoint 与输出限额实验 类别:process 问题:对接近 runner 超时或输出上限的 implement 节点，定期持久化已改文件、已跑验证、剩余验收项的脱敏 checkpoint；ENOBUFS/timeout 后先由同角色从 checkpoint 续跑，而不是重新注入全量任务。…
+- 触发:architecture-action-evidence (数据架构/并发与锁/引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T15:28:22.678Z
+- 任务:对编排器验收项做无损交接校验 类别:hook 问题:在 orchestrator→supervisor enqueue 前，对 orchestrator acceptance 与下游 requiredRows 做规范化映射和覆盖率校验；缺失、缩写成泛化行或混入旁支要求时拒绝派发并记录差异。保留人读 goal，但 do…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T18:33:13.660Z
+- 任务:秘书补全稿: 目标:元宵 APP 需要修改新版本，新版本的目标是元宵可以接收和发送各类的文件，并在手机端弹通知，支持类似飞书的通知和决策卡片。 以上内容要持续修改，并不断用实机测试验证效果，修改好后启用远程推包，并发飞书提醒我升级 项目:控制台 边界:只处理本任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下…
+- 触发:explicit-important-architecture (并发与锁/性能与资源/引擎/版本发布/路由/agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T18:51:06.944Z
+- 任务:按项目与任务标签门控知识片段注入 类别:knowledge 问题:知识检索先以 project_id、role、task tags 做相关性门控；弱相关片段不注入正文，只保留可按需查询的引用。对同一模板重复命中的无贡献片段记录命中/采用率，达到阈值后调整路由。 预期收益:减少 migration/Simulaid 内…
+- 触发:architecture-action-evidence (路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T19:30:45.425Z
+- 任务:董事会背景包去重并禁止无证据建议直接升格硬验收 类别:process 问题:稳定背景按 content hash/ref 共享，角色 prompt 仅注入本角色增量；orchestrator 合并时为每项保留提出者、证据等级与共识数。缺过程证据或单人提出的机制先标 experiment/待拍板，不能直接改写成硬验收。…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T20:54:08.847Z
+- 任务:review-loop 改为差量 critique 与 artifact refs 类别:prompt 问题:每轮只传 immutable goal/spec hash、requiredRows、上一轮未通过行、improvement_points、changed_files/hash 与脱敏 artifact re…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T21:05:33.715Z
+- 任务:把 loop-engineering 评分从模板碎片升级为语义验收原子 类别:test 问题:生成 standards 时过滤“模板、md、表头、分隔线”等格式碎片，直接使用 orchestrator/owner 的逐项 acceptance、风险门和停止条件；review 必须对每个原子给证据与 verdict，s…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T21:11:55.433Z
+- 任务:负向 review 合同回归测试与返工路由 类别:test 问题:增加集成测试：review.pass=false、severity 非空且验收表按 review 语义填写时，应被视为合法审查结果并路由回 implement；只有 review 输出缺字段/无证据时才触发 done_gate 失败。覆盖 pass=t…
+- 触发:architecture-action-evidence (路由/引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-16T22:13:33.818Z
+- 任务:董事会背景包去重并禁止无证据建议直接升格硬验收 类别:process 问题:稳定背景按 content hash/ref 共享，角色 prompt 仅注入本角色增量；orchestrator 合并时为每项保留提出者、证据等级与共识数。缺过程证据或单人提出的机制先标 experiment/待拍板，不能直接改写成硬验收。…
+- 触发:architecture-action-evidence (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T01:05:03.695Z
+- 任务:以最新权威终态事件生成链路状态 类别:test 问题:修正 quality-ops batch/chain 状态聚合：按 root_task_id 读取最新 project.route.done/task.done/queue.completed 或对应 failed 终态，子 trace 的早期失败只计为节点失败，…
+- 触发:architecture-action-evidence (并发与锁/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T02:05:15.772Z
+- 任务:读取 board/repair-tickets/auto-20260716150914-5bcb2faef11b92cd.md。按维修主管初查执行严重问题的最小机制修复：仅检查并修改 shared/engine/done-gate.js 与对应 tests/done-gate.test.js（如 hardening …
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:等待主人拍板
+- 理由:不放行执行：这是 invalid_scope_schema 产生的 ceo/eb273b2e 迟到回退任务，而目标维修已经完成、验证并结案；再次写码将造成重复共享引擎维修。仅允许审计保留的 no-op 收口，视觉/UI 为 not_applicable。
+- 决策卡:board-20260717020514-97ee85b4
+
+## 董事会评议 2026-07-17T02:28:07.432Z
+- 任务:把 loop-engineering 评分从模板碎片升级为语义验收原子 类别:test 问题:生成 standards 时过滤“模板、md、表头、分隔线”等格式碎片，直接使用 orchestrator/owner 的逐项 acceptance、风险门和停止条件；review 必须对每个原子给证据与 verdict，s…
+- 触发:architecture-action-evidence (引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。

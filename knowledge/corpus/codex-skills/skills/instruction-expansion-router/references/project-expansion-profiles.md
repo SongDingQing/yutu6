@@ -20,12 +20,6 @@ Canonical expander: `zongzi-command-expander`.
 
 Use for Zongzi assistant, Zongzi Codex, Zongzi web/control plane, server-side user data, Codex interface reuse, deployment, and admin workflows. The visible block should be `粽子指令补齐稿：`.
 
-## Starlaid
-
-Canonical operating skills: `starlaid-unity-maintenance`, `starlaid-game-development`, `starlaid-test-maintenance`, and `starlaid-image-generation`.
-
-Until a dedicated `starlaid-command-expander` exists, the global router may emit `Starlaid 指令补齐稿：` directly. Include automation-factory gameplay intent, Unity/Tuanjie ownership, data/save compatibility, route/logistics/power/combat/disaster impact, tests, and build/deployment risk.
-
 ## Unknown Game Project
 
 Emit `全局指令补齐稿：` and add a game-development lens:

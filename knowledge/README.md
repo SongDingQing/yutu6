@@ -6,6 +6,7 @@
 ```bash
 bash build.sh      # 自动选最佳可用模式;不会卡死
 python3 query.py "你的问题" [--answer]
+python3 query.py "根因实体" --graph --hops 2 --json
 ```
 - **纯全文(FTS5)**:无 sqlite-vec / 无 embedding 端点时**自动降级**——零外部依赖,**现在就能用**(关键词召回 + 出处)。已验证可跑。
 - **向量+全文(GraphRAG)**:有 sqlite-vec + 可达 embedding 端点时自动启用,加语义召回 + 图谱扩展。
@@ -38,5 +39,8 @@ python3 query.py "你的问题" [--answer]
 ## 说明
 - 换 embedding 模型/provider → 删 `kb.sqlite` 重建(维度也要对齐)。
 - 图谱抽取靠 chat 模型(设 `XJ_CHAT_MODEL`),有噪声;改 wiki 原文重跑即可修正(被否决关系置 `status='deprecated'`)。
+- 显式 `--graph` 是独立的有向查询模式:`--hops` 夹取为 2/3 跳,只沿 active 的 src→dst,JSON 返回节点、边和 provenance/chunk 证据;不带 `--graph` 时保留原 vec/FTS + 双向扩展行为。
+- 控制台内测教训先运行 `node projects/控制台/tools/migrate-lesson-graph.js`(默认在 `projects/控制台/artifacts/canary/lesson-graph-migration/` 做迁移前快照)。迁移只旁挂 `relation_provenance`,不扩大记忆官写权限。
+- `CONSOLE_LESSON_GRAPH_CANARY=0` 可立即停止新增。开关开启时也只处理成功的 `memory-officer` 控制台任务在本轮追加到 `memory/experience.md` 的“根因→做法”,不回填历史、不处理非追加改写;失败只写 canary 审计,不回滚 memory。
 - `kb.sqlite` 不进 git;纳入快照 + 冷备到玉兔2;`wiki/` 进 git。
 - 多端共享:库留 mini,由 bridge 包成 API(§9);别让手机直接持库。

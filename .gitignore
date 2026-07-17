@@ -51,3 +51,4 @@ security/skip-audit.log
 
 # 元宵审批账本(运行时决策数据,不入 git)
 projects/控制台/artifacts/yuanxiao-approvals/
+projects/控制台/artifacts/repair-reports/

@@ -17,8 +17,8 @@ Use skills as **thin, triggerable operating manuals** and modules/project docs a
 
 ### Meta / local-memory layer
 
-- `module-registry`: first stop for persistent local modules, Hermes/Yutu, Feishu, multi-agent contracts, Simulaid delivery modules, Starlaid, and other durable local systems.
-- `instruction-expansion-router`: global first-pass command expansion router. Use before non-trivial terse/spoken/screenshot-backed/project/agent tasks; it routes to project-specific expanders such as Simulaid, YuanXiao/Yutu/Hermes, Zongzi, or Starlaid instead of duplicating their rules.
+- `module-registry`: first stop for persistent local modules, Hermes/Yutu, Feishu, multi-agent contracts, Simulaid delivery modules, and other durable local systems.
+- `instruction-expansion-router`: global first-pass command expansion router. Use before non-trivial terse/spoken/screenshot-backed/project/agent tasks; it routes to project-specific expanders such as Simulaid, YuanXiao/Yutu/Hermes, or Zongzi instead of duplicating their rules.
 - `skill-standard-reviewer`: quality gate for creating/updating any skill. It must read this architecture map before broad skill refactors.
 - `user-clipboard-response`: user workflow preference for "一句话"/"一段话"/copy-ready handoff text. It should copy the final wording directly into the macOS clipboard before replying.
 - `multi-agent-collaboration-contract`: Hermes/Codex/future-agent capability and handoff contract.
@@ -30,7 +30,6 @@ Use skills as **thin, triggerable operating manuals** and modules/project docs a
 
 - `project-routes/INDEX.md`: canonical route-selection and concurrent-agent safety rules for cross-project wrappers. Read it when touching `玉猿`, `玉豚`, `玉凤`, `玉鼠`, `玉衡`, `玉虎`, `玉鸡`/`金鸡`, `玉龙`, `玉灵`, `玉玲珑`, `玉凰`, or `黄龙`, or when a user asks whether these wrappers can work across games.
 - `project-routes/Simulaid.md`: Simulaid-specific paths, docs, supported wrappers, delivery destinations, and lock names.
-- `project-routes/Starlaid.md`: Starlaid-specific paths, docs, supported wrappers, and currently unsupported delivery lanes.
 
 Design rule: the `玉*` wrapper skills are global user-facing names; project routes decide what each wrapper means for a given game. If a route does not explicitly support a wrapper, stop and report the missing route instead of borrowing commands from another game.
 
@@ -41,7 +40,7 @@ Design rule: the `玉*` wrapper skills are global user-facing names; project rou
 - `simulaid-studio-operating-model`: production-hub / small studio lens for major Simulaid feature, bug, balance, QA, content, or release planning.
 - `simulaid-architecture-guardian`: repeated-bug forensics, architecture audit, CODE_INDEX/testing/bug-ledger drift checks, and future-agent reliability hardening for Simulaid. Use when the user asks why older bugs were misjudged, whether the codebase is too bloated, or how to make future Simulaid work safer.
 - `玉鼠`: cross-project content-definition steward. For Simulaid, use it before adding/changing cards, roles, story events, enemies, items, equipment, achievements, or player-facing rules copy; it coordinates 玉凤 for canon, 玉豚 for final art/no-placeholder gates, and 玉衡 for matching tests.
-- `玉衡`: cross-project test-refresh wrapper. For Simulaid, it audits the current diff/user request, adds or updates matching tests in `Packages/com.joesong.simulaid.tests`, updates testing/bug ledgers when needed, and runs the Simulaid test gate before delivery. For Starlaid, it routes to `starlaid-test-maintenance`.
+- `玉衡`: cross-project test-refresh wrapper. For Simulaid, it audits the current diff/user request, adds or updates matching tests in `Packages/com.joesong.simulaid.tests`, updates testing/bug ledgers when needed, and runs the Simulaid test gate before delivery.
 - `玉虎`: cross-project bug root-cause guardian. Use it before fixing bugs, regressions, or player-reported issues; for Simulaid it requires root-cause evidence, narrow fixes, regression tests/manual guards, bug-ledger updates, and rollback notes before claiming a bug is fixed.
 - `玉鸡` / `金鸡`: cross-project gift-code operations wrapper. For Simulaid, use it for existing-code lookup, new-code publication, `GIFT_CODE_REGISTRY.md` hygiene, `SimulaidGameUI.GiftCodes.cs` consistency, TapTap/platform Excel exports, and reward-code image deliverables.
 - `simulaid-code-refactor-navigation`: navigation/refactor map for splitting large files and improving future code search.
@@ -74,13 +73,6 @@ Design rule: the `玉*` wrapper skills are global user-facing names; project rou
 - `simulaid-animation-assets`: sprite sheets, loops, VFX, dog/creature/UI animation assets.
 - `doubao-seedance-animation`: external Seedance/Volcengine keyframe animation workflow; keep secrets out of skills and repo.
 - Audio is currently module-led rather than skill-led: use `/Users/yutu/.codex/modules/yudi-simulaid-audio-tools` when the user says 玉笛 or asks for Simulaid SFX/music tooling.
-
-### Starlaid layer
-
-- `starlaid-unity-maintenance`: Starlaid project anchor and GitHub/repo/build entry.
-- `starlaid-game-development`: main Starlaid design/implementation/QA operating skill.
-- `starlaid-test-maintenance`: Starlaid automated test ownership and validation.
-- `starlaid-image-generation`: Starlaid art generation/integration gate.
 
 ### Other project/workflow layer
 

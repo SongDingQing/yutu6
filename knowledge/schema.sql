@@ -53,6 +53,36 @@ CREATE TABLE IF NOT EXISTS relations (
 );
 CREATE INDEX IF NOT EXISTS idx_rel_src ON relations(src);
 CREATE INDEX IF NOT EXISTS idx_rel_dst ON relations(dst);
+-- 规范边唯一;同一根因→做法允许挂多条 relation_provenance,不重复造有效边。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_relations_canonical ON relations(src,dst,type);
+
+-- relations.evidence 继续服务 wiki/chunks 图谱。memory/ 灰度教训的来源与任务链
+-- 单独旁挂,避免伪造 chunks 外键,也允许同一规范边保留多次独立来源。
+CREATE TABLE IF NOT EXISTS relation_provenance (
+  id               INTEGER PRIMARY KEY,
+  relation_id      INTEGER NOT NULL REFERENCES relations(id) ON DELETE CASCADE,
+  project_id       TEXT NOT NULL,
+  source_path      TEXT NOT NULL,
+  source_anchor    TEXT,
+  source_hash      TEXT NOT NULL,
+  task_id          TEXT,
+  queue_id         TEXT,
+  root_task_id     TEXT,
+  root_queue_id    TEXT,
+  idempotency_key  TEXT NOT NULL,
+  evidence_excerpt TEXT NOT NULL,
+  review_status    TEXT NOT NULL DEFAULT 'pending',
+  reviewed_at      TEXT,
+  review_note      TEXT,
+  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_relation_provenance_idempotency
+  ON relation_provenance(idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_relation_provenance_relation
+  ON relation_provenance(relation_id);
+CREATE INDEX IF NOT EXISTS idx_relation_provenance_project_created
+  ON relation_provenance(project_id,created_at);
+
 CREATE TABLE IF NOT EXISTS events (
   id       INTEGER PRIMARY KEY,
   summary  TEXT,

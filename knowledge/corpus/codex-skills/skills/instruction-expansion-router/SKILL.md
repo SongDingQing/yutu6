@@ -1,6 +1,6 @@
 ---
 name: instruction-expansion-router
-description: Use before any non-trivial coding, debugging, refactoring, deployment, release, build, test, game-development, UI/assets/content, agent-control-plane, Hermes/Yutu, YuanXiao, Zongzi, Simulaid, Starlaid, or project-planning request where the user gives a terse, spoken, screenshot-backed, queue-like, cross-agent, or ambiguous command. Routes to the correct project-specific command expander and produces a concise 指令补齐稿 before implementation. Default for new or unrecognized projects.
+description: Use before any non-trivial coding, debugging, refactoring, deployment, release, build, test, game-development, UI/assets/content, agent-control-plane, Hermes/Yutu, YuanXiao, Zongzi, Simulaid, or project-planning request where the user gives a terse, spoken, screenshot-backed, queue-like, cross-agent, or ambiguous command. Routes to the correct project-specific command expander and produces a concise 指令补齐稿 before implementation. Default for new or unrecognized projects.
 metadata:
   short-description: Route and expand terse project commands
 ---
@@ -21,9 +21,8 @@ Do not turn this into a giant all-project manual. It should route, normalize, an
 2. If the request matches Simulaid / 模拟纪元 / `/Users/yutu/Simulaid`, load `simulaid-command-expander` and emit only `Simulaid 指令补齐稿：`.
 3. If the request matches YuanXiao / 元宵 / 汤圆 / ChangE / 嫦娥 / Yutu / 玉兔 / Hermes / Legend / 传奇 / control-plane queues, load `yuanxiao-command-expander` and emit only `元宵指令补齐稿：`.
 4. If the request matches Zongzi / 粽子 / 粽子 Codex / 粽子管理控制台, load `zongzi-command-expander` and emit only `粽子指令补齐稿：`.
-5. If the request matches Starlaid / 星桥 / `/Users/yutu/Projects/Starlaid/Starlaid`, use `starlaid-unity-maintenance`, `starlaid-game-development`, and `starlaid-test-maintenance` as needed, then emit `Starlaid 指令补齐稿：`.
-6. If the request uses a cross-project wrapper such as `玉猿`, `玉豚`, `玉凤`, `玉鼠`, `玉衡`, `玉虎`, `玉鸡`, `金鸡`, `玉龙`, `玉灵`, `玉玲珑`, `玉凰`, or `黄龙`, read `/Users/yutu/.codex/skills/project-routes/INDEX.md`, choose the project route, then apply that route's supported wrapper.
-7. If no known project route matches, emit `全局指令补齐稿：` with the generic template below.
+5. If the request uses a cross-project wrapper such as `玉猿`, `玉豚`, `玉凤`, `玉鼠`, `玉衡`, `玉虎`, `玉鸡`, `金鸡`, `玉龙`, `玉灵`, `玉玲珑`, `玉凰`, or `黄龙`, read `/Users/yutu/.codex/skills/project-routes/INDEX.md`, choose the project route, then apply that route's supported wrapper.
+6. If no known project route matches, emit `全局指令补齐稿：` with the generic template below.
 
 ## Compatibility Contract
 

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "projectId": "控制台",
+  "scopedToProject": true,
+  "enabled": false,
+  "ownerConfirmation": {
+    "confirmed": false,
+    "required": [
+      "scanPeriod",
+      "staggerOffset",
+      "recipients",
+      "channelPriority",
+      "failureThreshold"
+    ],
+    "scanPeriod": "daily",
+    "staggerOffsetMinutes": 75,
+    "recipients": {
+      "feishu": [],
+      "yuanxiao": []
+    },
+    "channelPriority": [
+      "feishu"
+    ],
+    "failureThreshold": 3
+  },
+  "source": {
+    "type": "insight-scout-seen-repos",
+    "path": "board/insights/seen-repos.json",
+    "initialMode": "baseline",
+    "maxNewPerRun": 20
+  },
+  "channels": [
+    {
+      "id": "feishu",
+      "enabled": false,
+      "priority": 10
+    },
+    {
+      "id": "yuanxiao",
+      "enabled": false,
+      "priority": 20,
+      "availability": "blocked-pending-verified-downstream-idempotency-and-receipt"
+    }
+  ],
+  "failure": {
+    "cooldownMs": 21600000,
+    "consecutiveThreshold": 3,
+    "ticketMode": "per-channel-unless-all-channels-fail"
+  },
+  "lineage": {
+    "rootTaskId": "cr-1783674199276-016dc681",
+    "rootQueueId": "016dc681",
+    "taskId": "cr-1783680653360-ee208ddb"
+  }
+}

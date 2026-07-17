@@ -11,7 +11,81 @@
 | 能力库 1B | ✅ 三全局件就位 | 模块索引/环境配置/补齐指令稿(重建,绑前门 Claude Code)完成;41 项目技能改按需拉 | 否 |
 | 玉兔搬家 | 骨架/能力/知识就位 | YuanXiao/Simulaid 待 GitHub 授权;知识库待另一台电脑 embedding 端点 | 否 |
 
-_最后更新:2026-07-03_
+_最后更新:2026-07-07_
+
+- 2026-07-07T当前 · 控制台: 当前 task `cr-1783390585784-505a872f` 已完成 Meowa 生成物采纳/不采纳审核门禁。新增 `projects/控制台/meowa-asset-decisions.js` 与 `projects/控制台/tools/meowa-asset-decision.js`:生成物先登记 `pending` ledger,一物一卡映射 `assetId/cardId/产出路径/拟接入路径/审核结论/处理结果`,飞书 decision 卡按钮固定 `采纳` / `不采纳`,URL 使用 signed `/api/decision/<cardId>/<approve|reject>?t=<token>`。`projects/控制台/server.js` 的 `/api/decision` 对 `source=meowa-asset-review` 走资产分支,approve 才复制到正式路径并标 `approved_and_integrated`,reject 标 `rejected_not_integrated` 且不接入,重复点击幂等不重复复制;普通董事会/公告卡 approve=入队语义保持不变。Meowa 办公室生成合约已补五要素汇报模板与老板采纳门禁。验证 PASS:`node tests/meowa-asset-decision.test.js`,`node tests/decision-callback.test.js`,`node tests/feishu-card-types.test.js`,`node shared/engine/demo.js`,targeted `git diff --check`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783390585784-505a872f/summary.json` PASS(`projectId=控制台`,`gateOk=true`);全量 `node tests/run.js` 仍只有既有 `hardening-hooks.test.js` 断言口径与 `ceo-serial-lock.test.js:513` 时序红灯。Peekaboo PNG `projects/控制台/artifacts/meowa-asset-decision-20260707/peekaboo-chrome-meowa-asset-decision-workspace.png` 与 Codex 视觉报告已归档;未触碰 、密钥、登录或授权。
+
+- 2026-07-06T16:54+08:00 · Simulaid: 当前 task `cr-1783327781699-92e30d8a` 已完成 CEO brief 派发的代码主架构小步优化。按董事修订先取证分级:读取 CODE_INDEX/开发流程/架构审计/GameAgentBenchmark/测试策略/bug ledger/UI ledger/优化台账,并运行 `Tools/simulaid_architecture_audit.py --write Logs/simulaid-architecture-audit.md`。初次审计显示热点仍为 `SimulationWorld.cs` 23091 行、`SimulaidGameUI.cs` 9295 行,但只执行低风险项:删除当前工作树中未读的拾荒者自动搜寻计数字段 `simScavengerAutoSearchPlaysThisBattle` 及递增/重置点,统一停搜口径到 `simScavengerSearchAttributeTriggersThisBattle >= ScavengerAttributeGainLimitPerBattleEffective()`;补 `SimulaidGameUI.HealthAdvisory.cs` 到 `CODE_INDEX.md`;在 `SIMULAID_OPTIMIZATION_NOTES.md` 登记 `OPT-WC-11518-001` / `REF-WC-11518-001`;同步版本至 `v1.15.18` / Android code `11518`。验证 PASS:源码/测试/索引中 `rg simScavengerAutoSearchPlaysThisBattle` 无命中,架构审计 PASS,CODE_INDEX 全源覆盖,Tuanjie `SimulaidTestRunner.RunAll` exit 0(`passed=173 failed=0`),targeted `git diff --check` exit 0,`node shared/engine/demo.js` exit 0,当前 scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783327781699-92e30d8a/summary.json` PASS(`projectId=Simulaid`,`gateOk=true`)。Peekaboo PNG `projects/Simulaid/artifacts/architecture-optimization-20260706/peekaboo-screen-architecture-optimization-cr-1783327781699-92e30d8a.png` 与 Codex 视觉报告已归档;本轮无 UI 布局变更。飞书 progress 卡片已发送,未触碰 、密钥、登录或授权。
+
+- 2026-07-06T16:24+08:00 · Simulaid: 当前 task `cr-1783325397617-9ddc2d84` 已完成 Meowa Skill/API 教程沉淀。B 站 `BV1X8G26HEyR` 官方字幕为空,本轮通过公开 metadata/playurl + 本地 ASR 获取可核讲解摘要,证据为 `projects/Simulaid/artifacts/meowa-bv1x8g26heyR-source/source-evidence.md`;临时音频和完整逐字稿未保留。`shared/tools/meowa/SKILL.md` 与 `shared/tools/meowa/meowart_api.md` 已补齐 Agent 安装、API key 安全、动态 skill-doc、模板/预设选择、样本先行、成本控制、job/output 记录、动画/SFX/BGM 验收后接入规则。未触碰 、密钥、登录授权、付费或 Simulaid Unity runtime。验证 PASS:Meowa `skill-doc`,Bilibili metadata/playurl+ASR,`node shared/engine/demo.js`,内联 `projectId=Simulaid` review-loop smoke,tracked `git diff --check` + 未跟踪文件空白检查。
+
+- 2026-07-06T15:59+08:00 · Simulaid: 当前 task `cr-1783324118588-b9c5c42d` 已完成战斗 UI/动画首轮的验收补证节点。上一轮方案与 Meowa 拳手首件仍沿用 `projects/Simulaid/artifacts/combat-ui-animation-plan-20260706.md`;本轮用 Tuanjie batchmode 构造模拟世界训练假人战并产出完整战斗 render `projects/Simulaid/artifacts/simulaid-combat-ui-render-20260706.png`,再通过 Peekaboo 像素 capture 保存主截图 `projects/Simulaid/artifacts/peekaboo-combat-ui-region-wide-20260706/keep-0001.png` 与全屏上下文 `projects/Simulaid/artifacts/peekaboo-combat-ui-capture-20260706/keep-0001.png`。Codex 对照设计挑错已归档到 `projects/Simulaid/artifacts/combat-ui-animation-codex-visual-review-20260706.md`:战斗层次可检视,但顶部/底部空 chrome、敌方目标偏小、手牌扇区/玩家状态短屏触达和 Meowa 动画可读性仍需 Game view 复核。本轮只改 Simulaid 项目记录与 artifacts,取证用临时编辑器 helper 已删除,未向 Unity runtime 接入动画,未触碰 /密钥/登录授权。验证 PASS:Meowa credits-balance、Tuanjie combat screenshot export、Peekaboo capture、`node shared/engine/demo.js`、内联 `projectId=Simulaid` review-loop smoke、targeted `git diff --check`。
+
+- 2026-07-05T22:31+08:00 · 控制台: 当前 task `cr-1783261389512-9925b818` 已完成任务板 running 已运行时长修复。`/api/queue/{agent}` running 响应只从 `engine_started_at/started_at/claimed_at` 派生真实 `started_at`,不再用 `enqueued_at` 算运行时长;前端 running chip 缺真实起点时显示 `运行中...`,有起点时按分钟/小时/天粒度显示。验证 PASS:`node tests/workspace-taskboard.test.js`,`node tests/ceo-queue-control.test.js`,`node tests/queue-organizer.test.js`,workspace inline script parse,`node --check projects/控制台/server.js`;当前 scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783261389512-9925b818/summary.json` PASS(`projectId=控制台`,`gateOk=true`);全量 `node tests/run.js` 仍只有既有 `hardening-hooks.test.js` 断言口径和 `ceo-serial-lock.test.js:513` 时序红灯。Peekaboo 证据:`projects/控制台/artifacts/running-duration-chip-20260705/peekaboo-chrome-running-duration-cr-1783261389512-9925b818.png` 与 T0/T+70s/T+130s 三帧,视觉报告 `projects/控制台/artifacts/running-duration-chip-20260705/codex-visual-review-running-duration-cr-1783261389512-9925b818.md`。
+
+- 2026-07-05T22:10+08:00 · 控制台: 当前 task `cr-1783259584808-4de9088a` 已完成 computer-use/gui_desktop_control 执行后截图核验 + 失败自愈 current 实现。`projects/控制台/engine-runner.js` 对 `gui_desktop_control` 节点复用现有 Peekaboo CLI 截 `before.png`/`after.png`,用 sha256/bytes 做轻量落地判定;未落地时截图不可用走 report,前后相同走一次 self-heal retry prompt(重定位/重试/上报,禁止静默继续),再截 `after-heal.png` 给最终判定。新增 `action.verify`、`action.heal`、`action.evidence` engine-events 和 taskstore `computer_use_action_verify` evidence;失败截图只记录 `beforeScreenshotFailure/afterScreenshotFailure`,不会把不存在 PNG 或 failure marker 当完成证据;自愈上下文使用失败记录快照,不被最终 landed verdict 污染。新增 `tests/action-verify.test.js` 并接入 `tests/run.js`,覆盖“前后截图相同→自动 retry→after-heal 成功”和“截图权限失败→report 且不写假图片”。真实 Peekaboo Chrome PNG `projects/控制台/artifacts/action-verify-self-heal-20260705/peekaboo-chrome-action-verify-self-heal-cr-1783259584808-4de9088a.png` 与 Codex 视觉报告已归档;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783259584808-4de9088a/summary.json` PASS。相关定向测试均 PASS;全量 `node tests/run.js` 仍 exit 1,红灯为既有 `hardening-hooks.test.js` 与 `ceo-serial-lock.test.js:513`;未改 Peekaboo 截图后端、未新增服务/依赖、未部署 UI-TARS runtime、未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T21:37+08:00 · 控制台: 当前 task `cr-1783257865901-cc7822a4` 已完成控制室 LLM 网关可观测面板最小可用版。`projects/控制台/public/control-room.html` 首屏新增原生零依赖 `LLM 网关可观测` 面板,只读并行复用 `/api/newapi/usage?days=7&limit=80` 与 `/api/llm-usage/overview?days=7`,不改 new-api 生产路径、不部署 Helicone/Portkey 全栈、不新增运行时。面板定义 `model/tokens_in/tokens_out/cost/latency_ms/status/session_id/角色·任务标签` 展示 schema,按模型聚合 token/estimated cost/latency,按角色/员工优先用 llm-usage byAgent/agents 映射,new-api 缺角色/session 字段时显示 `unknown/unmapped`;session 链路只展示已有 `session_id/trace_id/rootTaskId` 能证明的链路,不伪造董事长→CEO→主管→员工链。最近调用详情按行懒加载 `/api/newapi/logs/:id`,UI 只呈现白名单字段;费用口径标注 estimated、GLM-5.2 买断额度/$0 与 unknown。新增 `tests/control-room-llm-gateway.test.js` 并接入 `tests/run.js`;数据源验证、Peekaboo 首屏 PNG `projects/控制台/artifacts/llm-gateway-observability-panel/cr-1783257865901-cc7822a4/peekaboo-control-room-llm-gateway-firstscreen.png`、Codex 视觉报告和 scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783257865901-cc7822a4/summary.json` 已归档且 PASS。相关控制室/new-api/server 测试均 PASS;全量 `node tests/run.js` 仍 exit 1,红灯为既有 `hardening-hooks.test.js` 断言口径与 `ceo-serial-lock.test.js:513` 时序断言;未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T21:13+08:00 · 控制台: 当前 task `cr-1783256510255-daebca1b` 已完成 office 视图工具→工位/动作映射与 human-gate 审批告警 current 实现。`projects/控制台/public/workspace.html` 新增 `OFFICE_TOOL_STATION_RULES`:Read/Grep/Glob/LS/open_file/read_file→资料/书架,Bash/build/test/npm/node/python→终端,Edit/Write/apply_patch/patch→电脑,Web/fetch/browser/peekaboo→网页,review/diff/git/status/check→复核;工具字段适配优先 `toolName/tool_name/tool/name` 与 payload,最后才用 `command`,并注释固定 library-before-web 顺序。human gate/permission_wait 进入后工位放大聚焦、待审批气泡、红色脉冲边框,切 `role=alert`/`aria-live=assertive`;gate 期间非 clear tool 事件不覆盖告警,解除或 5 分钟异常超时后恢复;tool station 更新 100ms 节流。真实 Peekaboo Chrome 截图 `projects/控制台/artifacts/office-tool-station-gate-20260705/peekaboo-chrome-office-tool-station-gate-cr-1783256510255-daebca1b.png` 与 Codex 报告已归档;当前 scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783256510255-daebca1b/summary.json` PASS。相关 workspace 测试、inline parse、HTTP `/workspace?view=office`、engine demo 均 PASS;全量 `node tests/run.js` 仍 exit 1,红灯为既有 hardening-hooks changed_files 断言口径和 `ceo-serial-lock.test.js:513` 时序断言;未改 engine-events 协议/队列/worker/运行时依赖,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T20:44+08:00 · 控制台: 当前 task `cr-1783253164945-34d209b8` 已完成 cc-connect 手机元宵端桥接借鉴 current addendum。新增 `projects/控制台/artifacts/architecture/cc-connect-mobile-yuanxiao-bridge-study-current-1783253164945-20260705.md`,复核 current `chenhg5/cc-connect` main HEAD `760079bca2021588ab319b8e92f93ca5f361ea54` 与 latest release `v1.4.1`,结论沿用“部分借鉴设计、不直接引入运行时依赖”。手机元宵端建议飞书通道先行,微信/WeCom 后置评估,自研移动端 Bridge 最后评估;“无需公网 IP”只适用于平台长连接/轮询通道,自研 App 直连本机仍需 relay/VPN/同网段/隧道/公网。报告补齐 `mobile_ingress`、canonical progress/outbox、allow/admin 白名单、Bridge token、速率限制、审计日志与人工授权清单。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783253164945-34d209b8/summary.json` PASS。本轮未安装/配置/登录 cc-connect,未改 Hermes/飞书脚本/队列/review-loop/元宵 Android/控制台运行代码,未触碰密钥/授权, 排除。
+
+- 2026-07-05T20:33+08:00 · 控制台: 当前 task `cr-1783253165137-68761a33` 已完成 SkillSpector 准入安全门 current addendum。因当前 `skills-lock.json` 仍只有 `game-assets` 且 `computedHash=c5db9a83a1ce4b30f1c0256e214aaabd9347a29b8380e3f97e6cac4a3a9db10c` 与历史本地记录一致,复用 2026-06-20 既有 JSON/SARIF/Markdown 三格式报告及 sha256,未 fresh clone/安装/建 venv。新增 `projects/控制台/artifacts/skillspector/skillspector-admission-gate-current-1783253165137-20260705.md`,补齐董事修订:扫描器缺失/崩溃/timeout/parse/report/hash 异常一律 `scan_unavailable` fail-closed;误报只由主人或独立 issue/决策卡仲裁;`--no-llm` 不等于全离线,OSV.dev 为受控出网,严格离线需 no-network sandbox;lock/registry 未来需 admission lock + tx_id + 先写 `skills-admission.jsonl` + tmp/rename + 幂等恢复;本地 LLM endpoint 未来需 timeout/retry/cooldown。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783253165137-68761a33/summary.json` PASS。本轮未改 `skills-lock.json`、registry、server/worker 或能力库管线,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T20:18+08:00 · 控制台: 当前 task `cr-1783253164752-55f7601d` 已完成 CEO brief 派发的 React Bits 原生动效增量。`projects/控制台/public/workspace.html` 在原生 HTML/CSS/JS 内参考 React Bits 的 BorderGlow/PillNav/AnimatedList/ScrollReveal/CountUp/Spotlight 方向,新增任务卡/模型卡/Peekaboo 缩略图边框光、active tab 扫光、首次动态卡片进入动画、任务板 tab 数字 CountUp 和模型/截图卡 Spotlight hover;未引入 React 构建链、npm 依赖或 CDN runtime,并保留 reduced-motion 降级。取舍记录在 `projects/控制台/artifacts/react-bits-native-motion-20260705/react-bits-native-motion-decisions.md`;真实 Peekaboo 主证据为 `projects/控制台/artifacts/react-bits-native-motion-20260705/peekaboo-after-chrome-react-bits-native-motion-cr-1783253164752-55f7601d.png`(1368x916),before Safari 小图仅作上下文;Codex 视觉挑错报告已归档。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783253164752-55f7601d/summary.json` PASS。本轮相关 workspace 测试均 PASS;全量 `node tests/run.js` 仍 exit 1,红灯为既有 hardening-hooks fixture 与 `ceo-serial-lock.test.js:513` 时序断言;未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T19:42+08:00 · 控制台: 当前 task `cr-1783251444399-37c69a3e` 已完成 LocateAnything-3B current 许可/服务/API 收口。新增报告 `projects/控制台/artifacts/locate-anything-3b-current-20260705/locate-anything-3b-current-1783251444399-20260705.md`:官方 current 复核仍为 NVIDIA 非商用许可,仅允许非商业研究/评估;本机边界为 localhost,不得接生产、对外网、团队内网常驻或商用链路。控制台已有 `locate-anything-service.js`、`tools/locate_anything_backend.py` 与 `/api/vision/locate/health`、`/api/vision/locate` 通过本轮验证;新增 `tests/locate-anything-service.test.js` 覆盖许可 451、生产 403、后端 503、坐标解析和 handler 暴露,且在全量 `node tests/run.js` 中 PASS。真实 Peekaboo PNG `projects/控制台/artifacts/locate-anything-3b-current-20260705/peekaboo-screen-locate-anything-current-1783251444399-20260705.png` 与 Codex 视觉报告已归档;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783251444399-37c69a3e/summary.json` PASS。全量仍 exit 1,失败为既有 `hardening-hooks.test.js` 和 `ceo-serial-lock.test.js:513`;未下载权重、未回显密钥、未做登录/授权、未接生产;真实模型定位闭环需主人授权 HF/权重/运行环境后另跑,本轮未冒充完成。
+
+- 2026-07-05T19:21+08:00 · 控制台: 当前 task `cr-1783250121270-f79fd88c` 已完成 Peekaboo 基线测试与工作区产物展示。`projects/控制台/public/workspace.html` 新增右侧 `Peekaboo` 产物面板,读取 `/api/peekaboo-baseline/artifacts`,展示最近截图缩略图与日志入口;`tests/workspace-taskboard.test.js` 已锁定入口/API/刷新轮询。Peekaboo agent custom provider 脱敏核对为 `yutu-new-api`,本机 new-api `/v1/models` 可达;低成本 `glm-4-flash` 最小 agent 调用成功,metadata 为 `Custom/yutu-new-api/glm-4-flash`,exit 0。截图/点击冒烟产物在 `projects/控制台/artifacts/peekaboo-baseline/20260705-191919-cr-1783250121270-f79fd88c/`:最终工作区截图 `peekaboo-workspace-after-refresh-artifacts.png` 显示 `PEEKABOO 产物` 与 `4 图 / 8 日志`,Codex 视觉复核报告 `codex-visual-review-peekaboo-baseline-20260705.md` 已归档。未删除既有产物、未回显密钥、未碰登录/授权, 排除;全量测试仍有既有无关红灯,本轮聚焦测试已 PASS。
+
+- 2026-07-05T19:04+08:00 · 控制台: 当前 task `cr-1783249315404-9e6f7e6f` 已完成 CEO brief 派发的洞察员 4 小时链路与真实 `zhipu-glm` 运行质量 current 复核。新增报告 `projects/控制台/artifacts/architecture/insight-scout-glm-observation-current-1783249315404-20260705.md`:历史强证据显示 2026-07-03 16:46+08 的洞察员 rerun 经 `zhipu-glm` 成功执行,`insight_scout.output_applied`、`queue.completed ok=true`、`insightsAppended=true`、`seenReposAdded=3`,产物落到 `board/insights/insights.md` 热区。但当前 2026-07-05 server 启动事件为 `insight_scout.repos.scheduler.start enabled=false`,所以不能宣称每 4 小时自动研究已经恢复为连续产出;`quality_ops` 同时因 `runner:zhipu-glm` `quota-degraded` 阻塞,长期质量仍为观察中。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783249315404-9e6f7e6f/summary.json` PASS。本轮未改运行开关、queue/eventlog/scheduler/runner/prompt/done-gate 或代码,未触碰密钥/登录/授权, 排除;后续需主人/主管决定是否恢复 `INSIGHT_SCOUT_REPOS_ENABLED` 和处理 zhipu-glm 额度/降级。
+
+- 2026-07-05T18:50+08:00 · 控制台: 当前 task `cr-1783247982734-370d4bc2` 已完成洞察员 `board/insights/` 冷热分离持续维护实现。新增 `board/insights/scripts/maintain-insights.js`,以一个 `insight-scout-run` marker 为一批,热区默认保留最近 4 批并受 100KB 上限保护;旧批按月归档到 `board/insights/references/archive-YYYYMM.md`,归档/索引/热区/manifest/JSON 均用临时文件 + rename 原子替换并受 `.archive.lock` 目录锁保护。真实维护将 `board/insights/insights.md` 从 602829 bytes 降到 10146 bytes,热区 4 批;82 批新归档、1 批已在归档中跳过重复写入,对账 87 批完整。`seen-repos.json` 保持 `_note/updated_at/repos` 三字段,URL repos=362、重复=0;根目录 `insights.md` 与 `seen-repos.json` 快照各保留 3 份。洞察员下一批任务提示已改为默认只读热区和 URL 去重库,需要旧上下文时才 `rg board/insights/references/` 并只读命中小节;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783247982734-370d4bc2/summary.json` PASS。本轮未安装依赖、未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T18:30+08:00 · 控制台: 当前 task `cr-1783246928133-cc2b2066` 已完成 CEO brief 派发的 LiteLLM router/cost baseline current 收敛 brief。新增文档 `projects/控制台/artifacts/architecture/litellm-router-cost-baseline-current-1783246928133-20260705.md`,结论为采纳 LiteLLM router + cost tracking 作为控制台 LLM 网关设计/RFC/字段口径基线,不是运行时替换授权;沿用 06-24 LiteLLM baseline、06-29 LLM routing field RFC 与 gateway ledger/trace canonical v0,不新造平行契约。固定 `model_group/deployment/fallback_order/cooldown_until` 四字段;cost tracking 仅 metadata-only 聚合 `project_id/agent_id/runner/provider/model/billing_mode/limit_window/input/output/total_tokens/estimated/final cost`,prompt/response/tool args/results 不入账本。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783246928133-cc2b2066/summary.json` PASS。本轮未安装 LiteLLM、未改 new-api/runner/queue/eventlog/scheduler/prompt/done-gate 或运行代码, 排除。
+
+- 2026-07-05T18:04+08:00 · 控制台: 当前 task `cr-1783245581040-7fa7907a` 已完成 CEO brief 派发的 a11y tree 序列化与截图分块同题重复启用 current 只读复核。新增复核文档 `projects/控制台/artifacts/architecture/a11y-grounding-duplicate-current-1783245581040-20260705.md`,沿用 2026-06-24 既有报告 `board/a11y-grounding-readonly-eval-2026-06-24.md` 与 `projects/控制台/status.md:865-872`:部分采纳 a11y-first + 视觉兜底,但不按原题再次立项、不进入 runner;若后续推进,下一单应收窄为不少于 20 个既有截图样本的离线 bbox 标注包。Peekaboo/Codex 证据为 `projects/控制台/artifacts/a11y-grounding-duplicate-current-20260705/peekaboo-safari-workspace-a11y-grounding-duplicate-current-1783245581040-20260705.png` 与 `projects/控制台/artifacts/a11y-grounding-duplicate-current-20260705/codex-visual-review-a11y-grounding-duplicate-current-1783245581040-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783245581040-7fa7907a/summary.json` PASS。本轮未安装依赖、未下载 ShowUI/受限权重、未改运行代码、未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T18:15+08:00 · 控制台: 当前 task `cr-1783244721286-71ed31a2` 已完成 CEO brief 派发的 Swarm README 与 LangGraph StateGraph official current 只读复核。新增 addendum `projects/控制台/artifacts/architecture/swarm-langgraph-handoff-stategraph-current-1783244721286-20260705.md`,复核官方来源、访问日期、许可证与活跃度:Swarm 为 MIT、未归档、README 仍标 experimental/educational 且建议生产迁移 Agents SDK,HEAD `6af0b4caf37dca4526dfd98e9fbd8ce36e7eeb22`;LangGraph 为 MIT、未归档、latest release `1.2.7`(2026-06-30)、HEAD `be999ad38a8443a2a64d468e33c1228ca5aede4f`。结论为部分借鉴设计、不引入运行时依赖:Swarm 仅作 handoff 语义参考,LangGraph 仅作 StateGraph/reducer/conditional edges/compile check 概念参考;建议并入既有 `task-dag-handoff-protocol-current-1783229985336-20260705.md` 外部来源附录,不改 queue/eventlog/scheduler/runner/prompt/done-gate 或运行代码。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783244721286-71ed31a2/summary.json` PASS;不采纳项已归档, 排除,密钥/登录/授权未触碰。
+
+- 2026-07-05T18:02+08:00 · 控制台: 当前 task `cr-1783243660426-f83950de` 已完成 CEO brief 派发的 Temporal/Asynq/BullMQ 失败处置路径 current 只读对比。新增文档 `projects/控制台/artifacts/architecture/failure-handling-temporal-asynq-bullmq-current-1783243660426-20260705.md`,公开 HEAD 固定为 Temporal `a31f476255b2c7c00176f683cdce84710daaba44`、Asynq `d135f1439bee74e989b7f9b41ecd542cc87f024a`、BullMQ `6bc894b2925fd7a4bef21cba18c12321e6290d62`;矩阵覆盖 retry/backoff、stalled/heartbeat 重投、dead task/DLQ/redrive。结论为值得抽象,但不新建平行小型 RFC;建议并入既有 `projects/控制台/artifacts/architecture/queue-failure-disposition-contract-rfc-current-1783230966676-20260705.md` 的外部对照附录和采纳准入表,最小字段为 `retry_accounting/backoff_source/stall_signal/terminal_lane/redrive_source/failure_audit`。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783243660426-f83950de/summary.json` PASS。本轮未安装依赖、未 clone、未改 queue/eventlog/scheduler/runner/prompt/done-gate 或运行代码,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T17:13+08:00 · 控制台: 当前 task `cr-1783242659963-8fc955fb` 已完成 CEO brief 派发的 Skills 插件化接口标准治理 current 修订。新增 current 补丁 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-current-1783242659963-20260705.md`,沿用 2026-06-29 `v0 manifest` 提案 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md`,不新建平行 v0,不改运行代码。补丁明确 `proposal_only/policy_only/not_runtime_contract/runtime_consumed=false`,补齐 legacy 兼容性矩阵、T+0/T+7/T+14/T+30 迁移路径、写类 `taskId + rootQueueId + queueId + idempotency_key` 与 done fencing、`errors.code` 小枚举、`concurrency_domains` 命名粒度和 NR11/NR13 消费点+回归测试边界。视觉证据为 Peekaboo screen PNG `projects/控制台/artifacts/skill-interface-contract-governance-current-20260705/peekaboo-screen-skill-interface-contract-current-1783242659963-20260705.png` 与 Codex 报告 `projects/控制台/artifacts/skill-interface-contract-governance-current-20260705/codex-visual-review-skill-interface-contract-current-1783242659963-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783242659963-8fc955fb/summary.json` PASS。本轮未安装依赖、未改 runner/queue/eventlog/scheduler/prompt/done-gate,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T15:00+08:00 · 控制台: 当前 task `cr-1783234698511-0fa876b6` 已完成 CEO brief 派发的《控制台 LLM 网关账本/追踪契约 v0》current 归并复核。新增 current addendum `projects/控制台/artifacts/architecture/llm-gateway-ledger-trace-contract-v0-current-1783234698511-20260705.md`,沿用 2026-06-29 canonical v0 `projects/控制台/artifacts/architecture/llm-gateway-ledger-trace-contract-v0-20260629.md`,不新开平行契约。current 文档明确与 `llm-routing-field-rfc-20260629/RFC.md`、`llm-gateway-observability-schema.json`、`shared/engine/eventlog.js` 的 extend/map 关系,覆盖 event/idempotency/trace/span/task/queue/project/pricing 字段、cost currency/unit/effective time、CloudEvents 映射和隐私红线。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783234698511-0fa876b6/summary.json` PASS。本轮未安装依赖、未改运行代码、未接外部 runtime/provider/collector,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T14:45+08:00 · 控制台: 当前 task `cr-1783233826419-ac481269` 已完成 CEO brief 派发的 seen-repos / borrowed watch / capability_registry source/trust 字段 current 修订。新增文档 `projects/控制台/artifacts/architecture/source-trust-fields-migration-boundary-current-1783233826419-20260705.md`,作为本轮主管确认版本收敛 2026-06-29 旧版三态方案与 2026-07-05 上一版 boolean current 的历史差异:三处 `source_url` 语义拆为 `repo_url/watch_source_url/capability_source_url`;`validated=unchecked|valid|invalid`;`trust_tier=untrusted|low|medium|high|critical`,其中历史默认 `untrusted` 在本文定义为中性"尚未建立信任/未知",不得被运行时按最低档过滤;旧记录 `last_verified_at` 与 `next_review_at` 均保持 `null`。`seen-repos.json.repos` 继续保持 URL `string[]`,未来元数据只走 sidecar 或 `repo_meta`;borrowed watch 真实目标仍是 `board/insights/references/borrowed-watch.json`;capability_registry 字段仅作治理审计。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783233826419-ac481269/summary.json` PASS。本轮未改目标 JSON 数据、外部运行时、runner、queue、scheduler、eventlog、prompt、done-gate 或密钥/授权, 排除。
+
+- 2026-07-05T14:31+08:00 · 控制台: 当前 task `cr-1783232933526-dcba9ae5` 已完成 CEO brief 派发的 computer-use 观察/动作契约 v0 current draft/non-runtime。新增 RFC `projects/控制台/artifacts/architecture/computer-use-observation-action-contract-v0-current-1783232933526-20260705.md`,沿用 2026-06-29 baseline `projects/控制台/artifacts/computer-use-observation-action-contract-v0-20260629/RFC.md`,不新开平行 v0。current 文档按 observation/action/result/error/evidence/benchmark 六段列字段、必填性、示例和失败语义;明确 `ref` 只在同一 `snapshot_id` 内有效,快照变化或 action 后默认失效;把 `STALE_REF`/`AMBIGUOUS_TARGET`/`PERM_DENIED` 写成可测试枚举;截图 fallback 分成真实截图证据、视觉 grounding 推断、截图失败 marker,禁止把 `failure.json` 当成功截图证据。Peekaboo 当前 Safari 工作区截图 `projects/控制台/artifacts/computer-use-observation-action-contract-current-20260705/peekaboo-safari-computer-use-contract-current-1783232933526-20260705.png` 与 Codex 对照报告 `projects/控制台/artifacts/computer-use-observation-action-contract-current-20260705/codex-visual-review-computer-use-contract-current-1783232933526-20260705.md` 已归档;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783232933526-dcba9ae5/summary.json` PASS。本轮未安装依赖、未改运行代码、未改 `computer-use` runner/Peekaboo 后端/queue/eventlog/scheduler/prompt/done-gate,未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T14:16+08:00 · 控制台: 当前 task `cr-1783232103013-cba60654` 已完成 CEO brief 派发的 LLM 路由日志字段 RFC 与映射 current retry 收口。当前 CEO brief 位于 `projects/控制台/brief.md:14408`,计划摘要将本字段草案路由到控制台主管做只读 RFC/字段映射;本轮沿用既有只读 RFC `projects/控制台/artifacts/llm-routing-field-rfc-20260629/RFC.md`,不新建平行契约。RFC 覆盖五字段定义、稳定 ID/父子关系、源日志盘点、当前字段映射、`cost` linked companion record、`feedback` 单次推理质量边界、`experiment_assignment -> inference_id`、离线/双写迁移与回滚;真实事件日志 `projects/控制台/artifacts/engine-events.jsonl:90463` 可追踪 `supervisor-控制台/cba60654` 入队。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783232103013-cba60654/summary.json` PASS。本轮未安装依赖、未改运行代码、未接外部 runtime、未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T13:46+08:00 · 控制台: 当前 task `cr-1783229985336-9b36fc5b` 已完成《控制台任务 DAG/交接协议 v0》current 归并复核/修订草稿。新增 RFC `projects/控制台/artifacts/architecture/task-dag-handoff-protocol-current-1783229985336-20260705.md`,以 2026-06-29 `task-dag-handoff-protocol-v0.md` 为主基线,归并 `agent-handoff-protocol-v0.1-burr-acp-agent-protocol-20260703.md` 与 `handoff-minimal-fields-design-current-1783224654342-20260705.md`,不新开平行 v0。文档顶部保留非运行时契约红线,所有候选字段标 `proposal_only / draft_unapproved / not_runtime_contract / runtime_consumed=false`;`human_gate_status` 只表示人工门禁状态,不自动放行登录/OAuth/扫码/2FA。任务链反写 root `cr-1783229799190-626d10c6`、rootQueue `ceo/626d10c6`、supervisor queue `9b36fc5b` 与来源候选 `board/insights/insights.md:77-101`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783229985336-9b36fc5b/summary.json` PASS。视觉证据为 Peekaboo screen PNG `projects/控制台/artifacts/task-dag-handoff-protocol-current-20260705/peekaboo-screen-current-1783229985336-20260705.png` 与 Codex 报告 `projects/控制台/artifacts/task-dag-handoff-protocol-current-20260705/codex-visual-review-task-dag-handoff-current-1783229985336-20260705.md`,明确本轮无 UI 变更。未安装依赖、未改运行代码、未改 queue/eventlog/scheduler/通知/runner、未接外部 runtime, 排除。
+
+- 2026-07-05T13:21+08:00 · 控制台: 当前 task `cr-1783228718439-c42c7ece` 已完成控制台现有 skill/tool 只读治理试点 current refresh。沿用集中目录 `projects/控制台/.agent/governance/readonly-skill-tool-pilot-20260629/`,更新 `AGENTS.md`/`llms.txt`/`apm.yml`/`apm.lock.yaml`/`pilot-summary.md`:显式 `pilot_only / readonly_governance / not_runtime_contract`,不安装外部 runtime、不改被治理源文件、不批量迁移历史、不构成运行时契约。实际覆盖 3 个 tool(`review_loop`/`queue_organize`/`serial_smoke_test`),未覆盖 skill;hash 口径为 SHA256 + source file working-tree bytes,lock 记录 `head_short=e542a50` 和 dirty caveat;license 缺失统一 `UNKNOWN` 并要求 human review;权限按 low/medium/high 分级,中高风险或 UNKNOWN 均需人审。视觉报告 `projects/控制台/artifacts/readonly-skill-tool-pilot-current-20260705/codex-visual-review-readonly-skill-tool-pilot-current-1783228718439-20260705.md` 说明本轮无 UI 改动且当前 Peekaboo 捕获退化,复用同日有效工作区 PNG 作为基线;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783228718439-c42c7ece/summary.json` PASS。未触发网络/模型/进程/队列/GUI/密钥副作用, 排除。
+
+- 2026-07-05T13:03+08:00 · 控制台: 当前 task `cr-1783227401522-7e413ecc` 已完成 CEO brief 派发的像素素材生成工作台只读 UI/RFC current。新增 RFC `projects/控制台/artifacts/architecture/pixel-asset-workbench-ui-rfc-current-1783227401522-20260705.md`,定义 Canvas/Timeline/Dual-layer retouch/Asset export 四块交互基线,补 office-image V3 `footprint/sourceCanvas/anchor/zIndexBand` 元数据关系、PixiEditor LGPL-3.0/Gumdrop Apache-2.0/Supabase Apache-2.0 许可证边界、UI 学习案例原则和继续设计但暂缓实现建议。Peekaboo 当前 Safari 工作区截图 `projects/控制台/artifacts/pixel-asset-workbench-ui-rfc-current-20260705/peekaboo-safari-workspace-after-open-20260705.png` 与 Codex 挑错报告已归档;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783227401522-7e413ecc/summary.json` PASS。本轮未安装依赖、未改运行代码/前端/队列/导出脚本/游戏项目, 排除。
+
+- 2026-07-05T12:45+08:00 · 控制台: 当前 task `cr-1783226430634-560fecfa` 已完成 CEO brief 派发的 LLM 调用日志、评分与路由离线评测 current 修订。新增文档 `projects/控制台/artifacts/architecture/llm-call-log-eval-routing-review-current-1783226430634-20260705.md`,在 2026-06-29 v0 基础上补齐董事会第 1 轮问题:结构化 `route_decision` 含候选列表/决策原因/关键指标快照/fallback context;`safety` 拆为 secret/PII/content logging/project/auth/harm/license/data-minimization 子维度;补 denylist、正文脱敏、可验证脱敏测试和  样本过滤;LLM judge 记为普通 LLM 调用并防评分回环,要求人工标签校准;离线路由 current baseline 明确取 `shared/routing/model-routing.yaml`,fallback 独立 fault samples 对齐 `subscription -> api -> local` 与 `failover.js` 分类。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783226430634-560fecfa/summary.json` PASS。本轮未安装依赖、未改运行代码、未接外部 runtime/cloud/SDK/collector/router、未触碰密钥/登录/授权, 排除;Phoenix ELv2/self-host/cloud/SDK/UI 边界列 owner_decision。
+
+- 2026-07-05T12:26+08:00 · 控制台: 当前 task `cr-1783225489521-685e97d9` 已完成 CEO brief 派发的 LLM 路由日志字段 RFC 与映射 current 收口。CEO brief 已原则采纳 `function/variant/inference/feedback/experiment` 作为字段命名草案;本轮沿用既有只读 RFC `projects/控制台/artifacts/llm-routing-field-rfc-20260629/RFC.md`,不新建平行契约。RFC 覆盖五字段定义、稳定 ID/父子关系、源日志盘点、当前字段映射、`cost` linked companion record、`feedback` 单次推理质量边界、`experiment_assignment -> inference_id`、离线/双写迁移与回滚。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783225489521-685e97d9/summary.json` PASS。本轮未安装依赖、未改运行代码、未接外部 runtime、未触碰密钥/登录/授权, 排除。
+
+- 2026-07-05T12:12+08:00 · 控制台: 当前 task `cr-1783224654342-36aaadd8` 已完成 CEO brief 派发的 handoff 协议最小字段表 current 设计对照。结论为沿用 2026-06-29 既有 8 字段 `target/source/reason/context_digest/resume_state_ref/timeout/retry_policy/human_gate_status`,补齐当前 C 类拍板和秘书入口边界,继续作为 `proposal_only / draft_unapproved / not_runtime_contract` 候选字段表;`human_gate_status` 只表示人工门禁状态,不自动放行登录/OAuth/扫码/2FA。current 文档 `projects/控制台/artifacts/architecture/handoff-minimal-fields-design-current-1783224654342-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783224654342-36aaadd8/summary.json` PASS。本轮未接外部 runtime,未改 queue/eventlog/scheduler/通知/runner 或运行代码, 排除。
+
+- 2026-07-05T04:07+08:00 · 控制台: 当前 task `cr-1783223087867-d5434b93` 已完成 Unity/团结工作流方法论长期条目 current retry 收口。CEO brief 已采纳把该方法论列为 `board/insights` 长期条目,既有 `board/insights/unity-workflow-methodology.md` 保持为唯一长期条目,front matter 标注 `projectId=控制台`、`topicProject=Simulaid`、`status=candidate/insight`;三桶 `SO 事件/变量`、`项目协作规范`、`UPM 包治理` 均已存在并以 `候选:` 前缀维护。新增 current retry 收口文档 `projects/控制台/artifacts/architecture/unity-workflow-methodology-current-1783223087867-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783223087867-d5434b93/summary.json` PASS。本轮未改 Unity/团结/UPM/Simulaid 代码,未 clone/构建/登录, 排除。
+
+- 2026-07-05T03:52+08:00 · 控制台: 当前 task `cr-1783222356440-d5434b93` 已完成 Unity/团结工作流方法论长期条目 current 收口。CEO brief 已采纳把该方法论列为 `board/insights` 长期条目,既有 `board/insights/unity-workflow-methodology.md` 保持为唯一长期条目,front matter 标注 `projectId=控制台`、`topicProject=Simulaid`、`status=candidate/insight`;三桶 `SO 事件/变量`、`项目协作规范`、`UPM 包治理` 均已存在并以 `候选:` 前缀维护。新增 current 收口文档 `projects/控制台/artifacts/architecture/unity-workflow-methodology-current-1783222356440-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783222356440-d5434b93/summary.json` PASS。本轮未改 Unity/团结/UPM/Simulaid 代码,未 clone/构建/登录, 排除。
+
+- 2026-07-05T03:35+08:00 · 控制台: 当前 task `cr-1783221661600-bc4af28b` 已完成 CEO brief 派发的 `shared/capability_registry` hot/warm/cold 三层结构试点 current 评估。结论为沿用 2026-06-29 proposal-only 设计 `projects/控制台/artifacts/architecture/capability-registry-three-tier-pilot-20260629.md`,本轮只补 current 文档 `projects/控制台/artifacts/architecture/capability-registry-three-tier-pilot-current-1783221661600-20260705.md`:现有 `registry.json.modules[]` 继续作为 hot 兼容基础,`modules/<id>/module.json + read_order` 作为 warm 入口,cold 仍建议后续独立建 `shared/capability_registry/references/registry-cold/`;`board/insights/` 已有热区最近 4 批 + `references/archive-*` 冷区契约,本轮只对齐口径不迁移数据。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783221661600-bc4af28b/summary.json` PASS;未改运行代码、runner、queue、eventlog、scheduler、`registry.json` 或 `board/insights/` 数据, 排除。
+
+- 2026-07-05T03:08+08:00 · 控制台: 当前 task `cr-1783218814044-b1f6f06e` 已完成 CEO brief 派发的 Unity/团结构建输出只读 PoC current 主管 brief 与离线样例包。结论为建议安排一轮只读 PoC、暂不建议直接模板化;输入来源固定为公告板候选 `Unity-Technologies/UnityDataTools`(`board/insights/insights.md:2865`),备选字段参考 `Unity-Technologies/ProjectAuditor`(`board/insights/insights.md:254`),同项目两次构建基线固定 `release-a` vs `release-b`。样例包 `projects/控制台/artifacts/unity-build-output-poc-20260705/` 包含 README、输入来源快照、构建报告、CSV、SQL、SQLite、脱敏扫描与 Codex 视觉对照说明;报告/CSV/SQLite dump 使用同一敏感模式扫描均无 token、Bearer、api_key、keystore/签名路径、私有仓库路径、本机用户路径、设备标识或私钥形态命中。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783218814044-b1f6f06e/summary.json` PASS。本轮未改运行代码、队列路由、构建脚本、凭据配置或 Unity/团结项目, 排除。
+
+- 2026-07-05T02:50+08:00 · 控制台: 当前 task `cr-1783217819170-be8361ff` 已完成 CEO brief 派发的“角色边界与空转队列归档策略”current 拍板材料。结论为沿用 2026-07-01 v0 主方案,只建议主人先批准 strategy-only 口径:三空转角色 `reasoning_architect/worker_narrow/hr_specialist` 作为 `reserved` 且默认不可发现/不可路由;历史队列 `zhipu_designer/board_gpt55/secretary-smoke` 进入 `archived`;`memory_officer` 为 canonical,`memory-officer` 为 hidden/read-only alias。current 文档 `projects/控制台/artifacts/architecture/role-boundary-empty-queue-archive-policy-current-1783217819170-20260705.md` 补齐当前差异:`reasoning_architect.archived` 只是无代码消费者的软标记,`memory-officer` 历史队列已增至 39 done/1 failed,仍不能移动历史 JSON。证据:owner decision JSON `projects/控制台/artifacts/role-queue-lifecycle-20260705/owner-decision-card-role-queue-lifecycle-current-be8361ff.json`;视觉/Codex 报告 `projects/控制台/artifacts/role-queue-lifecycle-20260705/codex-visual-review-role-queue-lifecycle-current-be8361ff-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783217819170-be8361ff/summary.json` PASS。本轮未改 runtime route/queue/UI/worker 代码,也未执行真实归档或命名合并。
+
+- 2026-07-05T02:40+08:00 · 控制台: 当前 task `cr-1783217396926-567ded2f` 已完成 CEO brief 派发的“董事会纯 API runner 缺席/降级策略”current 拍板材料。结论为建议主人只先批准 `observe_from_actual_attempts`,不新增外部 API 探测成本;24 小时实际失败样本达标后再考虑 `async_probe_observe_only`,更后才进入 `ui_absent/soft_ticket`。current 文档 `projects/控制台/artifacts/architecture/board-api-runner-absence-degrade-policy-current-1783217396926-20260705.md` 补齐董事修订:live probe 成本/频率硬上限、5 分钟连续 3 次且跨 2 轮的 transient 升级阈值、健康探测异步不阻塞主流程、审计字段 `runner_status/reason/exit_code/stderr_tail_redacted/evidence_ref`、错误枚举、工单按 `runner+provider+error_class` 去重并在 cooldown 压制达阈值后升级主人/根因。GLM 预扣费失败归 `quota/degraded`,Kimi 401/key 未验证归 `auth/absent`;429/timeout 不误开 auth 工单。证据:owner decision JSON `projects/控制台/artifacts/runner-absence-policy-20260705/owner-decision-card-runner-absence-policy-current-567ded2f.json`;视觉/Codex 报告 `projects/控制台/artifacts/runner-absence-policy-20260705/codex-visual-review-runner-absence-policy-current-567ded2f-20260705.md`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783217396926-567ded2f/summary.json` PASS。本轮未改 runtime runner/gate/队列/UI 代码,也未启用 live probe 或自动维修工单。
+
+- 2026-07-05T02:10+08:00 · 控制台: 当前 task `cr-1783216560964-6673969e` 已完成公告板周清算复核。结论为普通非维修卡归档方向基本合理,但清算摘要声明“维修工单卡不清算”与实际归档冲突:维修工单 `repair-auto-20260619173151-26da0c8774df06e2` 被规则 a `queue-done-over-7d` 误归档,已按摘要允许的翻案方式把 `projects/控制台/artifacts/bulletin/cards.json` 中该卡 `status` 从 `archived` 恢复为 `enabled`。同时修复 `projects/控制台/tools/bulletin-weekly-cleanup.js`,让维修卡在规则 a/b/c/d 全部豁免,并在 `tests/bulletin-weekly-cleanup.test.js` 增加 queue done 超 7 天维修卡不归档夹具。证据报告 `projects/控制台/artifacts/bulletin/weekly-cleanup-review-20260705.md`;聚焦验证 `node --check projects/控制台/tools/bulletin-weekly-cleanup.js`、`node tests/bulletin-weekly-cleanup.test.js`、`node shared/engine/demo.js` 均 PASS。全量 `node tests/run.js` exit 1:本轮相关测试已 PASS,剩余无关红灯为 `tests/hardening-hooks.test.js` changed_files/diff gate 断言和既有 `tests/ceo-serial-lock.test.js:513` 时序断言。
 
 - 2026-07-03T02:30+08:00 · 控制台: 当前 task `cr-1783042865866-62ca2a73` 已完成 CEO brief 派发的 agent 交接协议 v0.1 纯文档 brief。结论为建议立项 90 分钟协议对照调研,但本轮不做代码实现、不安装依赖、不接外部 runtime。产物 `projects/控制台/artifacts/architecture/agent-handoff-protocol-v0.1-burr-acp-agent-protocol-20260703.md` 对照 Apache Burr 状态机/持久化/重放、HumanLayer ACP Agent/Task/ToolCall/checkpoint/resume、人审工具调用、Agent Protocol REST/OpenAPI task/step/artifact,形成控制台 Agent/Task/Step/DAG/ToolCall/Artifact 映射、交接消息 schema、状态快照/重放、失败恢复流程、公告板审计字段和字段去向表;所有新增字段保持 `proposal_only / draft_unapproved / not_runtime_contract`。当前 scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783042865866-62ca2a73/summary.json` PASS 且 `projectId=控制台,state=done,gateOk=true`;验证 `node projects/控制台/artifacts/review-loop-fixture/cr-1783042865866-62ca2a73/run-fixture.js`、`node shared/engine/demo.js` 和 fixture `node --check` 均 PASS。全量 `node tests/run.js` 未运行:本轮未改运行代码,且历史仍有既有 `tests/ceo-serial-lock.test.js:513` 时序红灯风险。
 
@@ -143,7 +217,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-29T14:05+08:00 · 控制台: skill/tool 只读治理试点已落盘,产物目录 `projects/控制台/.agent/governance/readonly-skill-tool-pilot-20260629/`;从 `board/insights/insights.md:202-215` 的 HeroUI `llms.txt/agent skills` 借鉴候选和 `memory/decisions.md:677` 前序样例中选定 3 个控制台现有对象:`console.engine.review_loop`、`console.secretary.queue_organize`、`console.tools.serial_smoke_test`。新增 `AGENTS.md`/`llms.txt` agent-facing 入口、`apm.yml`/`apm.lock.yaml` 来源与 hash 台账、候选快照和小结;哈希口径固定为主入口文件 sha256,许可证缺失按 `unknown` 记录,权限/人审规则按写盘/子进程/网络模型/密钥环境判定。本轮未安装外部 runtime、未批量迁移历史、未编辑被治理源文件、未接自动路由;验证 `node shared/engine/demo.js` 与 `node projects/控制台/tools/serial-smoke-test.js` PASS(runRoot `projects/控制台/artifacts/serial-smoke/20260629060523`)。
 
-- 2026-06-29T13:56+08:00 · 控制台: handoff 协议最小字段设计对照已落盘,产物 `projects/控制台/artifacts/architecture/handoff-minimal-fields-design-20260629.md`;覆盖 `target/source/reason/context_digest/resume_state_ref/timeout/retry_policy/human_gate_status`,标注 `proposal_only / draft_unapproved / not_runtime_contract`,只作为下一版交接协议候选字段表。对照 `memory/decisions.md:677/598/680/25/33/65`,明确不安装依赖、不改队列/eventlog/scheduler/通知逻辑、不接外部运行时,Starlaid/星桥硬排除,密钥不回显,登录授权交给主人。当前 task 控制台 scoped review-loop fixture 路径 `projects/控制台/artifacts/review-loop-fixture/cr-1782712470387-aec0b751/summary.json`。
+- 2026-06-29T13:56+08:00 · 控制台: handoff 协议最小字段设计对照已落盘,产物 `projects/控制台/artifacts/architecture/handoff-minimal-fields-design-20260629.md`;覆盖 `target/source/reason/context_digest/resume_state_ref/timeout/retry_policy/human_gate_status`,标注 `proposal_only / draft_unapproved / not_runtime_contract`,只作为下一版交接协议候选字段表。对照 `memory/decisions.md:677/598/680/25/33/65`,明确不安装依赖、不改队列/eventlog/scheduler/通知逻辑、不接外部运行时,硬排除,密钥不回显,登录授权交给主人。当前 task 控制台 scoped review-loop fixture 路径 `projects/控制台/artifacts/review-loop-fixture/cr-1782712470387-aec0b751/summary.json`。
 
 - 2026-06-29T13:38+08:00 · 控制台: LLM 路由日志字段 RFC 与映射完成当前 CEO brief 复核收口;沿用既有只读 RFC `projects/控制台/artifacts/llm-routing-field-rfc-20260629/RFC.md`,确认 CEO 已原则采纳 `function/variant/inference/feedback/experiment` 作为语义草案,`cost` 作为 linked companion record,`feedback` 限单次推理质量信号,`experiment` 通过 assignment 关联 inference 且不替代 trace/session。当前 task 持久化 review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1782711408269-51146753/summary.json` 显示 `ok=true,state=done,projectId=控制台`;本轮未安装依赖、未改运行代码、未引外部 runtime、未触碰密钥/登录。
 
@@ -189,7 +263,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-22T14:49+08:00 · 控制台: 假完成/复审失效代码门禁已落地;project-route direct 不再直入 agent-once 终态,统一经主管 review-loop;CEO 根任务 done 只承认有 implement+review、implementation.done=true、review.pass=true 和交付证据的主管复审记录;`tests/run.js`、review-loop demo、控制台 serial smoke 均 PASS。
 
-- 2026-06-22T03:31+08:00 · 控制台: 误判阈值系统审查完成;产物 `projects/控制台/artifacts/misjudgment-threshold-audit-20260622.md`;已收紧董事会重要架构识别、running stale 判死、自动合并/queue-organizer apply、Starlaid guard 动作边界;`tests/run.js`、review-loop demo、控制台 serial smoke 均 PASS。
+- 2026-06-22T03:31+08:00 · 控制台: 误判阈值系统审查完成;产物 `projects/控制台/artifacts/misjudgment-threshold-audit-20260622.md`;已收紧董事会重要架构识别、running stale 判死、自动合并/queue-organizer apply、 guard 动作边界;`tests/run.js`、review-loop demo、控制台 serial smoke 均 PASS。
 
 - 2026-06-19T03:19:06.302Z · Simulaid: 项目主管完成 7f64ee86; 引擎任务 cr-1781839062484-7f64ee86。
 
@@ -249,7 +323,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-19T22:54:03+08:00 · 控制台: 办公室场景第一步返修完成;`workspace.html` 办公室视图改为 DOM tile 整数拼接 floor/wall,总裁办公室去除 lounge/workzone 大贴图,角色坐姿与桌椅电脑层级收敛;review-loop demo、内联脚本与静态验收 PASS。截图受当前沙箱端口/浏览器限制待主环境补。
 
-- 2026-06-19T23:08+08:00 · 控制台: 办公室场景第一步主管 review-loop 复核 PASS WITH VISUAL GATE;逐条对验五点全达成(DOM tile 整数拼接墙/地、董事长 chairman-idle.webp 坐姿、各角色 sprite-seated-* 坐工位、z-order tile→家具→sprite、props 仅桌/椅/电脑、粗糙角色仅注释不重生成);`node --check` + 内联脚本语法 + 素材在盘 + shared/engine review-loop 全过;边界干净零泄密、Starlaid 未触碰。视觉硬门(§17)因沙箱 EPERM/无浏览器待主环境补 `/workspace?view=office` 截图,属合法 gate。
+- 2026-06-19T23:08+08:00 · 控制台: 办公室场景第一步主管 review-loop 复核 PASS WITH VISUAL GATE;逐条对验五点全达成(DOM tile 整数拼接墙/地、董事长 chairman-idle.webp 坐姿、各角色 sprite-seated-* 坐工位、z-order tile→家具→sprite、props 仅桌/椅/电脑、粗糙角色仅注释不重生成);`node --check` + 内联脚本语法 + 素材在盘 + shared/engine review-loop 全过;边界干净零泄密、 未触碰。视觉硬门(§17)因沙箱 EPERM/无浏览器待主环境补 `/workspace?view=office` 截图,属合法 gate。
 
 - 2026-06-19T14:57:23.883Z · 控制台: 项目主管完成 e52ee04a; 引擎任务 cr-1781880533893-e52ee04a。
 
@@ -285,7 +359,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-19T18:02:27.957Z · 控制台: 项目主管完成 c07bfc2e; 引擎任务 cr-1781891440186-c07bfc2e。
 
-- 2026-06-20T02:06:10+08:00 · 控制台: 项目归属判断误杀根因已修复;新增 `project-guard.js` 统一 Starlaid guard,显式 `projectId=控制台` + 红线声明不再被误判,真正“修复/操作 Starlaid 项目”的任务仍被拦截。`node --check`、`project-guard-smoke-test.js`、`shared/engine/demo.js` review-loop 与控制台 scoped `serial-smoke-test.js` 均 PASS;控制台已重启且 `/api/runners` 正常。
+- 2026-06-20T02:06:10+08:00 · 控制台: 项目归属判断误杀根因已修复;新增 `project-guard.js` 统一  guard,显式 `projectId=控制台` + 红线声明不再被误判,真正“修复/操作  项目”的任务仍被拦截。`node --check`、`project-guard-smoke-test.js`、`shared/engine/demo.js` review-loop 与控制台 scoped `serial-smoke-test.js` 均 PASS;控制台已重启且 `/api/runners` 正常。
 
 - 2026-06-19T18:12:30.595Z · 控制台: 项目主管完成 1a7d2e5d; 引擎任务 cr-1781892148782-1a7d2e5d。
 
@@ -355,7 +429,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-20T07:50:15.615Z · 控制台: 项目主管完成 7c3d157b; 引擎任务 cr-1781941212026-7c3d157b。
 
-- 2026-06-20T16:12+08:00 · 控制台: 自动维修 `auto-20260620081012-26da0c8774df06e2` 修复 project-route Starlaid 守卫二次误杀边界;`project-guard.js` 新增“非主动操作 Starlaid”“红线/Starlaid”排除上下文,避免 CEO 诊断/安全网说明被当成真实 Starlaid 操作;`tests/project-routing.test.js` 与 `tools/project-guard-smoke-test.js` 加本次失败文本回归。复现确认原 result 现归属 `控制台`,真实“修复 Starlaid 项目构建脚本”仍阻断;`node tests/run.js`、`project-guard-smoke-test.js`、`shared/engine/demo.js` PASS;空闲 CEO worker 已重启为 pid 51334 加载新 guard。
+- 2026-06-20T16:12+08:00 · 控制台: 自动维修 `auto-20260620081012-26da0c8774df06e2` 修复 project-route  守卫二次误杀边界;`project-guard.js` 新增“非主动操作 ”“红线/”排除上下文,避免 CEO 诊断/安全网说明被当成真实  操作;`tests/project-routing.test.js` 与 `tools/project-guard-smoke-test.js` 加本次失败文本回归。复现确认原 result 现归属 `控制台`,真实“修复  项目构建脚本”仍阻断;`node tests/run.js`、`project-guard-smoke-test.js`、`shared/engine/demo.js` PASS;空闲 CEO worker 已重启为 pid 51334 加载新 guard。
 
 - 2026-06-20T08:24:18.678Z · 控制台: 项目主管完成 99e43b14; 引擎任务 cr-1781943107099-99e43b14。
 
@@ -363,9 +437,9 @@ _最后更新:2026-07-03_
 
 - 2026-06-20T08:51:41.316Z · 控制台: 项目主管完成 93bea973; 引擎任务 cr-1781944660598-93bea973。
 
-- 2026-06-20T16:56+08:00 · 控制台: 复核自动维修 `auto-20260620081012-26da0c8774df06e2` 时发现同 fingerprint 在 `auto-20260620085342-26da0c8774df06e2` 复发;根因为 `project-guard.js` 英文动作词无标识符边界,把 `buildSecretaryEnvelope()` 里的 `build` 当成主动 Starlaid 操作。已将英文 action 改为单词边界匹配,补 08:53 brief 回归;真实 08:53 task/result 现推断为 `控制台`,真实“修复 Starlaid 项目构建脚本”仍阻断。`node tests/run.js`、`project-guard-smoke-test.js`、`shared/engine/demo.js`、`serial-smoke-test.js` 均 PASS。
+- 2026-06-20T16:56+08:00 · 控制台: 复核自动维修 `auto-20260620081012-26da0c8774df06e2` 时发现同 fingerprint 在 `auto-20260620085342-26da0c8774df06e2` 复发;根因为 `project-guard.js` 英文动作词无标识符边界,把 `buildSecretaryEnvelope()` 里的 `build` 当成主动  操作。已将英文 action 改为单词边界匹配,补 08:53 brief 回归;真实 08:53 task/result 现推断为 `控制台`,真实“修复  项目构建脚本”仍阻断。`node tests/run.js`、`project-guard-smoke-test.js`、`shared/engine/demo.js`、`serial-smoke-test.js` 均 PASS。
 
-- 2026-06-20T16:58+08:00 · 控制台: 完成 repair 队列 done=10 正式复盘并已飞书老板;归属判死类确认当前 `project-guard.js` 覆盖 `1d8280e3`/`5f3cda38`/`934250b9` 已知文本,真实 Starlaid 操作仍阻断;`92d857a28bf118c5` 三次 node_failed 核实为 Codex 运行超时/result.md 为空,不是 Meowa 失败。本轮补自动维修根治:自动工单不再进公告板,直入 `repair` priority=0,完成清关联卡,残留 done 卡启用跳过;新增 `tests/repair-ticket-bulletin.test.js`。`node tests/run.js`、project guard smoke、review-loop demo、控制台 scoped serial smoke 与 agents-check 均 PASS;复盘文档 `projects/控制台/artifacts/repair-retrospective-20260620.md`。
+- 2026-06-20T16:58+08:00 · 控制台: 完成 repair 队列 done=10 正式复盘并已飞书老板;归属判死类确认当前 `project-guard.js` 覆盖 `1d8280e3`/`5f3cda38`/`934250b9` 已知文本,真实  操作仍阻断;`92d857a28bf118c5` 三次 node_failed 核实为 Codex 运行超时/result.md 为空,不是 Meowa 失败。本轮补自动维修根治:自动工单不再进公告板,直入 `repair` priority=0,完成清关联卡,残留 done 卡启用跳过;新增 `tests/repair-ticket-bulletin.test.js`。`node tests/run.js`、project guard smoke、review-loop demo、控制台 scoped serial smoke 与 agents-check 均 PASS;复盘文档 `projects/控制台/artifacts/repair-retrospective-20260620.md`。
 
 - 2026-06-20T09:01:34.959Z · 控制台: 项目主管完成 6d859c87; 引擎任务 cr-1781945624212-6d859c87。
 
@@ -387,7 +461,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-20T10:29:37.333Z · 控制台: 项目主管完成 6d32fcc2; 引擎任务 cr-1781950951947-6d32fcc2。
 
-- 2026-06-20T18:38+08:00 · 控制台: computer-use/Peekaboo GUI 动作节点已加执行后截图核验与一次失败自愈 MVP;每次 `gui_desktop_control` 节点记录 before/after 截图、sha256/bytes 判定、`action.verify`/`action.heal` 事件和 `computer_use_action_verify` evidence。未落地时自动重定位/重试一步,截图能力不可用则结构化上报。验证:`visual-action-verify-smoke` PASS(`projects/控制台/artifacts/visual-action-verify-smoke/20260620103702`),真实 Peekaboo 截图 PASS(`projects/控制台/artifacts/action-verify-real-20260620183727/frontmost.png`),控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260620103714`),`node tests/run.js` PASS;未新增服务/依赖,未改截图后端,Starlaid 未触碰。
+- 2026-06-20T18:38+08:00 · 控制台: computer-use/Peekaboo GUI 动作节点已加执行后截图核验与一次失败自愈 MVP;每次 `gui_desktop_control` 节点记录 before/after 截图、sha256/bytes 判定、`action.verify`/`action.heal` 事件和 `computer_use_action_verify` evidence。未落地时自动重定位/重试一步,截图能力不可用则结构化上报。验证:`visual-action-verify-smoke` PASS(`projects/控制台/artifacts/visual-action-verify-smoke/20260620103702`),真实 Peekaboo 截图 PASS(`projects/控制台/artifacts/action-verify-real-20260620183727/frontmost.png`),控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260620103714`),`node tests/run.js` PASS;未新增服务/依赖,未改截图后端, 未触碰。
 
 - 2026-06-20T10:41:38.454Z · 控制台: 项目主管完成 29067b54; 引擎任务 cr-1781951550836-29067b54。
 
@@ -421,7 +495,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-21T07:22:42.124Z · 控制台: 项目主管完成 4d233b0b; 引擎任务 cr-1782025598565-4d233b0b。
 
-- 2026-06-21T18:27+08:00 · 控制台: 董事长 handoff 秘书比例返修完成;只用 Meowa 正式提交 1 轮 `pixel_char_1`(job `572dcccf-b767-4d26-b801-df0326fffe69`),新增 `secretary-walk-v2.png` 并把 `workspace.html` handoff 引用切到新素材;秘书显示从 78px 小人改为 102px/scale 1,换算可见高约 89.3px,与董事长约 89.4px 协调。Peekaboo 有效截图与局部裁切在 `projects/控制台/artifacts/chairman-handoff-secretary-v2-verify/`;`tests/run.js`、review-loop demo、project guard smoke、控制台 scoped serial smoke 与 agents-check 均 PASS;Starlaid 未触碰、密钥未回显。
+- 2026-06-21T18:27+08:00 · 控制台: 董事长 handoff 秘书比例返修完成;只用 Meowa 正式提交 1 轮 `pixel_char_1`(job `572dcccf-b767-4d26-b801-df0326fffe69`),新增 `secretary-walk-v2.png` 并把 `workspace.html` handoff 引用切到新素材;秘书显示从 78px 小人改为 102px/scale 1,换算可见高约 89.3px,与董事长约 89.4px 协调。Peekaboo 有效截图与局部裁切在 `projects/控制台/artifacts/chairman-handoff-secretary-v2-verify/`;`tests/run.js`、review-loop demo、project guard smoke、控制台 scoped serial smoke 与 agents-check 均 PASS; 未触碰、密钥未回显。
 
 - 2026-06-21T10:30:56.943Z · 控制台: 项目主管完成 484fe1a2; 引擎任务 cr-1782037006564-484fe1a2。
 
@@ -429,35 +503,35 @@ _最后更新:2026-07-03_
 
 - 2026-06-21T11:08:23.295Z · 控制台: 项目主管完成 50b0e526; 引擎任务 cr-1782039358847-50b0e526。
 
-- 2026-06-21T19:15+08:00 · 控制台: 飞书出问题卡片再简化完成;失败/需确认/卡住自动通知改为「任务原始短名 + 处理状态 + 下一步」三行,不再把 `supervisor-控制台/queueId`、`node_failed`、`engine_heartbeat_at`、heartbeat/心跳/超时等技术细节展示给老板;`supervisor-控制台` 等处理者映射为「控制台主管智能体」等中文 agent。已真实发送验证卡片 `【自动:】任务出问题: 飞书卡片简化` 且 `sent=true`;`owner-auto-notify-test`、`tests/run.js`、mechanisms smoke、review-loop demo、控制台 scoped serial smoke 与 project guard smoke 均 PASS;Starlaid 未触碰、密钥未回显。
+- 2026-06-21T19:15+08:00 · 控制台: 飞书出问题卡片再简化完成;失败/需确认/卡住自动通知改为「任务原始短名 + 处理状态 + 下一步」三行,不再把 `supervisor-控制台/queueId`、`node_failed`、`engine_heartbeat_at`、heartbeat/心跳/超时等技术细节展示给老板;`supervisor-控制台` 等处理者映射为「控制台主管智能体」等中文 agent。已真实发送验证卡片 `【自动:】任务出问题: 飞书卡片简化` 且 `sent=true`;`owner-auto-notify-test`、`tests/run.js`、mechanisms smoke、review-loop demo、控制台 scoped serial smoke 与 project guard smoke 均 PASS; 未触碰、密钥未回显。
 
 - 2026-06-21T11:19:14.277Z · 控制台: 项目主管完成 f0c1b6f9; 引擎任务 cr-1782040291147-f0c1b6f9。
 
-- 2026-06-21T19:36+08:00 · 控制台: 董事会机制落地;新增 DeepSeek(new-api)/GLM-5.2(zhipu-glm)/GPT-5.5(codex)/Opus-4.8(claude) 四董事 agent 与评议引擎,秘书重要架构识别接入 project-route,最多 3 轮挑刺整合,默认执行,仅第 3 轮后 Opus 判仍有误判风险时生成给主人点击的决策卡并通过飞书交互卡按钮打开控制台;任务板显示“董事会评议中(第 X/3 轮)”,评议记录沉淀到 `memory/decisions.md`。验证:`tests/run.js`、`agents-check`、控制台 scoped serial-smoke review-loop PASS(`projects/控制台/artifacts/serial-smoke/20260621113838`);Starlaid 未触碰、密钥未回显。
+- 2026-06-21T19:36+08:00 · 控制台: 董事会机制落地;新增 DeepSeek(new-api)/GLM-5.2(zhipu-glm)/GPT-5.5(codex)/Opus-4.8(claude) 四董事 agent 与评议引擎,秘书重要架构识别接入 project-route,最多 3 轮挑刺整合,默认执行,仅第 3 轮后 Opus 判仍有误判风险时生成给主人点击的决策卡并通过飞书交互卡按钮打开控制台;任务板显示“董事会评议中(第 X/3 轮)”,评议记录沉淀到 `memory/decisions.md`。验证:`tests/run.js`、`agents-check`、控制台 scoped serial-smoke review-loop PASS(`projects/控制台/artifacts/serial-smoke/20260621113838`); 未触碰、密钥未回显。
 
 - 2026-06-21T11:41:36.348Z · 控制台: 项目主管完成 8eb75e34; 引擎任务 cr-1782040829852-8eb75e34。
 
 - 2026-06-21T12:10:53.476Z · 控制台: 项目主管完成 d68e767f; 引擎任务 cr-1782043128030-d68e767f。
 
-- 2026-06-21T23:43+08:00 · 控制台: 并发设计评估已通过飞书发老板,标题 `【自动:】并发设计评估`,发送返回 `sent=true/code=0`;结论为老板方案方向对且够用,但落地需吸收董事会修订:资源域锁升 P0-infra、写锁固定序一次申请、读锁禁升级、lease+PID+starttime/token、防回滚语义真空,并先上多文件并发改写降级串行止血。验证:`shared/engine/demo.js` review-loop PASS、控制台 scoped serial-smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621154327`)、`tests/run.js` 全绿;Starlaid 未触碰、密钥未回显。
+- 2026-06-21T23:43+08:00 · 控制台: 并发设计评估已通过飞书发老板,标题 `【自动:】并发设计评估`,发送返回 `sent=true/code=0`;结论为老板方案方向对且够用,但落地需吸收董事会修订:资源域锁升 P0-infra、写锁固定序一次申请、读锁禁升级、lease+PID+starttime/token、防回滚语义真空,并先上多文件并发改写降级串行止血。验证:`shared/engine/demo.js` review-loop PASS、控制台 scoped serial-smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621154327`)、`tests/run.js` 全绿; 未触碰、密钥未回显。
 
 - 2026-06-21T15:46:26.703Z · 控制台: 项目主管完成 d8e4626e; 引擎任务 cr-1782056505393-d8e4626e。
 
-- 2026-06-21T16:03+08:00 · 控制台: 维修员职责准则固化完成;`shared/agents/repair/prompt.md` 新增「核心工作准则」作为单一事实源,补近似问题处理、预防性加固、根因、提单/修复闭环、L1/L2/L3 范围闸门与 4d98f373 破死锁闭环补办路径。新增 repair-only 薄 skill `/Users/yutu6/.codex/skills/repair-work-principles` 并在 `shared/capability_registry/skills-manifest.md` 登记 path/scope/source_of_truth/source_version=`sha256:00ca8249157ce37ba1d9894ab6bcbe7bf9d863e6896c33bb652c94583276c96b`;dry-run artifact 覆盖 typo/NPE 行为回归。验证:hash 一致、skill 未复写准则原文、prompt 无重复句、`node shared/engine/demo.js` review-loop PASS、`agents-check` PASS、`tests/run.js` 全绿、控制台 serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621160259`);Starlaid 未触碰、密钥未回显。
+- 2026-06-21T16:03+08:00 · 控制台: 维修员职责准则固化完成;`shared/agents/repair/prompt.md` 新增「核心工作准则」作为单一事实源,补近似问题处理、预防性加固、根因、提单/修复闭环、L1/L2/L3 范围闸门与 4d98f373 破死锁闭环补办路径。新增 repair-only 薄 skill `/Users/yutu6/.codex/skills/repair-work-principles` 并在 `shared/capability_registry/skills-manifest.md` 登记 path/scope/source_of_truth/source_version=`sha256:00ca8249157ce37ba1d9894ab6bcbe7bf9d863e6896c33bb652c94583276c96b`;dry-run artifact 覆盖 typo/NPE 行为回归。验证:hash 一致、skill 未复写准则原文、prompt 无重复句、`node shared/engine/demo.js` review-loop PASS、`agents-check` PASS、`tests/run.js` 全绿、控制台 serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621160259`); 未触碰、密钥未回显。
 
 - 2026-06-21T16:05:41.737Z · 控制台: 项目主管完成 1a1208fe; 引擎任务 cr-1782057559739-1a1208fe。
 
-- 2026-06-21T16:50+08:00 · 控制台: 董事会“重要架构”识别已收紧并重开;`board-review.js` 只对核心引擎、队列机制、路由、agent体系、数据架构、版本发布、并发与锁触发董事会,UI/视觉/文案/显示/样式/运行时长/单文件前端小改直接排除。`d6e748c5` 运行时长显示场景回归为普通任务,`改队列引擎/路由/并发锁` 仍触发;`config.json` 的 `boardReviewControl.enabled=true`。验证:`board-review.test.js`、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621164943`);Starlaid 未触碰、密钥未回显。
+- 2026-06-21T16:50+08:00 · 控制台: 董事会“重要架构”识别已收紧并重开;`board-review.js` 只对核心引擎、队列机制、路由、agent体系、数据架构、版本发布、并发与锁触发董事会,UI/视觉/文案/显示/样式/运行时长/单文件前端小改直接排除。`d6e748c5` 运行时长显示场景回归为普通任务,`改队列引擎/路由/并发锁` 仍触发;`config.json` 的 `boardReviewControl.enabled=true`。验证:`board-review.test.js`、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621164943`); 未触碰、密钥未回显。
 
 - 2026-06-21T16:53:03.804Z · 控制台: 项目主管完成 c61bae97; 引擎任务 cr-1782060388345-c61bae97。
 
-- 2026-06-22T01:13+08:00 · 控制台: 董事会误触发止血生效;维修员通过 `projects/控制台/tools/console-restart-detached.js` 自主 detached 重启控制台,日志 `projects/控制台/artifacts/console-restart/com.yutu6.console.restart.20260621170409.25581.log` 显示旧 server/worker 已优雅停止并于 17:05:23Z 拉起新进程,队列文件保留。`projects/控制台/config.json` 维持 `boardReviewControl.enabled=false`;`d3849ba0` 重启后恢复同一 root task,未再产生 `board.review.*`,直接 `project.brief.written` 并路由 `supervisor-控制台/382e3eba` 等下游。`board-review.js` 的开关路径为每次 `shouldRunBoardReview` 现读 config,验证:`node tests/board-review.test.js` PASS,隔离 `engine-runner` 烟测在真实 config=false 且 spec 强制 `boardReview.required=true` 时 `boardEvents=0`、直接写 brief/路由;Starlaid 未触碰、密钥未回显。
+- 2026-06-22T01:13+08:00 · 控制台: 董事会误触发止血生效;维修员通过 `projects/控制台/tools/console-restart-detached.js` 自主 detached 重启控制台,日志 `projects/控制台/artifacts/console-restart/com.yutu6.console.restart.20260621170409.25581.log` 显示旧 server/worker 已优雅停止并于 17:05:23Z 拉起新进程,队列文件保留。`projects/控制台/config.json` 维持 `boardReviewControl.enabled=false`;`d3849ba0` 重启后恢复同一 root task,未再产生 `board.review.*`,直接 `project.brief.written` 并路由 `supervisor-控制台/382e3eba` 等下游。`board-review.js` 的开关路径为每次 `shouldRunBoardReview` 现读 config,验证:`node tests/board-review.test.js` PASS,隔离 `engine-runner` 烟测在真实 config=false 且 spec 强制 `boardReview.required=true` 时 `boardEvents=0`、直接写 brief/路由; 未触碰、密钥未回显。
 
-- 2026-06-22T01:16+08:00 · 控制台: HR 部门落地并完成全员职责边界审核;新增/登记 HR 主管(claude-code)与 HR 专员(zhipu-glm)、HR 共享知识区、`shared/DATA-MAP.md`、入职脚本、办公室人力资源部片区与两个工位。15 个持久 agent 均已补 `boundary_statement` 和 prompt 职责边界声明,归位规则明确为卡住/进程/修复/重启/授权归维修员、项目内规划归主管、CEO 只给目标/归属/brief/验收口径;`worker_code` 等执行位分类为运行时角色/runner 能力,Gitee/IT 版本管理默认归维修员。产物 `projects/控制台/artifacts/hr/boundary-audit-20260622.md` 与 `boundary-hardening-checklist-20260622.md`;验证 `agents-check`、HR smoke、HR/agent/workspace/project-routing 单测、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621171600`);Starlaid 未触碰、密钥未回显。
+- 2026-06-22T01:16+08:00 · 控制台: HR 部门落地并完成全员职责边界审核;新增/登记 HR 主管(claude-code)与 HR 专员(zhipu-glm)、HR 共享知识区、`shared/DATA-MAP.md`、入职脚本、办公室人力资源部片区与两个工位。15 个持久 agent 均已补 `boundary_statement` 和 prompt 职责边界声明,归位规则明确为卡住/进程/修复/重启/授权归维修员、项目内规划归主管、CEO 只给目标/归属/brief/验收口径;`worker_code` 等执行位分类为运行时角色/runner 能力,Gitee/IT 版本管理默认归维修员。产物 `projects/控制台/artifacts/hr/boundary-audit-20260622.md` 与 `boundary-hardening-checklist-20260622.md`;验证 `agents-check`、HR smoke、HR/agent/workspace/project-routing 单测、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621171600`); 未触碰、密钥未回显。
 
 - 2026-06-21T17:20:11.113Z · 控制台: 项目主管完成 382e3eba; 引擎任务 cr-1782062041805-382e3eba。
 
-- 2026-06-22T01:33+08:00 · 控制台: 系统稳定与性能落地完成;维修员内存维护脚本与 launchd 模板已复核(12小时巡检,仅队列空闲+内存压力+冷却到期才 `purge`,不杀活进程),自动优化师长跑维护脚本已复核(15分钟 watchdog/资源/体积巡检,高危动作只写 nextActions),资源域并发控制补齐 `currentResourceConflicts` 与非 CEO 队列资源感知 claim,可跳过冲突队首任务认领后续无冲突项,执行前仍强制 lease。验证:`resource-locks-smoke-test`、维护脚本 dry-run、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621173315`);Starlaid 未触碰、密钥未回显。
+- 2026-06-22T01:33+08:00 · 控制台: 系统稳定与性能落地完成;维修员内存维护脚本与 launchd 模板已复核(12小时巡检,仅队列空闲+内存压力+冷却到期才 `purge`,不杀活进程),自动优化师长跑维护脚本已复核(15分钟 watchdog/资源/体积巡检,高危动作只写 nextActions),资源域并发控制补齐 `currentResourceConflicts` 与非 CEO 队列资源感知 claim,可跳过冲突队首任务认领后续无冲突项,执行前仍强制 lease。验证:`resource-locks-smoke-test`、维护脚本 dry-run、`tests/run.js`、review-loop demo、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621173315`); 未触碰、密钥未回显。
 
 - 2026-06-21T17:37:34.511Z · 控制台: 项目主管完成 532b3556; 引擎任务 cr-1782062932125-532b3556。
 
@@ -467,7 +541,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-21T18:31:30.165Z · 控制台: 项目主管完成 794a3c4b; 引擎任务 cr-1782066320909-794a3c4b。
 
-- 2026-06-22T03:40+08:00 · 控制台: 误判阈值系统审查增量收紧完成;`project-guard` 剥离 Starlaid 代码标识符并补否定语境,`board-review` 增加结构化范围/动作判定和 UI 展示排除,`engine-runner` 直路由支持结构化 agent 且否定提及不误派,`watchdog` 将 heartbeat 与明确进展分开判定。报告更新 `projects/控制台/artifacts/misjudgment-threshold-audit-20260622.md`;验证 `tests/run.js` 全部 17 套件 PASS、`shared/engine/demo.js` review-loop PASS、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621194000`, nodeOverlap=null, slot=[1,1,1,1]);Starlaid 未触碰、密钥未回显。
+- 2026-06-22T03:40+08:00 · 控制台: 误判阈值系统审查增量收紧完成;`project-guard` 剥离  代码标识符并补否定语境,`board-review` 增加结构化范围/动作判定和 UI 展示排除,`engine-runner` 直路由支持结构化 agent 且否定提及不误派,`watchdog` 将 heartbeat 与明确进展分开判定。报告更新 `projects/控制台/artifacts/misjudgment-threshold-audit-20260622.md`;验证 `tests/run.js` 全部 17 套件 PASS、`shared/engine/demo.js` review-loop PASS、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260621194000`, nodeOverlap=null, slot=[1,1,1,1]); 未触碰、密钥未回显。
 
 - 2026-06-21T19:46:18.676Z · 控制台: 项目主管完成 a2824767; 引擎任务 cr-1782070874712-a2824767。
 
@@ -475,7 +549,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-22T06:38:41.814Z · 控制台: 项目主管完成 589d8543; 引擎任务 cr-1782109985075-589d8543。
 
-- 2026-06-22T15:01+08:00 · 控制台: 资源域感知真并发落地;`ENGINE_MAX_CONCURRENCY` 默认改为 3,单 queue worker 支持上限内 in-flight 并发,CEO 单活跃锁默认关闭并改为兼容开关,CEO 队列也走资源域调度;资源锁推断收窄为输入 brief 只读、目标/changed_files 决定写域。新增 `projects/控制台/tools/concurrency-smoke-test.js` 验证不同域 `frontend-public`/`engine` implement 时间段重叠、同写 `frontend-public` 不重叠,本轮 PASS(`projects/控制台/artifacts/concurrency-smoke/20260622065944`);`tests/run.js`、review-loop demo、resource-locks/mechanisms/project-guard/serial smoke 均 PASS;Starlaid 未触碰、密钥未回显。
+- 2026-06-22T15:01+08:00 · 控制台: 资源域感知真并发落地;`ENGINE_MAX_CONCURRENCY` 默认改为 3,单 queue worker 支持上限内 in-flight 并发,CEO 单活跃锁默认关闭并改为兼容开关,CEO 队列也走资源域调度;资源锁推断收窄为输入 brief 只读、目标/changed_files 决定写域。新增 `projects/控制台/tools/concurrency-smoke-test.js` 验证不同域 `frontend-public`/`engine` implement 时间段重叠、同写 `frontend-public` 不重叠,本轮 PASS(`projects/控制台/artifacts/concurrency-smoke/20260622065944`);`tests/run.js`、review-loop demo、resource-locks/mechanisms/project-guard/serial smoke 均 PASS; 未触碰、密钥未回显。
 
 - 2026-06-22T07:12:19.624Z · 控制台: 项目主管完成 a8c5c845; 引擎任务 cr-1782111781890-a8c5c845。
 
@@ -483,7 +557,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-22T07:35:31.801Z · 控制台: 项目主管完成 31be88d6; 引擎任务 cr-1782113461765-31be88d6。
 
-- 2026-06-22T16:07+08:00 · 控制台: 进行中任务区交互修复已补齐 Peekaboo 硬门证据并收口 PASS;`workspace.html` 保持 CEO running/queued 分流、running 默认完整展开、排队区滚动、点击展开选中、空白点击折叠非运行卡,并补强 selected 覆盖色避免 queued 状态盖住蓝色选中框;`tests/workspace-taskboard.test.js` 增加 selected 覆盖断言。Peekaboo 四项截图在 `projects/控制台/artifacts/running-task-interaction-20260622/peekaboo-final/evidence.md`:① running 完整展开 `01-running-full-expanded-final.png`;② 滚轮下翻 `02-backlog-scrolled-down-window.png`;③ 点击 queued 展开+选中 `03-click-queued-expanded-selected-v2.png`;④ 点别处折叠 queued 为问/解两行 `04-outside-click-queued-collapsed.png`。验证:`node tests/workspace-taskboard.test.js`、workspace 内联脚本、`node tests/run.js`、`node shared/engine/demo.js`、控制台 serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260622080710`);Starlaid 未触碰、密钥未回显。
+- 2026-06-22T16:07+08:00 · 控制台: 进行中任务区交互修复已补齐 Peekaboo 硬门证据并收口 PASS;`workspace.html` 保持 CEO running/queued 分流、running 默认完整展开、排队区滚动、点击展开选中、空白点击折叠非运行卡,并补强 selected 覆盖色避免 queued 状态盖住蓝色选中框;`tests/workspace-taskboard.test.js` 增加 selected 覆盖断言。Peekaboo 四项截图在 `projects/控制台/artifacts/running-task-interaction-20260622/peekaboo-final/evidence.md`:① running 完整展开 `01-running-full-expanded-final.png`;② 滚轮下翻 `02-backlog-scrolled-down-window.png`;③ 点击 queued 展开+选中 `03-click-queued-expanded-selected-v2.png`;④ 点别处折叠 queued 为问/解两行 `04-outside-click-queued-collapsed.png`。验证:`node tests/workspace-taskboard.test.js`、workspace 内联脚本、`node tests/run.js`、`node shared/engine/demo.js`、控制台 serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260622080710`); 未触碰、密钥未回显。
 
 - 2026-06-22T08:23:36.795Z · 控制台: 项目主管完成 3ac3e5ea; 引擎任务 cr-1782115814662-3ac3e5ea。
 
@@ -493,7 +567,7 @@ _最后更新:2026-07-03_
 
 - 2026-06-22T09:03:18.450Z · 控制台: 项目主管完成 dc2ae4e9; 引擎任务 cr-1782118252420-dc2ae4e9。
 
-- 2026-06-22T17:12+08:00 · 控制台: 维修任务独立显示前端实现完成;`workspace.html` 将结构字段识别出的 repair/特权维修 running 从普通任务板剔除,仅在维修 running 时渲染独立“维修任务”区,卡片使用维修员工作态同系红框 `rgba(255,109,109,.98)`。普通任务正文提到“维修”不会误归类。验证:一次性 `workspace-repair-task-split-inline` PASS、`tests/workspace-taskboard.test.js` PASS、`tests/run.js` 全绿、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260622091051`);真实 repair 队列当前无 running,已用 Peekaboo 保存空闲态截图 `projects/控制台/artifacts/repair-task-ui-20260622/idle-no-repair-section.png`;未动后端 slot/队列,Starlaid 未触碰、密钥未回显。
+- 2026-06-22T17:12+08:00 · 控制台: 维修任务独立显示前端实现完成;`workspace.html` 将结构字段识别出的 repair/特权维修 running 从普通任务板剔除,仅在维修 running 时渲染独立“维修任务”区,卡片使用维修员工作态同系红框 `rgba(255,109,109,.98)`。普通任务正文提到“维修”不会误归类。验证:一次性 `workspace-repair-task-split-inline` PASS、`tests/workspace-taskboard.test.js` PASS、`tests/run.js` 全绿、控制台 scoped serial smoke PASS(`projects/控制台/artifacts/serial-smoke/20260622091051`);真实 repair 队列当前无 running,已用 Peekaboo 保存空闲态截图 `projects/控制台/artifacts/repair-task-ui-20260622/idle-no-repair-section.png`;未动后端 slot/队列, 未触碰、密钥未回显。
 
 - 2026-06-22T09:15:15.818Z · 控制台: 项目主管完成 4e43132a; 引擎任务 cr-1782119027883-4e43132a。
 
@@ -692,3 +766,130 @@ _最后更新:2026-07-03_
 - 2026-07-02T14:25:07.536Z · 控制台: 项目主管完成 52703e50; 引擎任务 cr-1783000600755-52703e50。
 
 - 2026-07-03T08:38:14.854Z · 控制台: 项目主管完成 bcec5a06; 引擎任务 cr-1783067230375-bcec5a06。
+
+- 2026-07-05T02:05:59.329Z · 控制台: 项目主管完成 6673969e; 引擎任务 cr-1783216560964-6673969e。
+
+- 2026-07-05T02:20:05.392Z · 控制台: 项目主管完成 567ded2f; 引擎任务 cr-1783217396926-567ded2f。
+
+- 2026-07-05T02:30:34.042Z · 控制台: 项目主管完成 be8361ff; 引擎任务 cr-1783217819170-be8361ff。
+
+- 2026-07-05T02:44:22.199Z · 控制台: 项目主管完成 b1f6f06e; 引擎任务 cr-1783218814044-b1f6f06e。
+
+- 2026-07-05T02:52+08:00 · 控制台: 当前 task `cr-1783219543374-d2cb5c48` 已完成《控制台 a11y 组件行为清单 v0》current implement 收口。结论为建议起草并沿用已落盘 proposal-only v0 `projects/控制台/artifacts/architecture/a11y-component-behavior-checklist-v0-20260630.md`;新增 current addendum `projects/控制台/artifacts/architecture/a11y-component-behavior-checklist-v0-current-1783219543374-20260705.md` 与 Codex 对照报告 `projects/控制台/artifacts/architecture/a11y-component-behavior-checklist-v0-codex-review-current-1783219543374-20260705.md`,复核 WAI-ARIA APG 与 React Aria 官方来源,覆盖 Button/Menu/Tabs/ComboBox/Dialog 的 role/name/state/focus/keyboard 和 computer-use grounding gate 口径。视觉证据复用可核 Peekaboo PNG `projects/控制台/artifacts/architecture/a11y-component-behavior-checklist-v0-peekaboo-20260630.png`;scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783219543374-d2cb5c48/summary.json` PASS。本轮未改运行代码、前端页面、done-gate、runner、队列路由、scheduler 或新增依赖。
+
+- 2026-07-05T02:56:43.977Z · 控制台: 项目主管完成 d2cb5c48; 引擎任务 cr-1783219543374-d2cb5c48。
+
+- 2026-07-05T03:18+08:00 · 控制台: 当前 task `cr-1783220531519-48ce0595` 已完成 agent-handoff-protocol 三件套模板并入评估 current 收口。结论为沿用 2026-06-29 已落盘纯文档模板方案: `templates/handoff-doc.md` 覆盖 handoff 文档的现状、阻塞与风险、下一步、scoped 变更/commit 边界和证据清单;`templates/structured-acceptance-table.md` 覆盖 done gate 只认逐行表、handoff 行号引用、scoped commit 或 `git diff -- <path>` 证据和无证据不得写完成。本轮新增 current 复核文档 `projects/控制台/artifacts/architecture/agent-handoff-protocol-template-fit-current-1783220531519-20260705.md`,scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783220531519-48ce0595/summary.json` PASS。未改模板、依赖、hook、runner、done-gate、queue、eventlog、scheduler、运行代码、密钥或授权。
+
+- 2026-07-05T03:13:36.082Z · 控制台: 项目主管完成 48ce0595; 引擎任务 cr-1783220531519-48ce0595。
+
+- 2026-07-05T03:31:35.746Z · 控制台: 项目主管完成 bc4af28b; 引擎任务 cr-1783221661600-bc4af28b。
+
+- 2026-07-05T03:56:18.415Z · 控制台: 项目主管完成 d5434b93; 引擎任务 cr-1783223087867-d5434b93。
+
+- 2026-07-05T04:00+08:00 · 控制台: 当前 task `cr-1783223921529-8aa8e07d` 已完成 seen-repos / borrowed watch / capability_registry 的 `source_url/license/validated/trust_tier/last_verified_at/next_review_at` 字段契约 current 评审。新增文档 `projects/控制台/artifacts/architecture/source-trust-fields-migration-boundary-current-1783223921529-20260705.md`,明确 `seen-repos.json.repos` 保持 URL `string[]`,未来元数据走 sidecar 或 `repo_meta`;borrowed watch 真实目标是 `board/insights/references/borrowed-watch.json`,保留 `last_checked/last_known_commit`;capability_registry 新字段仅作治理审计,不得进入自动路由/执行准入。`validated=false` 为历史默认,`trust_tier=blocked|unverified|observed|reviewed|trusted` 且历史默认 `unverified`,`next_review_at` 只是数据记录不代表调度器。scoped review-loop fixture `projects/控制台/artifacts/review-loop-fixture/cr-1783223921529-8aa8e07d/summary.json` PASS。本轮未改目标 JSON 数据、外部运行时、runner、queue、scheduler 或密钥/授权。
+
+- 2026-07-05T04:08:55.803Z · 控制台: 项目主管完成 8aa8e07d; 引擎任务 cr-1783223921529-8aa8e07d。
+
+- 2026-07-05T04:23:20.022Z · 控制台: 项目主管完成 36aaadd8; 引擎任务 cr-1783224654342-36aaadd8。
+
+- 2026-07-05T04:36:03.367Z · 控制台: 项目主管完成 685e97d9; 引擎任务 cr-1783225489521-685e97d9。
+
+- 2026-07-05T04:53:58.611Z · 控制台: 项目主管完成 560fecfa; 引擎任务 cr-1783226430634-560fecfa。
+
+- 2026-07-05T05:13:21.502Z · 控制台: 项目主管完成 7e413ecc; 引擎任务 cr-1783227401522-7e413ecc。
+
+- 2026-07-05T05:35:52.833Z · 控制台: 项目主管完成 c42c7ece; 引擎任务 cr-1783228718439-c42c7ece。
+
+- 2026-07-05T05:52:36.763Z · 控制台: 项目主管完成 9b36fc5b; 引擎任务 cr-1783229985336-9b36fc5b。
+- 2026-07-05T14:02:34+0800 · 控制台: worker_code 完成 `cr-1783230966676-803def71` 任务队列失败处置契约 proposal-only RFC;产物 `projects/控制台/artifacts/architecture/queue-failure-disposition-contract-rfc-current-1783230966676-20260705.md`;不改 queue/eventlog/scheduler/runner 运行逻辑。
+
+- 2026-07-05T06:11:55.428Z · 控制台: 项目主管完成 803def71; 引擎任务 cr-1783230966676-803def71。
+
+- 2026-07-05T06:26:12.020Z · 控制台: 项目主管完成 cba60654; 引擎任务 cr-1783232103013-cba60654。
+
+- 2026-07-05T06:41:21.990Z · 控制台: 项目主管完成 dcba9ae5; 引擎任务 cr-1783232933526-dcba9ae5。
+
+- 2026-07-05T06:56:07.768Z · 控制台: 项目主管完成 ac481269; 引擎任务 cr-1783233826419-ac481269。
+
+- 2026-07-05T07:10:39.167Z · 控制台: 项目主管完成 0fa876b6; 引擎任务 cr-1783234698511-0fa876b6。
+
+- 2026-07-05T09:25:07.768Z · 控制台: 项目主管完成 8fc955fb; 引擎任务 cr-1783242659963-8fc955fb。
+
+- 2026-07-05T09:41:55.415Z · 控制台: 项目主管完成 f83950de; 引擎任务 cr-1783243660426-f83950de。
+
+- 2026-07-05T09:57:20.887Z · 控制台: 项目主管完成 71ed31a2; 引擎任务 cr-1783244721286-71ed31a2。
+
+- 2026-07-05T10:18:47.086Z · 控制台: 项目主管完成 7fa7907a; 引擎任务 cr-1783245581040-7fa7907a。
+
+- 2026-07-05T10:34:28.899Z · 控制台: 项目主管完成 cc2b2066; 引擎任务 cr-1783246928133-cc2b2066。
+
+- 2026-07-05T10:59:20.929Z · 控制台: 项目主管完成 370d4bc2; 引擎任务 cr-1783247982734-370d4bc2。
+
+- 2026-07-05T11:13:42.694Z · 控制台: 项目主管完成 9e6f7e6f; 引擎任务 cr-1783249315404-9e6f7e6f。
+
+- 2026-07-05T11:34:48.930Z · 控制台: 项目主管完成 f79fd88c; 引擎任务 cr-1783250121270-f79fd88c。
+
+- 2026-07-05T11:57:44.385Z · 控制台: 项目主管完成 37c69a3e; 引擎任务 cr-1783251444399-37c69a3e。
+
+- 2026-07-05T12:28:35.340Z · 控制台: 项目主管完成 55f7601d; 引擎任务 cr-1783253164752-55f7601d。
+
+- 2026-07-05T12:42:29.540Z · 控制台: 项目主管完成 68761a33; 引擎任务 cr-1783253165137-68761a33。
+
+- 2026-07-05T12:53:28.303Z · 控制台: 项目主管完成 34d209b8; 引擎任务 cr-1783253164945-34d209b8。
+
+- 2026-07-05T13:24:24.980Z · 控制台: 项目主管完成 daebca1b; 引擎任务 cr-1783256510255-daebca1b。
+
+- 2026-07-05T13:47:24.833Z · 控制台: 项目主管完成 cc7822a4; 引擎任务 cr-1783257865901-cc7822a4。
+
+- 2026-07-05T14:11:35.400Z · 控制台: 项目主管完成 4de9088a; 引擎任务 cr-1783259584808-4de9088a。
+
+- 2026-07-05T14:16+08:00 · 控制台: worker_code 完成 `cr-1783259585021-7b8daca7` 崩溃恢复实现;补 `shared/engine/taskstore.js` tmp+fsync+rename 原子写,并在 `tests/crash-recovery-idempotency.test.js` 增加 taskstore 写入崩溃保旧 JSON/清 tmp 回归。`YUTU6_DONE_GATE_EXECUTE=0 node tests/run.js`、crash recovery/queue/stale heartbeat 和 localhost `http://127.0.0.1:41218/api/health` 验证通过;未重启线上 worker。
+
+- 2026-07-05T14:23:07.930Z · 控制台: 项目主管完成 7b8daca7; 引擎任务 cr-1783259585021-7b8daca7。
+
+- 2026-07-05T14:51:03.889Z · 控制台: 项目主管完成 9925b818; 引擎任务 cr-1783261389512-9925b818。
+
+- 2026-07-06T08:09:14.081Z · Simulaid: 项目主管完成 b9c5c42d; 引擎任务 cr-1783324118588-b9c5c42d。
+
+- 2026-07-06T08:30:05.029Z · Simulaid: 项目主管完成 9ddc2d84; 引擎任务 cr-1783325397617-9ddc2d84。
+
+- 2026-07-06T16:44+08:00 · Simulaid: worker_code 完成 `cr-1783325523061-fd472be5` 主世界 `World Status` UI 精修;自动执行低风险头像/vitals 净空、稳定 GameObject 命名、属性值宽度与 raycast guard,版本同步至 `v1.15.17`/`11517`;Tuanjie `SimulaidTestRunner.RunAll` PASS 173/0;真实截图证据 `projects/Simulaid/artifacts/peekaboo-main-world-before-20260706.png` 与 `projects/Simulaid/artifacts/peekaboo-main-world-after-20260706.png`;自省 ledger 与 Codex 视觉报告已归档。
+
+- 2026-07-06T08:48:17.654Z · Simulaid: 项目主管完成 fd472be5; 引擎任务 cr-1783325523061-fd472be5。
+
+- 2026-07-06T09:04:41.046Z · Simulaid: 项目主管完成 92e30d8a; 引擎任务 cr-1783327781699-92e30d8a。
+
+- 2026-07-07T02:35:23.628Z · 控制台: 项目主管完成 505a872f; 引擎任务 cr-1783390585784-505a872f。
+
+- 2026-07-10T10:50:52.472Z · 控制台: 项目主管完成 e4c47f22; 引擎任务 cr-1783680214811-e4c47f22。
+
+- 2026-07-13T09:02:11.557Z · 控制台: 项目主管完成 551accca; 引擎任务 cr-1783932200081-551accca。
+
+- 2026-07-14T06:41:09.928Z · 控制台: 项目主管完成 d26f3e8f; 引擎任务 cr-1784010393526-d26f3e8f。
+
+- 2026-07-14T07:01:21.419Z · 控制台: 项目主管完成 b0b8ea10; 引擎任务 cr-1784011579038-b0b8ea10。
+
+- 2026-07-14T07:32:09.950Z · 控制台: 项目主管完成 1399f17a; 引擎任务 cr-1784012674628-1399f17a。
+
+- 2026-07-14T08:11:52.187Z · 控制台: 项目主管完成 d6e1b61a; 引擎任务 cr-1784014494373-d6e1b61a。
+
+- 2026-07-14T10:59:37.319Z · 控制台: 项目主管完成 0e9019b7; 引擎任务 cr-1784025338751-0e9019b7。
+
+- 2026-07-16T02:35:13.652Z · 控制台: 项目主管完成 6f4d5caf; 引擎任务 cr-1784167841803-6f4d5caf。
+
+- 2026-07-16T04:49:02.812Z · 控制台: 项目主管完成 19856f34; 引擎任务 cr-1784174926627-19856f34。
+
+- 2026-07-16T07:28:50.049Z · 控制台: 项目主管完成 5d6a4273; 引擎任务 cr-1784185100293-5d6a4273。
+
+- 2026-07-16T11:14:59.760Z · 控制台: 项目主管完成 2d9b62e9; 引擎任务 cr-1784199452443-2d9b62e9。
+
+- 2026-07-16T12:48:15.620Z · 控制台: 项目主管完成 51a76d1d; 引擎任务 cr-1784203095226-51a76d1d。
+
+- 2026-07-16T16:59:56.000Z · 控制台: 项目主管完成 1c7f15b0; 引擎任务 cr-1784218223304-1c7f15b0。
+
+- 2026-07-16T20:17:37.475Z · 控制台: 项目主管完成 61b6adf8; 引擎任务 cr-1784230338799-61b6adf8。
+
+- 2026-07-16T20:49:01.957Z · 控制台: 项目主管完成 7ec7ee7f; 引擎任务 cr-1784226794458-7ec7ee7f。
+
+- 2026-07-17T00:26:06.408Z · 控制台: 项目主管完成 a575d518; 引擎任务 cr-1784247229518-a575d518。

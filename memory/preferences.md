@@ -32,7 +32,7 @@
 
 ## 版本落地策略(老板 2026-06-24 定)
 - **真完成 = 全自动 commit + 自动 push 到 gitee**(老板明确选"全都是自动,push 到 gitee")。落在 `version-progress-hook.js` 的默认发布器 `giteeCommitPushPublisher`。
-- **硬约束·密钥安全闸(自动推让泄漏后果更重,绝不松)**:只提交任务声明的 `changed_files` + `VERSION.json`,**绝不 `git add -A`**;剔除 Starlaid/星桥 与密钥路径;commit 前扫暂存区密钥,命中即撤暂存、拒提、回滚版本号。
+- **硬约束·密钥安全闸(自动推让泄漏后果更重,绝不松)**:只提交任务声明的 `changed_files` + `VERSION.json`,**绝不 `git add -A`**;剔除密钥路径;commit 前扫暂存区密钥,命中即撤暂存、拒提、回滚版本号。
 - 远端只有 **gitee**(无 github);push 失败不回滚(本地 commit 已成),记 pushWarning 待补推。
 
 ## 成本观(重要)
@@ -40,7 +40,6 @@
 - 能用 CSS / 复用现有素材就别调付费生图。
 
 ## 红线
-- **Starlaid 硬排除**(任何情况不碰)。
 - **密钥 / token / 身份信息绝不贴聊天、不回显、不写日志/git**;只在本机配置读取。
 - **登录 / 系统授权**:列清单交老板自己做,秘书不碰凭据。
 - 高危 / 不可逆操作先给老板确认。

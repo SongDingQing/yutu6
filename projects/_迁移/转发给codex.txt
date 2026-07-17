@@ -1,0 +1,18 @@
+玉兔6 Codex:把 Simulaid clone 到团结游戏项目统一父目录。GitHub SSH key 已配。
+
+约定:团结(Unity)游戏项目都放 ~/TuanjieProjects/(ASCII 路径,避免构建安卓/iOS 时 Gradle/Xcode 对非英文路径报错)。
+
+步骤:
+1. ssh -T git@github.com 确认认证通过(显示 SongDingQing 即可)。
+2. mkdir -p ~/TuanjieProjects
+3. git clone git@github.com:SongDingQing/Simulaid.git ~/TuanjieProjects/Simulaid
+   （若仓库用 Git LFS,确认 git lfs 已装并 git lfs pull;大资产要拉全。）
+4. 看清并回报(写 projects/_迁移/artifacts/simulaid-clone.txt,不含任何密钥):
+   - clone 结果、git log -1、du -sh ~/TuanjieProjects/Simulaid、是否用 LFS。
+   - 引擎与版本:cat ProjectSettings/ProjectVersion.txt(团结/Unity 版本号)。
+   - 顶层结构:ls 顶层 + Assets/ 一级子目录。
+   - 代码规模:find . -name '*.cs' | wc -l;有无明显第三方包/插件目录。
+   - 目标平台线索:Build/导出设置、是否已配鸿蒙 OpenHarmony / Android / iOS。
+5. Starlaid 全程不碰。
+
+说明:这步要联网 + GitHub SSH,在你本机跑。clone 完主人可把 ~/TuanjieProjects/Simulaid 连进玉兔6 会话,让总管直接读代码做"治坑/AI 提速"分析。

@@ -135,8 +135,11 @@ def ingest_file(db, path, has_vec):
             for r in g.get("relations", []):
                 s, d = ids.get(r.get("src")), ids.get(r.get("dst"))
                 if s and d:
-                    db.execute("INSERT INTO relations(src,dst,type,evidence) VALUES(?,?,?,?)",
-                               (s, d, r.get("type", ""), cid))
+                    db.execute(
+                        "INSERT INTO relations(src,dst,type,evidence) VALUES(?,?,?,?) "
+                        "ON CONFLICT(src,dst,type) DO UPDATE SET "
+                        "status='active', evidence=COALESCE(relations.evidence,excluded.evidence)",
+                        (s, d, r.get("type", ""), cid))
         n += 1
     print(f"  ✓ {rel}: {n} 块")
     return n

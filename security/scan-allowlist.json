@@ -40,6 +40,11 @@
    "path": "projects/控制台/tools/implement-checkpoint-experiment-test.js",
    "line_sha12": "a30d413cf9fd",
    "reason": "实现检查点脱敏实验的固定 HTTP Basic 假夹具,非真实凭据"
+  },
+  {
+   "path": "knowledge/vibe-coding/04-安全红线与运维事故.md",
+   "line_sha12": "9fcf2f0077fb",
+   "reason": "安全规范文字误报:该行要求密钥零硬编码,不包含任何密钥值"
   }
  ]
 }

@@ -14,7 +14,6 @@ The wrapper skill should stay global. Project-specific paths, build commands, ar
 Known route files:
 
 - `Simulaid.md` for `/Users/yutu/Simulaid` / 模拟纪元 / Simulaid.
-- `Starlaid.md` for `/Users/yutu/Projects/Starlaid/Starlaid` / Starlaid / 星桥 / 自动化工厂.
 
 ## Wrapper Support Matrix
 

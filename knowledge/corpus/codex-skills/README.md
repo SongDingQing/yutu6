@@ -2,13 +2,12 @@
 
 > 来源:U盘 `月饼/codex-41-skills-yutu-2026-06-18/`(旧机 yutu 的 `~/.codex/skills` 全量,2026-06-18 抽取)。
 > 用途:**重建源** —— 后续任务需要某项目的能力时,从这里取对应技能重新构建/安装,不必每次回旧机。
-> 已**硬排除 Starlaid**:4 个 starlaid-* 技能 + `project-routes/Starlaid.md` 未归档。
 
 ## 内容
 - `SKILL_ARCHITECTURE.md` —— 旧机技能架构总图(分层、路由原则、各技能定位)。
 - `skill-list.txt` —— 全清单。
-- `skills/` —— 38 个技能目录(41 减去 4 个 starlaid;含 13 个 simulaid-*、玉系列 wrapper、yuanxiao/zongzi/hermes/通用元层等)。
-- `skills/project-routes/` —— 跨项目 wrapper 路由(INDEX/Simulaid;Starlaid 已排除)。
+- `skills/` —— 现有技能归档目录(含 13 个 simulaid-*、玉系列 wrapper、yuanxiao/zongzi/hermes/通用元层等)。
+- `skills/project-routes/` —— 跨项目 wrapper 路由与 Simulaid 路由。
 
 ## 路径迁移须知(旧机→新机)
 技能文档内路径多为旧机 `/Users/yutu/...`,重建/安装到新机时换算:

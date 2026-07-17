@@ -352,3 +352,29 @@
 - 改法:字符类改 GitHub 合法名 `[A-Za-z0-9_.-]` + 尾部句点单独剥;新增 `readJsonWithCorruptBackup`(存在但解析失败 → 先备份 `.corrupt-<ts>` 再自愈重建),两个写回点接入。
 - 验证:`node tests/insight-scout-repos.test.js`(新增 URL 提取 4 断言 + 损坏 JSON 备份自愈用例)pass;`node tests/run.js` 全量 All tests passed。
 - 可复用原则:审计任何"读-改-整体写回"的落盘函数时,必查两问:解析失败的回退值会不会被写回覆盖原文件?提取用的字符类是不是比目标标识符的合法字符集窄?前者补"覆盖前备份",后者以官方合法字符集为准、标点剥离放后处理。
+## 2026-07-13 · 文件队列控制面不能用全历史扫描和永久空闲 worker 维持“常驻”
+- 来源: projects/控制台/artifacts/self-reflection-optimizer/multi-agent-memory-architecture-20260713.md
+- 场景:玉兔6多智能体控制台长期运行且工作区页面保持打开,队列已空但 Node 进程与 V8 堆持续偏高。
+- 现象:server RSS 约 226 MiB,另有 3 个空闲 worker 常驻;页面每 1.5 秒对约 28 个 agent 分别请求队列,隐藏标签页仍轮询;监督器每 10 秒扫描所有终态历史。
+- 根因/判断:“常驻监督”被错误等同于“所有用过的 worker 永久驻留”,“实时页面”被错误等同于“高频全量读取”。文件队列有天然持久性,控制面只需轻量判断 queued/running,终态历史和事件应走缓存/游标。
+- 改法:非持久 worker 连续空闲退出;维修部门显式保留持久 worker;增加 `Q.hasWork()`、队列聚合接口、事件增量游标和终态目录签名缓存;页面隐藏时暂停轮询并防止请求重叠。
+- 验证:`node tests/run.js` 全绿;launchd 真重启并刷新工作区后,server RSS 从 `230928 KiB` 降到 `84528 KiB`,物理占用从 `183.3M` 降到 `32.9M`,页面无 console 错误。
+- 可复用原则:任何多智能体文件队列都应分别设置 worker 生命周期、监督轻探测、历史缓存和页面可见性策略;不要让审计历史的规模直接决定每轮 CPU/内存成本。并发模型数应作为可配置内存档位,涉及吞吐取舍时交给主人拍板。
+
+## 2026-07-16 · 治理建议不能默认升级成完整生产交付链
+- 来源:`projects/控制台/artifacts/self-reflection-optimizer/insight-50-review-20260716.md`。
+- 场景:洞察员基于 13 个一级来源形成 50 条 Agent Harness 建议,按 6 个主题包进入实施。
+- 现象:6 个包累计占用约 5 小时 46 分;一个纯架构任务因董事评语含 UI 字样额外生成 HTML、3840x1920 截图和视觉复核;另一个包已产出实现/测试却被旧验收行打回。201 个任务状态文件中,全角色提示词副本占 69.8%。
+- 根因/判断:机械检查、语义复核和生产执行没有分层;追加式历史 brief 被当热上下文;董事风险评论可污染任务类型;按 ID 去重无法识别跨 slot 的同内容卡。
+- 改法:数量/编号/重复卡/队列时长交静态脚本;角色提示词按流程裁剪;历史 brief 保留作冷总账,主管只读 task-scoped brief;视觉门只看老板原始目标和正式验收;洞察卡增加内容指纹与轻量元数据。
+- 验证:`node tests/insight-workload-audit.test.js`;`node tests/insight-scout-agent-harness-policy.test.js`;`node tests/insight-scout-repos.test.js`;`node tests/project-routing.test.js`;`node tests/ceo-elastic-depth.test.js`。
+- 可复用原则:治理任务也必须受成本治理。能由脚本确定的事实不要让多个模型重复判断;历史总账不能成为每轮热上下文;review comment 只能修订风险,不能靠关键词偷偷改变任务类型;proposal_only 不应默认制造 canary、截图和多轮 skill 改写。
+
+## 2026-07-17 · 等待下游不能靠全历史轮询，高频心跳不等于高频审计
+- 来源:`projects/控制台/artifacts/self-reflection-optimizer/task-runtime-self-reflection-20260717.md`。
+- 场景:7 月 16 日队列持续执行但大量任务未收口，CEO worker 在多个 project-route 父任务上等待下游。
+- 现象:CEO worker 持续占 87.6%-98.0% CPU、约 438-594MB RSS;2026-07-16 的 20,899 条事件中,keepalive + all_blocked 占 65.7%;159 次 runner 调用只产生 9 个 task.done。
+- 根因/判断:`readEngineEventsSince()` 在事件文件每次追加后重读整份历史,`downstreamRefsFromEvents()` 再读一遍,已知子队列仍扫全 agent 终态目录;同时续租安全信号被等频写成人类审计事件。另一条现场链证明:主管找到真缺陷后因负向回执格式错误被整节点重试,导致高价值审查与协议修复绑死。
+- 改法:事件查询改成 offset 增量游标;已知 downstream ref 直查队列文件;相同 keepalive/all_blocked 状态每 60 秒留一条脉冲,状态变化仍立即记录。负向 review 路由、差量 context、WIP 上限和轻量工具 profile 分开进入待拍板/既有恢复通道。
+- 验证:`node tests/run.js --profile lean` 32/32 pass;CEO worker 替换后 CPU 稳定采样 3.5%-6.3%,RSS 约 74-76MB;未变等待状态由每 5 秒一条改为每约 60 秒一条。
+- 可复用原则:等待者应订阅变化,不应反复全量扫描来证明“没变”;续租心跳和人类审计要分频;负向 review 的业务结论应先保留,回执协议修复不应让整轮审查价值归零;返工传差量和 artifact ref,非视觉任务不默认常驻 GUI/MCP 工具。
