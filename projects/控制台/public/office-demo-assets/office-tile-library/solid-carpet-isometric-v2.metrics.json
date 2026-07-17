@@ -1,0 +1,38 @@
+{
+  "public_path": "projects/控制台/public/office-demo-assets/office-tile-library/solid-carpet-isometric-v2.png",
+  "preview_path": "projects/控制台/artifacts/office-tile-solid-carpet-20260623/solid-carpet-isometric-v2-stitch-preview.png",
+  "source_policy": "Meowa-generated raw tile was used as the generation proof; final checked-in tile is the pure-color cleaned top-face asset required by the brief, with exact RGB fill and transparent outside diamond.",
+  "main_color_hex": "#87929B",
+  "threshold": {
+    "exact_main_color_ratio_min": 0.95,
+    "alpha_threshold": 16,
+    "tolerance_rgb": 4
+  },
+  "metrics": {
+    "path": "projects/控制台/public/office-demo-assets/office-tile-library/solid-carpet-isometric-v2.png",
+    "sha256": "a3a17ac889bfedb05f4ce00f1369959c78eb10823b6ed4de79b7971a52c810f9",
+    "width": 192,
+    "height": 96,
+    "alpha_threshold": 16,
+    "opaque_pixels": 9216,
+    "transparent_pixels": 9216,
+    "unique_rgb_opaque": 1,
+    "target_rgb": [
+      135,
+      146,
+      155
+    ],
+    "exact_target_pixels": 9216,
+    "exact_target_ratio": 1,
+    "tolerance": 4,
+    "near_target_pixels": 9216,
+    "near_target_ratio": 1,
+    "top_colors": [
+      {
+        "rgb": "135,146,155",
+        "count": 9216,
+        "ratio": 1
+      }
+    ]
+  }
+}

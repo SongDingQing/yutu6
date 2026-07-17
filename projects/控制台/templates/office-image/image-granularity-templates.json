@@ -2,7 +2,6 @@
   "schema_version": "2026-06-23.office-image-template.v3",
   "source_of_truth": "memory/办公室生图设计规范.md",
   "scope": "Yutu6 control-console office assets only",
-  "starlaid_excluded": true,
   "approval_policy": {
     "reference_required_for_generation": true,
     "batch_regeneration_allowed_only_after_owner_approval": true,

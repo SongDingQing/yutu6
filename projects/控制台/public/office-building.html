@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>玉兔6 · 办公楼视图</title>
+  <link rel="preload" as="image" type="image/gif" href="/public/office-demo-assets/office-building-typing.gif">
+  <link rel="preload" as="image" type="image/gif" href="/public/office-demo-assets/office-building-reading.gif">
+  <link rel="preload" as="image" type="image/gif" href="/public/office-demo-assets/office-building-handoff.gif?v=20260714-secretary-anchor">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#0b0d12;color:#e6ebf5;font-family:system-ui,"PingFang SC",sans-serif;min-height:100vh}
+    .top{padding:22px 28px 6px}
+    .top h1{font-weight:600;font-size:20px;margin:0}
+    .sub{color:#8b93a7;font-size:13px;margin:6px 0 0}
+    .wrap{display:flex;gap:18px;padding:18px 28px 40px}
+    .side{flex:0 0 200px;display:flex;flex-direction:column;gap:8px}
+    .off{text-align:left;border:1px solid #2b3140;background:#151922;color:#e6ebf5;border-radius:12px;padding:12px 14px;cursor:pointer;font-family:inherit;font-size:14px;display:flex;flex-direction:column;gap:3px}
+    .off span{color:#8b93a7;font-size:11px}
+    .off.on{border-color:#6ea8fe;background:#1a2740}
+    .off:disabled{opacity:.4;cursor:not-allowed}
+    .stage{flex:1;min-width:0;background:#0f1117;border:1px solid #2b3140;border-radius:16px;padding:16px;display:flex;flex-direction:column;align-items:center}
+    .auto-status{width:min(100%,940px);display:flex;align-items:center;gap:9px;background:#151922;border:1px solid #2b3140;border-radius:999px;padding:9px 14px;margin-bottom:14px;color:#cbd3e4;font-size:13px}
+    .state-dot{width:8px;height:8px;border-radius:50%;background:#8b93a7;box-shadow:0 0 0 4px rgba(139,147,167,.12)}
+    .auto-status[data-state="typing"] .state-dot{background:#6ea8fe;box-shadow:0 0 0 4px rgba(110,168,254,.14)}
+    .auto-status[data-state="handoff"] .state-dot{background:#f5c86b;box-shadow:0 0 0 4px rgba(245,200,107,.14)}
+    .priority{margin-left:auto;color:#737c91;font-size:11px}
+    .room{width:100%;max-width:940px;min-height:280px;display:grid;place-items:center}
+    .room img{grid-area:1/1;width:100%;height:auto;image-rendering:pixelated;border-radius:12px;display:none}
+    .room img.on{display:block}
+    .cap{color:#a9b2c5;font-size:12px;margin-top:10px;font-family:ui-monospace,monospace}
+    .sync{color:#737c91;font-size:11px;margin-top:5px;min-height:16px}
+    .sync.err{color:#f19a9a}
+    @media(max-width:720px){.wrap{flex-direction:column;padding:14px}.side{flex-basis:auto}.top{padding-inline:14px}.priority{display:none}}
+    @media(prefers-reduced-motion:reduce){.state-dot{box-shadow:none}}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>办公楼视图</h1>
+    <div class="sub">完整渲染办公室 · 动画按控制台任务状态自动播放</div>
+  </div>
+  <div class="wrap">
+    <div class="side" aria-label="办公室列表">
+      <button class="off on" type="button" aria-current="page">总裁办公室<span>董事长 + 秘书</span></button>
+      <button class="off" type="button" disabled>董事会<span>4 席评审</span></button>
+      <button class="off" type="button" disabled>公共协作区<span>多员工</span></button>
+      <button class="off" type="button" disabled>维修部<span>维修员</span></button>
+      <button class="off" type="button" disabled>项目片区<span>项目组</span></button>
+    </div>
+    <main class="stage">
+      <div class="auto-status" id="autoStatus" data-state="reading" role="status" aria-live="polite" aria-atomic="true">
+        <span class="state-dot" aria-hidden="true"></span>
+        <span id="stateLabel">自动状态 · 看书</span>
+        <span class="priority">优先级：交接文件 › 打字办公 › 看书</span>
+      </div>
+      <div class="room" id="room" role="group" aria-describedby="cap">
+        <img id="sceneTyping" data-state="typing" src="/public/office-demo-assets/office-building-typing.gif" alt="董事长在总裁办公室打字办公" hidden aria-hidden="true">
+        <img id="sceneReading" data-state="reading" class="on" src="/public/office-demo-assets/office-building-reading.gif" alt="董事长在总裁办公室看书" aria-hidden="false">
+        <img id="sceneHandoff" data-state="handoff" src="/public/office-demo-assets/office-building-handoff.gif?v=20260714-secretary-anchor" alt="董事长与秘书交接任务文件" hidden aria-hidden="true">
+      </div>
+      <div class="cap" id="cap" role="status" aria-live="polite">总裁办公室 · 看书 · 正在同步任务状态</div>
+      <div class="sync" id="sync" role="status" aria-live="polite">正在连接控制台状态…</div>
+      <noscript><div class="sync err">需要启用 JavaScript 才能自动同步任务状态。</div></noscript>
+    </main>
+  </div>
+  <script src="/public/office-building-state.js"></script>
+  <script>
+    (()=>{
+      'use strict';
+
+      const POLL_MS=4000;
+      const HANDOFF_MS=7600;
+      const stateLabel=document.getElementById('stateLabel');
+      const autoStatus=document.getElementById('autoStatus');
+      const cap=document.getElementById('cap');
+      const sync=document.getElementById('sync');
+      const room=document.getElementById('room');
+      const images={
+        typing:document.getElementById('sceneTyping'),
+        reading:document.getElementById('sceneReading'),
+        handoff:document.getElementById('sceneHandoff')
+      };
+      let queueAgents=[];
+      let lastQueueSync='';
+
+      function timeLabel(){ return new Date().toLocaleTimeString('zh-CN',{hour12:false}); }
+
+      function setSync(text,isError){
+        sync.textContent=text;
+        sync.classList.toggle('err',!!isError);
+      }
+
+      function restartHandoffImage(eventKey){
+        const current=images.handoff;
+        const next=current.cloneNode(false);
+        const base=(current.getAttribute('src')||'').split('#')[0];
+        next.src=`${base}#play-${encodeURIComponent(eventKey||Date.now())}`;
+        current.replaceWith(next);
+        images.handoff=next;
+      }
+
+      function renderState(state,meta){
+        if(state==='handoff'&&meta&&meta.eventKey) restartHandoffImage(meta.eventKey);
+        Object.entries(images).forEach(([name,image])=>{
+          const active=name===state;
+          image.classList.toggle('on',active);
+          image.hidden=!active;
+          image.setAttribute('aria-hidden',active?'false':'true');
+        });
+        autoStatus.dataset.state=state;
+        const runningCount=meta&&Number.isFinite(meta.runningCount)?meta.runningCount:0;
+        if(state==='handoff'){
+          stateLabel.textContent='自动状态 · 交接文件';
+          cap.textContent='总裁办公室 · 新任务已发布给秘书，正在交接文件';
+          room.setAttribute('aria-label','总裁办公室正在播放任务交接动画');
+        }else if(state==='typing'){
+          stateLabel.textContent='自动状态 · 打字办公';
+          cap.textContent=`总裁办公室 · 打字办公 · ${runningCount} 个任务正在执行`;
+          room.setAttribute('aria-label','总裁办公室正在播放打字办公动画');
+        }else{
+          stateLabel.textContent='自动状态 · 看书';
+          cap.textContent=meta&&meta.trusted?'总裁办公室 · 看书 · 当前没有运行中的任务':'总裁办公室 · 看书 · 正在同步任务状态';
+          room.setAttribute('aria-label','总裁办公室正在播放看书动画');
+        }
+      }
+
+      const machine=window.OfficeBuildingState.createStateMachine({
+        handoffMs:HANDOFF_MS,
+        onState:renderState
+      });
+
+      async function fetchJson(url){
+        const response=await fetch(url,{cache:'no-store'});
+        if(!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+        const data=await response.json();
+        if(data&&data.ok===false) throw new Error(data.error||`${url} 返回失败`);
+        return data;
+      }
+
+      async function loadQueueAgents(){
+        if(queueAgents.length) return queueAgents;
+        const data=await fetchJson('/api/runners');
+        queueAgents=(data.queueAgents||[]).map(item=>typeof item==='string'?item:item&&item.id).filter(Boolean);
+        if(!queueAgents.length) throw new Error('未发现 canonical queue agents');
+        return queueAgents;
+      }
+
+      async function pollQueues(){
+        try{
+          const agents=await loadQueueAgents();
+          const snapshots=await Promise.all(agents.map(agent=>fetchJson(`/api/queue/${encodeURIComponent(agent)}`)));
+          machine.applyQueueSnapshots(snapshots);
+          lastQueueSync=timeLabel();
+          setSync(`队列已同步 ${lastQueueSync} · 仅 running 计为执行中`,false);
+        }catch(error){
+          setSync(`队列同步失败 · 保留上次可信动画 · ${error&&error.message||error}`,true);
+        }
+      }
+
+      async function pollEvents(){
+        try{
+          const initial=!machine.isEventSeeded();
+          const url=initial?'/api/events?n=120':`/api/events?after=${machine.getEventCursor()}&n=120`;
+          const data=await fetchJson(url);
+          if(initial) machine.seedEvents(data.events||[],data.lastSeq);
+          else machine.applyEvents(data.events||[],data.lastSeq);
+        }catch(error){
+          setSync(`事件同步失败 · 保留上次可信动画 · ${error&&error.message||error}`,true);
+        }
+      }
+
+      async function refresh(){ await Promise.allSettled([pollQueues(),pollEvents()]); }
+
+      const debugState=new URLSearchParams(location.search).get('officeState');
+      if(['reading','typing','handoff'].includes(debugState)){
+        renderState(debugState,{trusted:true,runningCount:debugState==='typing'?1:0,eventKey:debugState==='handoff'?'debug-preview':''});
+        setSync('测试预览模式 · 正常页面不会显示动画选择控件',false);
+      }else{
+        refresh();
+        setInterval(refresh,POLL_MS);
+      }
+    })();
+  </script>
+</body>
+</html>

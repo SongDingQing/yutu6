@@ -1,0 +1,14 @@
+{
+  "name": "chairman-office-scene",
+  "title": "总裁办公室场景(董事长动画块另叠加)",
+  "grid": { "cols": 6, "rows": 6 },
+  "assets": {
+    "floor-carpet-1x1": { "path": "artifacts/office-assets/v3-tileset/std/std-floor-1x1.png" },
+    "workstation-empty-2x2": { "path": "artifacts/office-assets/experiments/workstation-v2/workstation-v2-clean.png" },
+    "plant-1x1": "office-v3-plant-1x1.png"
+  },
+  "tiles": [
+    { "asset": "floor-carpet-1x1", "cells": "fill", "z": 0 },
+    { "asset": "plant-1x1", "cell": [4, 1], "footprint": [1, 1], "z": 30 }
+  ]
+}

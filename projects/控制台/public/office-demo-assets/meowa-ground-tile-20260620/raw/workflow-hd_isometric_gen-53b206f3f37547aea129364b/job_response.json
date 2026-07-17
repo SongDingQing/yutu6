@@ -1,0 +1,385 @@
+{
+  "job_id": "workflow-hd_isometric_gen-53b206f3f37547aea129364b",
+  "job_type": "workflow",
+  "status": "success",
+  "stage": "completed",
+  "animation_type": null,
+  "queue": {
+    "position": 0,
+    "estimated_wait_seconds": 0
+  },
+  "progress": {
+    "label": "已完成",
+    "percent": 100
+  },
+  "result": {
+    "job_name": "044219_modern_Single_thin_low_pile_carpet_floor_tile_for_a_modern_tech_office_",
+    "run_dir": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/",
+    "final_tile_paths": [
+      "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c00.png",
+      "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c01.png"
+    ],
+    "tile_pack_preview_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/tile_pack_preview.png",
+    "template_grid_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/reference_template.png",
+    "generated_grid_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/generated_grid.png",
+    "metadata_path": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/metadata.json",
+    "metadata": {
+      "run_dir": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/",
+      "raw_prompt": "Single thin low-pile carpet floor tile for a modern tech office, isometric 2:1 diamond footprint, light gray-white short-pile carpet, very thin slab almost flush with the ground, flat refined vector-like illustration, bright clean airy white style, seamless tileable four edges, no obvious repetition, transparent background, no walls, no furniture, no cube, no box, no Minecraft block, no thick sides, no dark shading, no visible seams, no blurry edges.",
+      "prompt_result": {
+        "raw_prompt": "Single thin low-pile carpet floor tile for a modern tech office, isometric 2:1 diamond footprint, light gray-white short-pile carpet, very thin slab almost flush with the ground, flat refined vector-like illustration, bright clean airy white style, seamless tileable four edges, no obvious repetition, transparent background, no walls, no furniture, no cube, no box, no Minecraft block, no thick sides, no dark shading, no visible seams, no blurry edges.",
+        "name": "Modern Office Carpet Tile",
+        "tile_type": "Floor Tile",
+        "description_1": "底座材质和下方参考图类似，并附加轻薄的浅灰色短绒地毯材质，表面呈现平整、干净、明亮的现代办公风格，无明显纹理。",
+        "description_2": "底座材质和下方参考图类似，并附加极薄的纯白色短绒地毯材质，表面呈现平整、极简、矢量插画风格，无明显纹理。",
+        "reference_image_count": 1,
+        "similar_tiles": true,
+        "tile_only": true,
+        "runner": {
+          "success": true,
+          "fallback_used": false,
+          "attempts": [
+            {
+              "attempt": 1,
+              "ok": true,
+              "tool_called": true
+            }
+          ],
+          "error": "",
+          "tool_args": {
+            "description_1": "底座材质和下方参考图类似，并附加轻薄的浅灰色短绒地毯材质，表面呈现平整、干净、明亮的现代办公风格，无明显纹理。",
+            "tile_type": "Floor Tile",
+            "description_2": "底座材质和下方参考图类似，并附加极薄的纯白色短绒地毯材质，表面呈现平整、极简、矢量插画风格，无明显纹理。",
+            "name": "Modern Office Carpet Tile"
+          }
+        },
+        "tile_only_postprocess": null
+      },
+      "generation_prompt": "参考图中上方两个空白模板是高清 isometric 地块目标。请只在这些模板内生成两个高清 RPG 游戏地块纹理：\n- 左上角：底座材质和额外参考图类似，并附加轻薄的浅灰色短绒地毯材质，表面呈现平整、干净、明亮的现代办公风格，无明显纹理。\n- 右上角：底座材质和额外参考图类似，并附加极薄的纯白色短绒地毯材质，表面呈现平整、极简、矢量插画风格，无明显纹理。\n\n重要：\n- 上方两个空白模板都是高清 isometric RPG 游戏地块模板，请在每个目标模板内生成一个高清地块。\n- 参考图中已有 2 个参考地块，请参考其中的材质、体块比例、细节密度和整体观感，不要复制构图。\n- 高清 isometric 游戏地图地块。\n- 必须保持 isometric 菱形地块轮廓，顶部是菱形透视面，不要生成正方形或平面贴图。\n- 本次只生成基础地块，不要生成建筑、人物、动物等大型物体。小型的对象纹理和材质可以保留，不要超出边界线。\n- 背景保持白色。\n- 两个地块属于同一张地图，风格和特征要有相似性。",
+      "reference_image_paths": [
+        "/app/scripts/output/job-inputs/workflows/hd_isometric_gen_workflow-hd_isometric_gen-53b206f3f37547aea129364b_reference_01.png"
+      ],
+      "reference_image_count": 1,
+      "mode": "standard",
+      "similar_tiles": true,
+      "tile_only": true,
+      "provider": "nano_banana",
+      "generation_mode": "hd_isometric_gen:standard",
+      "model_name": "gemini-3.1-flash-image-preview",
+      "temperature": 0.3,
+      "resolution": "2K",
+      "aspect_ratio": "2:3",
+      "canvas_size": [
+        1696,
+        2528
+      ],
+      "target_cells": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "reference_cells": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "embedded_reference_image_paths": [
+        "/app/app/workflows/hd_isometric_gen/templates/modern/hd_single/0.png",
+        "/app/app/workflows/hd_isometric_gen/templates/modern/hd_single/1.png"
+      ],
+      "style_name": "",
+      "style_description": "",
+      "top_left": "",
+      "top_right": "",
+      "bottom_left": "",
+      "bottom_right": "",
+      "template": {
+        "mode": "standard",
+        "hd_isometric": {
+          "side_length": 372,
+          "height": 119,
+          "lit_side": "left",
+          "template_scale": 1,
+          "top_face_size": [
+            744,
+            372
+          ],
+          "target_cells": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "reference_cells": [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "layout": "2x3_center_separator",
+          "separator_line": {
+            "enabled": true,
+            "top": 1262,
+            "bottom": 1266,
+            "width_px": 4,
+            "color": [
+              255,
+              76,
+              76,
+              255
+            ]
+          },
+          "target_gap_above_separator_px": 200,
+          "reference_bottom_margin_px": 200,
+          "reference_alignment": "center_anchor_then_clip"
+        },
+        "nano_banana": {
+          "output_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/template/template_hd_1696x2528.png",
+          "canvas_size": [
+            1696,
+            2528
+          ],
+          "logical_size": [
+            1696,
+            2528
+          ],
+          "scale": 1,
+          "scaled_size": [
+            1696,
+            2528
+          ],
+          "paste_offset": [
+            0,
+            0
+          ],
+          "placements": [
+            {
+              "row": 0,
+              "col": 0,
+              "x": 52,
+              "y": 571,
+              "top_face_center_anchor": [
+                424,
+                757
+              ],
+              "top_face_center_anchor_cell": [
+                424,
+                757
+              ],
+              "cell_x": 0,
+              "cell_y": 0,
+              "cell_w": 848,
+              "cell_h": 1262,
+              "bottom_margin_px": 1466
+            },
+            {
+              "row": 0,
+              "col": 1,
+              "x": 900,
+              "y": 571,
+              "top_face_center_anchor": [
+                1272,
+                757
+              ],
+              "top_face_center_anchor_cell": [
+                1272,
+                757
+              ],
+              "cell_x": 848,
+              "cell_y": 0,
+              "cell_w": 848,
+              "cell_h": 1262,
+              "bottom_margin_px": 1466
+            },
+            {
+              "row": 1,
+              "col": 0,
+              "x": 0,
+              "y": 1266,
+              "top_face_center_anchor": [
+                424,
+                1797
+              ],
+              "top_face_center_anchor_cell": [
+                424,
+                1797
+              ],
+              "cell_x": 0,
+              "cell_y": 1266,
+              "cell_w": 848,
+              "cell_h": 1062,
+              "bottom_margin_px": 200
+            },
+            {
+              "row": 1,
+              "col": 1,
+              "x": 848,
+              "y": 1266,
+              "top_face_center_anchor": [
+                1272,
+                1797
+              ],
+              "top_face_center_anchor_cell": [
+                1272,
+                1797
+              ],
+              "cell_x": 848,
+              "cell_y": 1266,
+              "cell_w": 848,
+              "cell_h": 1062,
+              "bottom_margin_px": 200
+            }
+          ]
+        }
+      },
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "label": "cell_r00_c00",
+          "raw_path": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/split_targets/raw_cells/cell_r00_c00.png",
+          "centered_path": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/split_targets/centered_cells/cell_r00_c00.png",
+          "raw_size": [
+            744,
+            494
+          ],
+          "centered_size": [
+            744,
+            614
+          ],
+          "source_anchor": [
+            372.0,
+            187.0
+          ],
+          "centered_paste": [
+            0,
+            120
+          ]
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "label": "cell_r00_c01",
+          "raw_path": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/split_targets/raw_cells/cell_r00_c01.png",
+          "centered_path": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/split_targets/centered_cells/cell_r00_c01.png",
+          "raw_size": [
+            746,
+            494
+          ],
+          "centered_size": [
+            746,
+            614
+          ],
+          "source_anchor": [
+            373.0,
+            187.0
+          ],
+          "centered_paste": [
+            0,
+            120
+          ]
+        }
+      ],
+      "remove_background": {
+        "workflow_id": "remove_background",
+        "method": "hd",
+        "resolution": "2K",
+        "aspect_ratio": "1:1",
+        "providers": [
+          "koukoutu",
+          "koukoutu"
+        ],
+        "operator_chains": [
+          [
+            "remove_bg_hd"
+          ],
+          [
+            "remove_bg_hd"
+          ]
+        ],
+        "source_sizes": [
+          [
+            744,
+            614
+          ],
+          [
+            746,
+            614
+          ]
+        ],
+        "final_sizes": [
+          [
+            744,
+            614
+          ],
+          [
+            746,
+            614
+          ]
+        ],
+        "elapsed_ms": 17606.383
+      },
+      "timings_ms": {
+        "prepare_template_ms": 565.863,
+        "generate_image_ms": 22484.494,
+        "split_targets_ms": 745.946,
+        "remove_background_ms": 17606.383
+      },
+      "template_grid_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/reference_template.png",
+      "generated_grid_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/generated_grid.png",
+      "final_tile_paths": [
+        "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c00.png",
+        "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c01.png"
+      ],
+      "final_tile_sizes": [
+        [
+          744,
+          614
+        ],
+        [
+          746,
+          614
+        ]
+      ],
+      "tile_pack_preview_path": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/tile_pack_preview.png",
+      "storage": "local",
+      "workflow_id": "hd_isometric_gen",
+      "template_id": "modern",
+      "operator_chain": [
+        "hd_isometric_requirement_parse",
+        "hd_isometric_template",
+        "generate_image",
+        "remove_background_hd"
+      ]
+    },
+    "url": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c00.png",
+    "gcs_url": "https://media.meowa.ai/public/hd-isometric-gen/output/2026-06-20/04%3A43%3A03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c00.png",
+    "gcs_blob_name": "hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/final_tiles/cell_r00_c00.png",
+    "gcs_run_prefix": "https://storage.googleapis.com/meowart-bucket/hd-isometric-gen/output/2026-06-20/04:43:03-workflow-hd_isometric_gen-53b206f3f37547aea129364b/",
+    "storage": "gcs"
+  },
+  "error": "",
+  "credit_refund": {
+    "refunded": false,
+    "amount": 0,
+    "reference_id": "workflow-hd_isometric_gen-53b206f3f37547aea129364b"
+  }
+}

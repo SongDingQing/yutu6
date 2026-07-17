@@ -8,8 +8,6 @@
 - 地毯地块、墙/隔断、2x2 普通工位、5x5 董事长办公室
 - 坐姿 idle / working 动画、秘书交接动画
 
-Starlaid / 星桥不在本合约范围内。
-
 ## 生成前置
 
 每个办公室生图任务必须包含:
@@ -25,6 +23,16 @@ Starlaid / 星桥不在本合约范围内。
 当前 V3 状态: `reference-v3-brief.md` 只是待确认输入稿。老板确认前不要调用 imagegen 或 Meowa，不要把 V2 参考图喂给 Meowa 批量生成正式素材。
 
 受控实验例外: 为验证 Meowa 动画质量，可用 pending 参考图跑一次 `animation-smoke` 小样，但 spec 必须包含 `notForProduction=true`，输出目录必须在 `projects/控制台/artifacts/office-assets/experiments/` 下。实验小样不得覆盖 `public/office-demo-assets/` 的正式素材。
+
+## 老板采纳门禁
+
+Meowa 每个生成物必须逐个进入资产审核 ledger，不能批量自动接入正式目录。
+
+1. 生成结果只能先落到 pending/审计路径，写明 `assetId`、产出路径和拟接入正式路径。
+2. 调用 `node projects/控制台/tools/meowa-asset-decision.js register --spec <spec.json>` 注册审核卡；该 wrapper 会写入 `artifacts/meowa/asset-decisions/ledger.json`，并通过 `shared/agents/ui-optimizer/notify-feishu.sh --type decision` 发飞书卡。
+3. 飞书卡按钮固定为 `采纳` / `不采纳`，URL 必须是带签名 token 的 `/api/decision/<cardId>/<approve|reject>?t=<token>`，不要生成无 token 裸链接。
+4. `/api/decision` 收到 `approve` 后才按 ledger 的 `approvedOutputs` 复制/登记到正式路径；`reject` 只把素材标为 `rejected_not_integrated`，不得接入正式目录。
+5. 给老板的卡片正文按每个生成物固定写 `标题 / 起因 / 来源 / 进展 / 结果 / 决策项` 六行；需拍板时只发 decision 卡，不用纯文本代替。
 
 ## V3 额外硬约束
 
@@ -48,7 +56,6 @@ node projects/控制台/tools/office-image-template-check.js --spec <generation-
 - 参考图不存在
 - 参考图未获老板确认
 - 模板和 assetClass 不匹配
-- 任务或路径包含 Starlaid / 星桥
 
 ## Meowa 命令选择
 

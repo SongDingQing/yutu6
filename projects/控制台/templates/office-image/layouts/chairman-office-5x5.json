@@ -1,0 +1,26 @@
+{
+  "name": "chairman-office-5x5",
+  "title": "董事长办公室 · 5x5 预设布局",
+  "spec": "grid-spec.json V3 (tile 128x64, pitch 64/32, bottom-center anchor)",
+  "grid": { "cols": 6, "rows": 6 },
+  "assets": {
+    "floor-carpet-1x1": { "path": "artifacts/office-assets/v3-tileset/std/std-floor-1x1.png" },
+    "chairman-desk-2x3": "office-v3-chairman-desk-2x3.png",
+    "workstation-empty-2x2": { "path": "artifacts/office-assets/experiments/workstation-20260707/workstation-clean.png" },
+    "plant-1x1": "office-v3-plant-1x1.png",
+    "wall-corner-window": { "path": "artifacts/office-assets/experiments/walls-20260707/wall-corner-window.png" },
+    "wall-big": { "path": "artifacts/office-assets/experiments/walls-20260707/big-corner-wall.png" }
+  },
+  "tiles": [
+    { "asset": "floor-carpet-1x1", "cells": "fill", "z": 0 },
+    { "asset": "chairman-desk-2x3", "cell": [2, 0], "footprint": [2, 3], "z": 30 },
+    { "asset": "workstation-empty-2x2", "cell": [2, 4], "footprint": [2, 2], "anchor": [127, 222], "z": 30 },
+    { "asset": "plant-1x1", "cell": [0, 5], "footprint": [1, 1], "z": 30 }
+  ],
+  "pending_assets_P1": [
+    "wall-window-back (落地窗墙段, z=60)",
+    "wall-bookshelf-left (书架墙段带奖杯, z=60)",
+    "chairman-seated (董事长坐姿角色, z=45)"
+  ],
+  "note": "本预设当前只引用已验收的 4 件成品; pending_assets_P1 待生成并采纳后补入 tiles。"
+}

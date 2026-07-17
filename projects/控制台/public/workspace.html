@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>玉兔6 · 工作区</title>
+	<title>玉兔6 · 工作区</title>
+	<link rel="icon" href="data:,">
 <style>
   :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--panel3:#121720;--line:#2a2f3a;--line2:#354052;--text:#e6e8ee;--dim:#9aa3b2;--accent:#6ea8fe;--ok:#46d39a;--warn:#fbbf24;--err:#ff6b6b;--shadow:0 14px 36px rgba(0,0,0,.28);--mono:ui-monospace,Menlo,monospace;--sans:-apple-system,"PingFang SC",Segoe UI,sans-serif;--scrollbar-size:7px;--scrollbar-thumb:rgba(226,234,248,.18);--scrollbar-thumb-hover:rgba(238,244,255,.44);}
 	  *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent;scrollbar-gutter:auto;-webkit-overflow-scrolling:touch} *:hover{scrollbar-color:var(--scrollbar-thumb-hover) transparent} *::-webkit-scrollbar{width:var(--scrollbar-size);height:var(--scrollbar-size);background-color:transparent} *::-webkit-scrollbar-track,*::-webkit-scrollbar-track-piece{background:transparent;border:0;box-shadow:none} *::-webkit-scrollbar-thumb{background-color:var(--scrollbar-thumb);border:0;border-radius:999px;box-shadow:none} *::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:active{background-color:var(--scrollbar-thumb-hover)} *::-webkit-scrollbar-corner,*::-webkit-scrollbar-button,*::-webkit-resizer{background:transparent;border:0;box-shadow:none}
@@ -14,6 +15,7 @@
   header h1{font-size:15px;margin:0;letter-spacing:0;font-weight:850;background:linear-gradient(100deg,#f3f7ff 0%,#9ec7ff 28%,#e9f7ff 42%,#87e6bd 58%,#dce7ff 74%,#f3f7ff 100%);background-size:240% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shinyText 7.5s linear infinite;white-space:nowrap}.nav{font-size:13px;color:var(--accent);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;background:#151a22;transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
   /* 头部导航锚点(控制室/办公室/网关)此前唯独没有 hover 反馈:同排的 button(line37)、version-badge(line15)都有,鼠标移上去无变化=可发现性弱+与同类元素不一致。补 hover 提亮(配色对齐 version-badge:hover)。洞察员 axe-core(insights.md:1277/1303「label/role/contrast/focus 规则化自检」)背书此 focus/hover 方向 */
   .nav:hover{border-color:rgba(110,168,254,.7);background:#16243a;color:#cfe0ff}
+  .task-link{color:#7eb2ff;text-decoration:underline;text-underline-offset:2px;word-break:break-all}
   .version-badge{font:11px var(--mono);color:#cfe0ff;border:1px solid rgba(110,168,254,.38);border-radius:999px;background:#111a2a;padding:3px 8px;white-space:nowrap;cursor:pointer;transition:border-color .15s,background .15s}
   .version-badge:hover{border-color:rgba(110,168,254,.7);background:#16243a}
 		  #ts{white-space:nowrap;max-width:min(34vw,220px);overflow:hidden;text-overflow:ellipsis}
@@ -108,12 +110,10 @@
 	  .office-agent.server.idle .office-status{color:#fee3aa;border-color:rgba(251,191,36,.72);background:rgba(43,35,20,.9)}
 	  .office-scene{position:relative;flex:1;min-height:206px;padding:44px 16px 18px;display:grid;align-content:end;overflow:visible}
 	  .office-tiles{--tile-w:192px;--tile-h:96px;position:absolute;inset:42px 10px 10px;z-index:1;overflow:hidden;border:1px solid rgba(84,101,119,.28);border-radius:7px;pointer-events:none;background:rgba(8,12,14,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
-	  .office-wall-tiles,.office-floor-tiles{position:absolute;left:50%;display:grid;width:max-content;grid-auto-rows:var(--tile-h);transform:translateX(-50%)}
-	  .office-wall-tiles{top:0;grid-template-columns:repeat(var(--wall-cols),var(--tile-w));opacity:.9}
-	  /* 地毯层:由 renderCarpetFloor() 用绝对定位的等距菱形铺满(覆盖 line74 的 grid 规则) */
-	  .office-floor-tiles{left:0;right:0;top:var(--floor-top,76px);bottom:0;width:auto;display:block;transform:none;opacity:.98}
-	  .office-tile{display:block;width:var(--tile-w);height:var(--tile-h);object-fit:fill;image-rendering:auto}
-	  .office-tile.carpet{position:absolute;width:auto;height:auto;object-fit:fill;image-rendering:auto}
+		  .office-wall-tiles,.office-floor-tiles{position:absolute;left:0;right:0;display:block;transform:none}
+		  .office-wall-tiles{top:0;height:var(--floor-top,76px);opacity:.9;background:#17222a url('/public/office-demo-assets/office-wall-seamless-isometric.png') repeat;background-size:192px 96px;box-shadow:inset 0 -1px 0 rgba(177,196,210,.16)}
+		  .office-floor-tiles{top:var(--floor-top,76px);bottom:0;opacity:.98;background:radial-gradient(100% 70% at 50% 20%,rgba(230,238,244,.12),transparent 58%),linear-gradient(180deg,#89959e 0%,#7a8790 100%);box-shadow:inset 0 1px 0 rgba(235,242,247,.18)}
+		  .office-tile{display:block;width:var(--tile-w);height:var(--tile-h);object-fit:fill;image-rendering:auto}
 	  .office-tiles::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,12,14,.08),transparent 42%,rgba(0,0,0,.2)),linear-gradient(90deg,rgba(255,255,255,.035),transparent 18%,transparent 82%,rgba(255,255,255,.028)),radial-gradient(110% 90% at 50% 76%,transparent 42%,rgba(4,7,10,.22));pointer-events:none}
 		  .chairman-suite #office-chairman{display:none}.chairman-handoff-map{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}.handoff-actor{position:absolute;display:block;user-select:none;pointer-events:none;image-rendering:pixelated;filter:drop-shadow(0 9px 9px rgba(0,0,0,.36));transform-origin:50% 88%}.handoff-chairman-idle{left:39%;top:33%;width:104px;opacity:.96;transform:translate(-50%,-50%) scale(.86);animation:handoffChairmanIdle 3.2s ease-in-out infinite}.handoff-secretary-walk{left:57%;top:43%;width:102px;opacity:.94;transform:translate(126%,-15%) scale(.96);filter:drop-shadow(0 8px 8px rgba(0,0,0,.38))}.handoff-scene{left:48%;top:36%;width:224px;opacity:0;transform:translate(-50%,-50%) scale(.86);filter:drop-shadow(0 15px 18px rgba(0,0,0,.35))}.handoff-bubble{position:absolute;z-index:6;max-width:132px;padding:4px 8px;border:1px solid rgba(236,244,255,.64);border-radius:9px;background:rgba(238,244,255,.95);box-shadow:0 8px 15px rgba(0,0,0,.26);color:#15202b;font-size:10.5px;font-weight:850;line-height:1.2;white-space:nowrap;opacity:0;transform:translateY(5px) scale(.86)}.handoff-bubble::after{content:"";position:absolute;left:18px;bottom:-5px;width:9px;height:9px;transform:rotate(45deg);background:rgba(238,244,255,.95);border-right:1px solid rgba(236,244,255,.64);border-bottom:1px solid rgba(236,244,255,.64)}.handoff-call{left:31%;top:18%}.handoff-brief{left:36%;top:18%;border-color:rgba(214,181,109,.72);background:rgba(255,239,194,.97)}.handoff-brief::after{background:rgba(255,239,194,.97);border-color:rgba(214,181,109,.72)}.handoff-ack{left:57%;top:21%;border-color:rgba(125,211,252,.78);background:rgba(225,248,255,.97)}.handoff-ack::after{background:rgba(225,248,255,.97);border-color:rgba(125,211,252,.78)}.chairman-handoff-map.play .handoff-chairman-idle{animation:handoffChairmanActive 7.5s ease-in-out both}.chairman-handoff-map.play .handoff-secretary-walk{animation:handoffSecretaryWalk 7.5s ease-in-out both}.chairman-handoff-map.play .handoff-scene{animation:handoffSceneShow 7.5s ease-in-out both}.chairman-handoff-map.play .handoff-call{animation:handoffBubbleCall 7.5s ease both}.chairman-handoff-map.play .handoff-brief{animation:handoffBubbleBrief 7.5s ease both}.chairman-handoff-map.play .handoff-ack{animation:handoffBubbleAck 7.5s ease both}
 		  @keyframes handoffChairmanIdle{50%{transform:translate(-50%,-52%) scale(.86)}}@keyframes handoffChairmanActive{0%,15%,100%{opacity:.96;transform:translate(-50%,-50%) scale(.86)}22%,38%{opacity:.96;transform:translate(-50%,-53%) scale(.88)}45%,63%{opacity:0;transform:translate(-50%,-50%) scale(.86)}70%{opacity:.96}}@keyframes handoffSecretaryWalk{0%,16%{opacity:0;transform:translate(126%,-15%) scale(.94)}22%{opacity:1;transform:translate(86%,-4%) scale(.96)}40%{opacity:1;transform:translate(0,8%) scale(1)}45%,63%{opacity:0;transform:translate(0,8%) scale(1)}69%{opacity:1;transform:translate(0,8%) scale(1)}100%{opacity:0;transform:translate(132%,-14%) scale(.94)}}@keyframes handoffSceneShow{0%,40%,68%,100%{opacity:0}45%,62%{opacity:1}}@keyframes handoffBubbleCall{0%,4%,16%,100%{opacity:0;transform:translateY(5px) scale(.86)}5%,14%{opacity:1;transform:translateY(0) scale(1)}}@keyframes handoffBubbleBrief{0%,41%,63%,100%{opacity:0;transform:translateY(5px) scale(.86)}44%,59%{opacity:1;transform:translateY(0) scale(1)}}@keyframes handoffBubbleAck{0%,59%,78%,100%{opacity:0;transform:translateY(5px) scale(.86)}62%,74%{opacity:1;transform:translateY(0) scale(1)}}
@@ -190,12 +190,16 @@
 		  .queue-title .empty[data-feedback="ok"]{border-color:rgba(70,211,154,.46);background:rgba(70,211,154,.08);color:#c8f7de}
 		  .queue-title .empty[data-feedback="warn"]{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.09);color:#fee3aa}
 		  .queue-title .empty[data-feedback="err"]{border-color:rgba(255,107,107,.58);background:rgba(78,15,15,.42);color:#ffd0d0}
-	  .llm-panel{flex:1 1 auto;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.025);display:flex;flex-direction:column}
+	  .llm-panel,.peek-panel{flex:1 1 auto;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.025);display:flex;flex-direction:column}
 	  .llm-head{display:flex;align-items:center;gap:10px;min-height:34px;padding:8px 10px;border-bottom:1px solid #252d3a}.llm-head h2{margin:0}.llm-head .empty{margin-left:auto;min-width:0;max-width:min(62%,260px);font-size:11px;color:#b8c5d6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 		  .llm-head .empty[data-feedback]{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid rgba(110,168,254,.34);border-radius:999px;background:rgba(110,168,254,.075);color:#d9e8ff}
 		  .llm-head .empty[data-feedback="warn"]{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.09);color:#fee3aa}
 		  .llm-head .empty[data-feedback="err"]{border-color:rgba(255,107,107,.58);background:rgba(78,15,15,.42);color:#ffd0d0}
-	  .llm-body{display:grid;gap:8px;padding:8px;flex:1 1 auto;min-height:0;overflow:auto;align-content:start}.llm-models{display:grid;gap:8px}.llm-card{border:1px solid #303744;border-radius:8px;background:#141922;padding:8px;display:grid;gap:7px}.llm-card.glm{border-color:rgba(70,211,154,.5)}.llm-card.claude{border-color:rgba(110,168,254,.52)}.llm-card.codex{border-color:rgba(251,191,36,.48)}
+		  .llm-body{display:grid;gap:8px;padding:8px;flex:1 1 auto;min-height:0;overflow:auto;align-content:start}.llm-models{display:grid;gap:8px}.llm-card{position:relative;overflow:hidden;border:1px solid #303744;border-radius:8px;background:#141922;padding:8px;display:grid;gap:7px}.llm-card.glm{border-color:rgba(70,211,154,.5)}.llm-card.claude{border-color:rgba(110,168,254,.52)}.llm-card.codex{border-color:rgba(251,191,36,.48)}
+	  .peek-head{display:flex;align-items:center;gap:10px;min-height:34px;padding:8px 10px;border-bottom:1px solid #252d3a}.peek-head h2{margin:0}.peek-head .empty{margin-left:auto;min-width:0;max-width:min(62%,260px);font-size:11px;color:#b8c5d6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.peek-head button{padding:4px 8px;font-size:11px;min-height:28px}
+	  .peek-head .empty[data-feedback]{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid rgba(110,168,254,.34);border-radius:999px;background:rgba(110,168,254,.075);color:#d9e8ff}.peek-head .empty[data-feedback="warn"]{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.09);color:#fee3aa}.peek-head .empty[data-feedback="err"]{border-color:rgba(255,107,107,.58);background:rgba(78,15,15,.42);color:#ffd0d0}
+	  .peek-body{display:grid;gap:8px;padding:8px;flex:1 1 auto;min-height:0;overflow:auto;align-content:start}.peek-body>.empty{margin:auto;align-self:center;text-align:center;padding:16px 8px;border:1px dashed rgba(110,168,254,.26);border-radius:8px;background:rgba(110,168,254,.045);color:#aeb8c8}.peek-body>.empty.err{border-color:rgba(255,107,107,.44);background:rgba(78,15,15,.28);color:#ffd0d0}
+		  .peek-shot-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px}.peek-shot{position:relative;min-width:0;border:1px solid #303744;border-radius:8px;background:#141922;overflow:hidden;text-decoration:none;color:inherit}.peek-shot img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;background:#0d1219}.peek-shot span{display:block;padding:6px 7px;font-size:11px;color:#cbd5e4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.peek-log-list{display:grid;gap:5px}.peek-log{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #252b36;border-radius:7px;background:#11161e;padding:6px 8px;color:#c7d2e3;text-decoration:none;font-size:11px}.peek-log b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.peek-log em{font-style:normal;font-family:var(--mono);font-size:10px;color:#8f9aad;white-space:nowrap}
 	  .llm-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.llm-name{font-size:12.5px;font-weight:850;color:#edf3fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.llm-provider{font:10.5px var(--mono);color:#8f9aad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.llm-badge{font-size:10px;font-weight:850;border:1px solid #3b4b61;border-radius:999px;padding:2px 7px;white-space:nowrap;color:#dce8f7;background:#101722}.llm-card.glm .llm-badge{color:#baf4d9;border-color:#315f4d;background:#0f1d18}
 	  .llm-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.llm-metric{min-width:0;border:1px solid #27303d;border-radius:7px;background:#11161e;padding:5px 6px}.llm-metric b{display:block;font:12px var(--mono);color:#e7eef8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.llm-metric span{display:block;margin-top:2px;font-size:10px;color:#8f9aad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 	  .llm-focus{display:grid;grid-template-columns:minmax(88px,.42fr) minmax(0,1fr);gap:8px;align-items:stretch;border:1px solid rgba(110,168,254,.32);border-radius:8px;padding:8px;background:linear-gradient(180deg,#172033,#111821);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}.llm-focus.warn{border-color:rgba(251,191,36,.55)}.llm-focus.danger{border-color:rgba(255,107,107,.7)}.llm-focus.pending{border-color:#344052;background:linear-gradient(180deg,#151a22,#11161e)}.llm-pct{display:grid;align-content:center;gap:2px}.llm-pct b{font:900 22px/1 var(--mono);letter-spacing:0;color:#eaf2ff}.llm-pct span,.llm-token span,.llm-quota-note{font-size:11px;color:#9aa8bc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.llm-token{min-width:0;display:grid;align-content:center;gap:5px}.llm-token b{font:900 15px/1.15 var(--mono);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.llm-progress{height:9px;border:1px solid #2d3746;border-radius:999px;background:#0d1219;overflow:hidden}.llm-progress i{display:block;height:100%;width:var(--pct,0%);border-radius:999px;background:linear-gradient(90deg,var(--ok),#7dd3fc);transition:width .22s ease}.llm-focus.warn .llm-progress i{background:linear-gradient(90deg,#fbbf24,#f97316)}.llm-focus.danger .llm-progress i{background:linear-gradient(90deg,#fb7185,#ff6b6b)}.llm-focus.pending .llm-progress{border-style:dashed;background:repeating-linear-gradient(90deg,#202938 0 10px,#141b25 10px 20px)}.llm-focus.pending .llm-progress i{width:0;background:none;opacity:0}
@@ -210,7 +214,9 @@
 			  .tb-card{position:relative;--mx:50%;--my:0%;border:1px solid #303744;border-radius:8px;background:#151922;padding:8px;min-width:0;box-shadow:0 8px 18px rgba(0,0,0,.14);overflow:hidden}.tb-card::before{content:"";position:absolute;inset:-1px;z-index:0;pointer-events:none;background:radial-gradient(190px circle at var(--mx) var(--my),rgba(110,168,254,.18),transparent 62%);opacity:0;transition:opacity .18s}.tb-card:hover::before,.tb-running-card::before{opacity:1}.tb-card>*{position:relative;z-index:1}.tb-card.selected{border-color:#6ea8fe;box-shadow:0 0 0 1px rgba(110,168,254,.76),0 10px 24px rgba(0,0,0,.26)}.tb-card.selected::before{opacity:1}.tb-running-card{border-color:rgba(110,168,254,.72);background:linear-gradient(180deg,#172033,#131923)}.tb-queue-card{border-color:#3a4150;padding:0}.tb-queue-card.paused{border-color:rgba(251,191,36,.62)}.tb-board-card{border-color:#514521;border-left:3px solid rgba(251,191,36,.72);background:linear-gradient(180deg,#211d13,#181613)}
 	  .tb-card.dragover{border-color:var(--ok);box-shadow:0 0 0 1px rgba(70,211,154,.4)}.tb-agent{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px}.tb-agent>span:nth-child(2){min-width:0;display:grid;gap:2px}.tb-avatar{width:34px;height:34px;border-radius:9px;overflow:hidden;border:1px solid #344052;background:#111722;display:grid;place-items:center;flex:none}.tb-name{font-size:12px;font-weight:800;color:#e1e8f4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-sub{font-family:var(--mono);font-size:10px;color:#8f9aad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-durations{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap;min-width:0}.tb-duration{font-family:var(--mono);font-size:11px;color:#cfe0ff;border:1px solid #365f95;border-radius:999px;padding:3px 7px;white-space:nowrap;background:#111a2a}.tb-duration b{font-family:var(--sans);font-size:10px;color:#8fb7ff;margin-right:4px}.tb-duration.run{color:#c8f7de;border-color:#315f4d;background:#0f1c18}.tb-duration.run b{color:#85e0b5}
 	  .tb-qa{display:grid;gap:3px;min-width:0}.tb-qa-line{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:start;gap:6px;min-width:0;line-height:1.35}.tb-qa-line.has-id{grid-template-columns:auto 20px minmax(0,1fr)}.tb-qa-id{font-family:var(--mono);font-size:10px;color:#9fb9ff;border:1px solid #303744;border-radius:999px;background:#111722;padding:2px 6px;white-space:nowrap}.tb-qa-id.ghost{visibility:hidden}.tb-qa-label{display:inline-grid;place-items:center;min-width:18px;height:18px;border:1px solid #344052;border-radius:5px;background:#111722;color:#9fb9ff;font-size:10px;font-weight:900}.tb-qa-label.answer{color:#b7f3d6;border-color:#315f4d;background:#0f1c18}.tb-qa-text{min-width:0;color:#dbeafe;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;word-break:break-word}.tb-qa-text.answer{color:#c7d6ec}.tb-id-state{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}.tb-id{font-family:var(--mono);font-size:10px;color:#9fb9ff;border:1px solid #303744;border-radius:999px;background:#111722;padding:2px 6px;white-space:nowrap}
-		  .tb-brief{margin-top:7px;font-size:12px;line-height:1.35;color:#c8d1e2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-progress{margin-top:7px;font-size:13px;font-weight:800;line-height:1.36;color:#dbeafe;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-progress.done{color:#b7f3d6}.tb-progress.fail{color:#ffc4c4}.tb-progress.wait{color:#fee3aa}.tb-progress-row{margin-top:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center;min-width:0}.tb-progress-row .tb-progress{margin-top:0;min-width:0}.tb-progress-side{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0}.tb-progress-timer{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(110,168,254,.72);border-radius:999px;background:#101b2c;color:#dbeafe;padding:3px 7px;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.tb-progress-timer b{font:800 10px var(--sans);color:#8fb7ff}.tb-progress-timer-value{font:900 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:#f2f7ff}.tb-progress-motion{position:relative;width:44px;height:7px;border:1px solid rgba(70,211,154,.48);border-radius:999px;overflow:hidden;background:#0d1915;flex:none}.tb-progress-motion i{position:absolute;top:1px;bottom:1px;left:0;width:18px;border-radius:999px;background:linear-gradient(90deg,transparent,#46d39a,transparent);animation:tbProgressRun 1.05s linear infinite}.tb-progress-row:not(.active) .tb-progress-motion{display:none}@keyframes tbProgressRun{from{transform:translateX(-20px)}to{transform:translateX(48px)}}.tb-original{margin-top:7px;border-top:1px solid rgba(48,55,68,.7);padding-top:6px}.tb-original summary{cursor:pointer;list-style:none;font-size:11px;color:#8f9aad}.tb-original summary::-webkit-details-marker{display:none}.tb-full{margin-top:7px;padding-top:7px;border-top:1px solid rgba(48,55,68,.7);font-size:12px;line-height:1.42;color:#c7cfdd;max-height:78px;overflow:auto;white-space:pre-wrap}.tb-original .tb-full{margin-top:5px;padding-top:0;border-top:0;max-height:74px;color:#aeb8c8}
+		  .tb-brief{margin-top:7px;font-size:12px;line-height:1.35;color:#c8d1e2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-progress{margin-top:7px;font-size:13px;font-weight:800;line-height:1.36;color:#dbeafe;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tb-progress.done{color:#b7f3d6}.tb-progress.fail{color:#ffc4c4}.tb-progress.wait{color:#fee3aa}.tb-progress-row{margin-top:7px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center;min-width:0}.tb-progress-row .tb-progress{margin-top:0;min-width:0}.tb-progress-side{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0}.tb-progress-timer{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(110,168,254,.72);border-radius:999px;background:#101b2c;color:#dbeafe;padding:3px 7px;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}.tb-progress-timer b{font:800 10px var(--sans);color:#8fb7ff}.tb-progress-timer-value{font:900 12px/1 var(--mono);font-variant-numeric:tabular-nums;color:#f2f7ff}.tb-progress-motion{position:relative;width:44px;height:7px;border:1px solid rgba(70,211,154,.48);border-radius:999px;overflow:hidden;background:#0d1915;flex:none}.tb-progress-motion i{position:absolute;top:1px;bottom:1px;left:0;width:18px;border-radius:999px;background:linear-gradient(90deg,transparent,#46d39a,transparent);animation:tbProgressRun 1.05s linear infinite}.tb-progress-row:not(.active) .tb-progress-motion{display:none}@keyframes tbProgressRun{from{transform:translateX(-20px)}to{transform:translateX(48px)}}
+		  .tb-latest-progress{--tb-latest-duration:12s;margin-top:6px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:7px;min-width:0;border-top:1px solid rgba(48,55,68,.7);padding-top:6px;color:#d8e8ff;font-size:12px;line-height:1.35}.tb-latest-progress-label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:#b7f3d6;font-size:10.5px;font-weight:900}.tb-latest-progress-label::before{content:"";width:6px;height:6px;border-radius:999px;background:#46d39a;box-shadow:0 0 0 3px rgba(70,211,154,.13);animation:tbLatestProgressPulse 1.4s ease-in-out infinite}.tb-latest-progress-viewport{min-width:0;overflow:hidden;white-space:nowrap}.tb-latest-progress-track{display:inline-flex;align-items:center;gap:28px;min-width:0;white-space:nowrap;will-change:transform}.tb-latest-progress-text{font-weight:800}.tb-latest-progress-copy{display:none;font-weight:800}.tb-latest-progress.is-overflowing .tb-latest-progress-track{animation:tbLatestProgressScroll var(--tb-latest-duration) linear infinite}.tb-latest-progress.is-overflowing .tb-latest-progress-copy{display:inline}.tb-latest-progress:hover .tb-latest-progress-track,.tb-latest-progress:focus-within .tb-latest-progress-track,.tb-card:not([open]) .tb-latest-progress-track,.task-progress-hidden .tb-latest-progress-track{animation-play-state:paused}.tb-latest-progress.done{color:#b7f3d6}.tb-latest-progress.fail{color:#ffc4c4}.tb-latest-progress.wait{color:#fee3aa}@keyframes tbLatestProgressScroll{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 14px))}}@keyframes tbLatestProgressPulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
+		  .tb-original{margin-top:7px;border-top:1px solid rgba(48,55,68,.7);padding-top:6px}.tb-original summary{cursor:pointer;list-style:none;font-size:11px;color:#8f9aad}.tb-original summary::-webkit-details-marker{display:none}.tb-full{margin-top:7px;padding-top:7px;border-top:1px solid rgba(48,55,68,.7);font-size:12px;line-height:1.42;color:#c7cfdd;max-height:78px;overflow:auto;white-space:pre-wrap}.tb-original .tb-full{margin-top:5px;padding-top:0;border-top:0;max-height:74px;color:#aeb8c8}
 	  .tb-meta{display:flex;align-items:center;gap:6px;margin-top:7px;min-width:0;flex-wrap:wrap}.tb-tag{font-size:10px;color:#c8d1e2;border:1px solid #303744;border-radius:999px;padding:2px 6px;white-space:nowrap}.tb-tag.source{color:#ffe4ad;border-color:#6b5422;background:#211a0f}.tb-tag.queue{color:#cfe0ff;border-color:#365f95;background:#111a2a}.tb-tag.paused{color:#fee3aa;border-color:#6b5422;background:#211a0f}
 		  .tb-actions{display:grid;grid-template-columns:minmax(86px,1fr) repeat(5,27px);gap:5px;margin-top:7px}.tb-actions input{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);font-size:12px;padding:5px 7px}.tb-actions button{padding:4px 0;min-width:0}.tb-board-actions{display:flex;gap:6px;margin-left:auto}.tb-board-actions button{font-size:11px;padding:4px 8px}
 		  .tb-running-card{padding:7px}.tb-running-card .tb-agent{grid-template-columns:30px minmax(0,1fr) auto;gap:7px}.tb-running-card .tb-avatar{width:30px;height:30px;border-radius:8px}.tb-running-card .tb-duration{font-size:10px;padding:2px 6px}.tb-running-brief{font-size:12.5px;font-weight:760;color:#dbeafe}.tb-running-card .tb-progress-row{margin-top:5px;align-items:start}.tb-running-card .tb-progress{font-size:12px;font-weight:800;line-height:1.35;color:#cfe0ff;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.tb-running-card .tb-progress-timer{padding:2px 6px}.tb-running-card .tb-progress-timer-value{font-size:11px}.tb-running-card .tb-progress-motion{width:36px;margin-top:4px}.tb-running-card .tb-original{margin-top:5px;padding-top:5px}.tb-running-card .tb-original summary{font-size:10.5px}.tb-running-card .tb-actions{grid-template-columns:minmax(82px,1fr) 27px 27px;margin-top:5px}.tb-running-card .tb-actions button:disabled{display:none}
@@ -220,6 +226,7 @@
 		  .tb-card.tb-repair-card,.tb-card.tb-repair-card.selected{border-color:rgba(255,109,109,.98);outline-color:rgba(255,109,109,.82);background:linear-gradient(180deg,#23151a,#17121a);box-shadow:0 0 0 1px rgba(255,109,109,.82),0 0 18px rgba(255,68,68,.32),0 10px 24px rgba(0,0,0,.28)}.tb-card.tb-repair-card::before{background:radial-gradient(190px circle at var(--mx) var(--my),rgba(255,68,68,.22),transparent 62%);opacity:1}.tb-repair-card .tb-ceo-state,.tb-repair-card .tb-tag.queue{color:#ffe9e9;border-color:rgba(255,141,141,.92);background:rgba(78,15,15,.9)}.tb-repair-card .tb-node.running{border-color:rgba(255,109,109,.88);box-shadow:0 0 0 1px rgba(255,68,68,.25)}.tb-repair-card .tb-node.running em{color:#ffcaca}.tb-section.repair .tb-sec-head{border-bottom-color:rgba(255,109,109,.24);background:linear-gradient(180deg,rgba(68,20,25,.72),rgba(29,18,22,.72))}.tb-section.repair .tb-sec-head h3{color:#ffe9e9}.tb-section.repair .tb-sec-sub{color:#ffb9b9}
 		  .tb-past-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;border:1px solid #252b36;border-radius:7px;background:#11151c;padding:7px 8px;opacity:.84;color:#9aa3b2}.tb-past-main{min-width:0;display:grid;gap:4px}.tb-past-card .tb-past-task,.tb-past-card .tb-past-answer{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical}.tb-past-card .tb-past-task{-webkit-line-clamp:2;font-size:11.5px;font-weight:800;color:#cbd5e4}.tb-past-card .tb-past-answer{-webkit-line-clamp:2;font-size:10.5px;color:#8f9aad}.tb-past-side{display:grid;justify-items:end;gap:3px}.tb-past-agent{font-size:10px;color:#c1c8d4;white-space:nowrap;max-width:82px;overflow:hidden;text-overflow:ellipsis}.tb-past-card .tb-past-state{font-size:9.5px;border:1px solid #303744;border-radius:999px;padding:1px 5px;white-space:nowrap}.tb-past-card.failed .tb-past-state{color:#ffc4c4;border-color:#704045}.tb-past-card.canceled .tb-past-state{color:#fee3aa;border-color:#6b5422;background:#211a0f}.tb-past-card.done .tb-past-state{color:#99e7c5;border-color:#315f4d}.tb-limit-note{font-size:10px;color:#7f8ba0;padding:0 8px 7px}
 	  .qtoolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:7px;margin-bottom:8px}.qsum{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}.qchip{font-family:inherit;font-size:11px;font-weight:850;line-height:1.2;color:#bac5d6;background:#151b24;border:1px solid #303a4d;border-radius:999px;padding:3px 8px;white-space:nowrap;appearance:none;cursor:pointer}.qchip b{font:900 11px var(--mono);margin-left:3px}.qchip.run{color:#cfe0ff;border-color:#365f95}.qchip.wait{color:#fee3aa;border-color:#6b5422}.qchip.bad{color:#ffc4c4;border-color:#704045}.qchip:hover{border-color:#56657c;color:#e6edf7}.qchip.on{box-shadow:0 0 0 1px rgba(255,255,255,.08),inset 0 1px 0 rgba(255,255,255,.05)}.qchip.run.on{background:#17345d;border-color:#6ea8fe;color:#eaf3ff}.qchip.wait.on{background:#302510;border-color:#fbbf24;color:#fff1bf}.qchip.past.on{background:#263241;border-color:#7f8ca3;color:#edf3fb}.qtools{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.qtools button{padding:4px 7px;font-size:11px;white-space:nowrap}
+	  .tb-card::after,.llm-card::after,.peek-shot::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;background:conic-gradient(transparent 0 18%,rgba(110,168,254,.5) 28%,rgba(70,211,154,.42) 40%,transparent 54% 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transform-origin:50% 50%;animation:nativeBorderGlow 7.2s linear infinite}.tb-running-card::after,.tb-ceo-card.running::after,.tb-card.selected::after,.llm-card.glm::after,.peek-shot:hover::after{opacity:.82}.qchip.on,.vtab.on,.side-tab.on{position:relative;overflow:hidden}.qchip.on::after,.vtab.on::after,.side-tab.on::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(100deg,transparent 8%,rgba(255,255,255,.18) 45%,transparent 76%);transform:translateX(-120%);animation:nativePillSheen 5.8s ease-in-out infinite}.motion-enter{animation:nativeListReveal .38s cubic-bezier(.2,.72,.22,1) both;animation-delay:var(--motion-delay,0ms);will-change:transform,opacity}
 	  .qscroll{flex:1;min-height:0;overflow-y:auto;padding-right:2px}.qsection,.qagent,.qhistory{border:1px solid #252b36;border-radius:8px;background:#131720;margin-bottom:7px;overflow:hidden}.qsection:last-child,.qagent:last-child,.qhistory:last-child{margin-bottom:0}
 		  .qsection>summary,.qagent>summary,.qhistory>summary{list-style:none;display:flex;align-items:center;gap:7px;min-height:31px;padding:7px 9px;cursor:pointer;background:#151a22;border-bottom:1px solid transparent}.qsection[open]>summary,.qagent[open]>summary,.qhistory[open]>summary{border-bottom-color:#252d3a}.qsection>summary::-webkit-details-marker,.qagent>summary::-webkit-details-marker,.qhistory>summary::-webkit-details-marker{display:none}
 		  /* details 行此前只有 cursor:pointer,鼠标悬停时不显著;补 hover/open 底色,让任务行/分组的可展开性更容易发现。来源:洞察员 insights.md:209 的原生 a11y 行为清单 */
@@ -229,9 +236,15 @@
 	  .qagent-row{display:grid;grid-template-columns:minmax(84px,.8fr) minmax(0,1.2fr);gap:8px;align-items:center;border:1px solid #252b36;border-radius:7px;background:#11161e;padding:7px 8px}.qagent-name{font-size:12px;font-weight:700;color:#d8dfec;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qagent-counts{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;min-width:0}.qagent-counts span{font-size:10px;color:#aeb8c8;border:1px solid #303744;border-radius:999px;padding:2px 6px;white-space:nowrap}
 	  .qitem{background:#151922;border:1px solid #303744;border-radius:7px;overflow:hidden}.qitem.running{border-color:rgba(110,168,254,.82)}.qitem.paused{border-color:rgba(251,191,36,.72)}.qitem.canceling{border-color:rgba(255,107,107,.8)}.qitem.dragover{border-color:var(--ok);box-shadow:0 0 0 1px rgba(70,211,154,.4)}
 	  .qitem>summary{list-style:none;display:grid;grid-template-columns:auto auto auto minmax(0,1fr) auto;gap:6px;align-items:center;padding:7px 8px;cursor:pointer}.qitem>summary::-webkit-details-marker{display:none}.qid{font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap}.qstate{font-size:10px;color:var(--text);border:1px solid var(--line);border-radius:999px;padding:1px 6px;white-space:nowrap}.qbrief{font-size:12px;line-height:1.28;color:#c7cfdd;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.qextra{font-size:10px;color:#7f8ba0;white-space:nowrap}
-	  .tb-ceo-card>summary.tb-ceo-summary,.tb-running-card>summary.tb-ceo-summary,.tb-queue-card>summary.tb-ceo-summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 10px;cursor:pointer}.tb-ceo-card>summary.tb-ceo-summary::-webkit-details-marker,.tb-running-card>summary.tb-ceo-summary::-webkit-details-marker,.tb-queue-card>summary.tb-ceo-summary::-webkit-details-marker{display:none}
-	  /* running/ceo 卡片不再被 CSS 强制常开:详情随 <details> 默认折叠,点击展开 */
-		  .qdetail{padding:0 8px 8px}.qfull{font-size:12px;line-height:1.42;color:#c7cfdd;max-height:96px;overflow:auto;white-space:pre-wrap;border-top:1px solid rgba(48,55,68,.7);padding-top:7px;margin-bottom:7px}.qactions{display:grid;grid-template-columns:minmax(80px,1fr) repeat(5,28px);gap:5px}.qactions input{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);font-size:12px;padding:5px 7px}.qactions button{padding:4px 0;min-width:0}.qhist-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid #252b36;font-size:12px;color:#aeb8c8}.qhist-row:first-child{border-top:none}.qhist-row b{color:#e6e8ee}.qhist-row .bad{color:#ffb0b0}.qhist-row .ok{color:#99e7c5}.qhist-row .mute{margin-left:auto;color:#7f8ba0}
+		  .tb-ceo-card>summary.tb-ceo-summary,.tb-running-card>summary.tb-ceo-summary,.tb-queue-card>summary.tb-ceo-summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 10px;cursor:pointer}.tb-ceo-card>summary.tb-ceo-summary::-webkit-details-marker,.tb-running-card>summary.tb-ceo-summary::-webkit-details-marker,.tb-queue-card>summary.tb-ceo-summary::-webkit-details-marker{display:none}
+		  /* running/ceo 卡片不再被 CSS 强制常开:详情随 <details> 默认折叠,点击展开 */
+		  /* 进行中卡片必须按真实内容高度排布。固定高度面板只滚动列表，不能把多张展开卡片等分压扁。 */
+		  .task-board.mode-running .tb-section.running .tb-list{grid-auto-rows:max-content;align-content:start;overflow-x:hidden;overflow-y:auto;scrollbar-gutter:stable}
+		  .task-board.mode-running .tb-section.running .tb-card{align-self:start;min-height:max-content;max-width:100%}
+		  .task-board.mode-running .tb-section.running .tb-ceo-summary{grid-template-columns:minmax(0,1fr)}
+		  .task-board.mode-running .tb-section.running .tb-ceo-summary>.tb-id-state{justify-content:flex-start}
+		  .task-board.mode-running .tb-section.running .tb-qa-text,.task-board.mode-running .tb-section.running .tb-progress-row .tb-progress{display:block;-webkit-line-clamp:unset;overflow:visible;white-space:normal}
+			  .qdetail{padding:0 8px 8px}.qfull{font-size:12px;line-height:1.42;color:#c7cfdd;max-height:96px;overflow:auto;white-space:pre-wrap;border-top:1px solid rgba(48,55,68,.7);padding-top:7px;margin-bottom:7px}.qactions{display:grid;grid-template-columns:minmax(80px,1fr) repeat(5,28px);gap:5px}.qactions input{min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);font-size:12px;padding:5px 7px}.qactions button{padding:4px 0;min-width:0}.qhist-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-top:1px solid #252b36;font-size:12px;color:#aeb8c8}.qhist-row:first-child{border-top:none}.qhist-row b{color:#e6e8ee}.qhist-row .bad{color:#ffb0b0}.qhist-row .ok{color:#99e7c5}.qhist-row .mute{margin-left:auto;color:#7f8ba0}
 		  .tb-empty,.queue>.empty,.llm-body>.empty{border:1px dashed rgba(110,168,254,.26);border-radius:8px;background:rgba(110,168,254,.045);color:#aeb8c8}
 			  .queue>.empty.err,.llm-body>.empty.err{border-color:rgba(255,107,107,.44);background:rgba(78,15,15,.28);color:#ffd0d0}
 		  /* 任务板动作按钮此前只靠 ↪/↑/Ⅱ/▶/× 短字形辨识,且 27/28px 触点偏紧;统一放宽触点并保持输入栏弹性,提升可发现性与误触容错 */
@@ -267,8 +280,9 @@
 					  .office-agent.server .office-status{max-width:min(118px,calc(100% - 12px))}
 					  /* 本轮 UI 小修(洞察员 insights.md:205/209):链路图是事件流推导视图,动态提示要可播报,工具组在窄屏不挤压正文。 */
 						  .qbrief,.tb-full,.qfull,.tb-past-card .tb-past-task,.tb-past-card .tb-past-answer{overflow-wrap:anywhere;word-break:break-word}
-						  .flowbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--dim);min-width:0;flex-wrap:wrap}
-			  .flowbar .empty{flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.flow-tools{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex:1 1 280px;min-width:0;max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-gutter:auto}.flow-toggle{height:26px;padding:0 7px 0 9px;border-radius:999px;border-color:#303a4d;background:#111720;color:#aeb8c8;font-size:11px;font-weight:800;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:border-color .15s,background .15s,color .15s}.flow-toggle::after{content:attr(data-state);font:900 9.5px/1 var(--sans);color:#8fb7ff;border:1px solid rgba(110,168,254,.28);border-radius:999px;background:rgba(110,168,254,.08);padding:2px 5px}.flow-toggle[aria-pressed="false"]::after{color:#8f9aad;border-color:#303a4d;background:#101722}.flow-toggle:hover{border-color:#56657c;background:#172033;color:#e6edf7}.flow-toggle[aria-pressed="true"]{border-color:rgba(110,168,254,.74);background:#172033;color:#d9e8ff}.flow-toggle.flow-secondary[aria-pressed="true"]{border-color:rgba(70,211,154,.7);color:#c8f7de}.flow-toggle.flow-secondary[aria-pressed="true"]::after{color:#c8f7de;border-color:rgba(70,211,154,.34);background:rgba(70,211,154,.08)}
+						  .flowbar{display:grid;grid-template-columns:minmax(190px,1fr) minmax(0,2fr);align-items:center;gap:8px 12px;margin-bottom:8px;font-size:12px;color:var(--dim);min-width:0}
+			  .flowbar .empty{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.flow-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;max-width:100%;flex-wrap:wrap}.flow-toggle{min-height:30px;padding:0 8px 0 10px;border-radius:999px;border-color:#303a4d;background:#111720;color:#aeb8c8;font-size:11px;font-weight:800;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:border-color .15s,background .15s,color .15s}.flow-toggle::after{content:attr(data-state);font:900 9.5px/1 var(--sans);color:#8fb7ff;border:1px solid rgba(110,168,254,.28);border-radius:999px;background:rgba(110,168,254,.08);padding:2px 5px}.flow-toggle[aria-pressed="false"]::after{color:#8f9aad;border-color:#303a4d;background:#101722}.flow-toggle:hover{border-color:#56657c;background:#172033;color:#e6edf7}.flow-toggle[aria-pressed="true"]{border-color:rgba(110,168,254,.74);background:#172033;color:#d9e8ff}.flow-toggle.flow-secondary[aria-pressed="true"]{border-color:rgba(70,211,154,.7);color:#c8f7de}.flow-toggle.flow-secondary[aria-pressed="true"]::after{color:#c8f7de;border-color:rgba(70,211,154,.34);background:rgba(70,211,154,.08)}.flow-action{min-height:30px;padding:0 10px;border-radius:9px;border-color:#344156;background:#111720;color:#c6d3e6;font-size:11px;font-weight:800}.flow-action:hover,.flow-action:focus-visible{border-color:rgba(110,168,254,.78);background:#17233a;color:#fff}.flow-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+			  .flow-legend{display:flex;align-items:center;gap:7px 12px;min-height:28px;margin:0 0 8px;padding:5px 9px;border:1px solid rgba(75,89,111,.38);border-radius:10px;background:rgba(13,18,27,.68);color:#9eabbf;font-size:10.5px;line-height:1.2;flex-wrap:wrap}.flow-legend-title{color:#d3dce9;font-weight:850}.flow-key{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.flow-key i{display:inline-block;flex:none}.flow-key-line i{width:22px;height:0;border-top:2px solid #6ea8fe}.flow-key-support i{border-color:#73829a;opacity:.62}.flow-key-return i{border-top-style:dashed;opacity:.54}.flow-key-state i{width:8px;height:8px;border-radius:50%;background:#596579}.flow-key-state.working i{background:var(--accent);box-shadow:0 0 0 3px rgba(110,168,254,.12)}.flow-key-state.done i{background:var(--ok)}.flow-key-state.fail i{background:var(--err)}
 						  /* 本轮 UI 小修(洞察员 insights.md:21-23):事件流/监控面板的推导状态要可追踪,被截断信息给完整 hover;服务器空态不用内联样式,避免与任务板/模型用量空态漂移。 */
 						  .desk .rn,.flowbar .empty{cursor:help}
 						  .office-empty{justify-self:center;align-self:center;margin:auto;padding:10px 12px;text-align:center;font-size:11px;color:#9aa8bc;border:1px dashed rgba(110,168,254,.22);border-radius:8px;background:rgba(110,168,254,.035)}
@@ -308,14 +322,15 @@
 							  /* 本轮 UI 小修 auto-20260701105713(洞察员 insights.md:48-51/230-238):任务板和用量面板是高频监控面,关键摘要/状态提示不能只剩单行省略;在不改数据结构的前提下给核心摘要两行可读空间。 */
 							  .tb-brief,.tb-ceo-brief,.qbrief{min-width:0;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
 							  .queue-title .empty[data-feedback],.llm-head .empty{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35;overflow:hidden;text-overflow:clip}
-				  .flowwrap{position:relative;flex:1;width:100%;min-width:min(100%,1120px);min-height:clamp(720px,calc(100vh - 170px),980px);border:1px solid var(--line);border-radius:12px;overflow:hidden;background-color:#0c0f15;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:26px 26px}
+				  .flowwrap{position:relative;flex:1;width:100%;min-width:0;min-height:clamp(800px,calc(100vh - 150px),980px);--flow-node-w:138px;--flow-node-h:88px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background-color:#0b0f16;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:28px 28px}
+				  .flowwrap[data-flow-layout="fit"]{min-height:580px}.flowwrap[data-flow-layout="compact"]{min-height:clamp(720px,calc(100vh - 170px),860px)}.flowwrap[data-flow-layout="fit"] .fhead,.flowwrap[data-flow-layout="compact"] .fhead{padding:4px 7px}.flowwrap[data-flow-layout="fit"] .fhead .fico,.flowwrap[data-flow-layout="compact"] .fhead .fico{width:22px;height:22px}.flowwrap[data-flow-layout="fit"] .fbody,.flowwrap[data-flow-layout="compact"] .fbody{padding:4px 7px}.flowwrap[data-flow-layout="fit"] .ftask,.flowwrap[data-flow-layout="compact"] .ftask{min-height:14px;-webkit-line-clamp:1;margin-top:2px}
 				  .flowwrap:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-	  .flowwrap::before{content:"";position:absolute;inset:0 0 0 auto;width:31%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(110,168,254,.045));border-left:1px solid rgba(110,168,254,.12);z-index:0}.flowwrap::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 40%,transparent 55%,rgba(0,0,0,.45));z-index:0}
-	  .edge-layer{position:absolute;inset:0;z-index:1;pointer-events:none}.edge-line{fill:none;stroke:currentColor;color:#435066;stroke-width:1.55;stroke-linecap:round;opacity:.86}.edge-line.active{color:var(--accent);stroke-width:2.55;stroke-dasharray:7 5;animation:flow .7s linear infinite;filter:drop-shadow(0 0 5px rgba(110,168,254,.55));opacity:1}
+	  .flowwrap::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(110% 82% at 34% 36%,rgba(57,92,142,.06),transparent 55%),linear-gradient(180deg,rgba(255,255,255,.015),transparent 20%,rgba(0,0,0,.22));z-index:0}.flowwrap::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 40%,transparent 60%,rgba(0,0,0,.38));z-index:0}
+	  .flow-lane{position:absolute;z-index:0;border:1px solid rgba(104,121,149,.2);border-radius:13px;background:rgba(17,24,36,.34);box-shadow:inset 0 1px 0 rgba(255,255,255,.018);pointer-events:none}.flow-lane[data-flow-lane="entry"],.flow-lane[data-flow-lane="review"],.flow-lane[data-flow-lane="core"]{border-color:rgba(110,168,254,.24);background:rgba(31,51,82,.16)}.flow-lane[data-flow-lane="support"]{background:rgba(32,45,58,.2)}.flow-lane[data-flow-lane="repair"]{border-color:rgba(251,146,60,.22);background:rgba(77,39,22,.14)}.flow-lane-name{position:absolute;left:9px;top:7px;max-width:calc(100% - 18px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8999af;font-size:9.5px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.flow-lane[data-flow-lane="review"] .flow-lane-name{color:#b5a9e9}.flow-lane[data-flow-lane="repair"] .flow-lane-name{color:#d9a47e}
+	  .edge-layer{position:absolute;inset:0;z-index:1;pointer-events:none}.edge-line{fill:none;stroke:currentColor;color:#536178;stroke-width:1.35;stroke-linecap:round;opacity:.55}.edge-line.spine{color:#78adf6;stroke-width:2.35;opacity:.94}.edge-line.project{color:#6785ad;stroke-width:1.85;opacity:.78}.edge-line.review{color:#9584d9;stroke-width:1.45;opacity:.58}.edge-line.support{color:#718097;stroke-width:1.15;opacity:.34}.edge-line.repair{color:#c47a49;stroke-width:1.25;opacity:.46}.edge-line.secondary{stroke-dasharray:4 6;opacity:.24}.edge-line.dynamic{opacity:.72}.edge-line.active{color:var(--accent);stroke-width:2.75;stroke-dasharray:7 5;animation:flow .7s linear infinite;filter:drop-shadow(0 0 5px rgba(110,168,254,.55));opacity:1}
 	  @keyframes flow{to{stroke-dashoffset:-24}}
 	  .edge-label-group{filter:drop-shadow(0 4px 8px rgba(0,0,0,.28))}.edge-label-bg{fill:rgba(12,15,21,.92);stroke:rgba(91,105,130,.82);stroke-width:1}.edge-label{font:700 11px var(--sans);fill:#aeb8c8;text-anchor:middle;dominant-baseline:middle;paint-order:stroke;stroke:#0c0f15;stroke-width:2px;stroke-linejoin:round}.edge-label-group.active .edge-label-bg{fill:rgba(20,31,49,.96);stroke:rgba(110,168,254,.86)}.edge-label-group.active .edge-label{fill:#d9e8ff}
-	  .flow-module-label{position:absolute;z-index:1;transform:translate(-50%,-50%);padding:3px 8px;border:1px solid rgba(91,105,130,.55);border-radius:999px;background:rgba(12,16,23,.82);color:#8f9aad;font-size:10px;font-weight:850;white-space:nowrap;pointer-events:none}
-	  .fnode{position:absolute;z-index:2;width:126px;--mx:50%;--my:0%;transform:translate(-50%,-50%);background:#141821;border:1px solid #2c3340;border-radius:11px;box-shadow:0 10px 26px rgba(0,0,0,.42);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+	  .fnode{position:absolute;z-index:2;width:var(--flow-node-w);height:var(--flow-node-h);box-sizing:border-box;--mx:50%;--my:0%;transform:translate(-50%,-50%);background:#141a25;border:1px solid #313a49;border-radius:11px;box-shadow:0 10px 24px rgba(0,0,0,.34);overflow:hidden;transition:border-color .2s,box-shadow .2s,transform .2s}
 	  .fnode::before{content:"";position:absolute;inset:-1px;z-index:0;pointer-events:none;background:radial-gradient(170px circle at var(--mx) var(--my),color-mix(in srgb,var(--ac) 25%,transparent),transparent 62%);opacity:0;transition:opacity .18s}.fnode:hover::before,.fnode:focus-visible::before,.fnode.working::before{opacity:1}.fnode>*{position:relative;z-index:1}
 	  .fnode:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-color:rgba(110,168,254,.88);box-shadow:0 0 0 1px rgba(110,168,254,.62),0 10px 26px rgba(0,0,0,.5)}
 	  .fnode.working{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac),0 10px 26px rgba(0,0,0,.5)}.fnode.done{border-color:var(--ok)}.fnode.fail{border-color:var(--err)}
@@ -326,7 +341,7 @@
 	  .fhead .fico{width:26px;height:26px;border-radius:8px;overflow:hidden;flex:none;background:#111722;border:1px solid color-mix(in srgb,var(--ac) 35%,#2c3340)}.fhead .fname{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 	  .fhead .fdot{width:8px;height:8px;border-radius:50%;background:#3a4150;flex:none}
 	  .fnode.working .fdot{background:var(--accent);animation:p 1s infinite}.fnode.done .fdot{background:var(--ok)}.fnode.fail .fdot{background:var(--err)}
-	  .fbody{padding:7px 9px}.fstate{font-size:11px;color:var(--dim)}.fnode.working .fstate{color:#bdd6ff}.fnode.done .fstate{color:#99e7c5}.fnode.fail .fstate{color:#ffb0b0}
+	  .fbody{padding:7px 9px}.fstate{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:750;color:var(--dim)}.fstate::before{content:"";width:7px;height:7px;border-radius:50%;background:#596579;flex:none}.fnode.working .fstate{color:#bdd6ff}.fnode.working .fstate::before{background:var(--accent);box-shadow:0 0 0 3px rgba(110,168,254,.12)}.fnode.done .fstate{color:#99e7c5}.fnode.done .fstate::before{background:var(--ok)}.fnode.fail .fstate{color:#ffb0b0}.fnode.fail .fstate::before{background:var(--err)}
 	  .ftask{font-size:10.5px;color:#aab3c1;margin-top:4px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:27px}
 	  .empty{color:var(--dim);font-size:13px}
 	  .queue>.empty,.llm-body>.empty{margin:auto;align-self:center;text-align:center;padding:16px 8px}
@@ -337,25 +352,44 @@
 	  @keyframes shinyText{to{background-position:-240% 0}}
 	  @keyframes countBump{0%{transform:translateY(0)}42%{transform:translateY(-2px);text-shadow:0 0 14px rgba(110,168,254,.45)}100%{transform:translateY(0)}}
 	  @keyframes sparkDot{0%{opacity:.95;transform:translate(-50%,-50%) scale(.62)}100%{opacity:0;transform:translate(-50%,-50%) scale(2.8)}}
-	  @keyframes sparkRay{0%{opacity:.95;transform:scale(.55) rotate(0)}100%{opacity:0;transform:scale(1.65) rotate(24deg)}}
-		  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}.click-spark{display:none!important}.desk::after,.tb-card::before,.fnode::before{display:none!important}}
-			  @media(max-width:900px){body{height:auto;min-height:100vh;overflow:auto;padding-bottom:176px}body.has-attachments{padding-bottom:228px}header{gap:8px;padding:10px 12px}header h1{flex:1 1 136px}.nav{padding:5px 8px}header .sp{display:none}#ts{margin-left:auto}main{grid-template-columns:1fr;overflow:visible}.stage{min-height:720px}.side{min-height:760px}.flowwrap{min-height:560px}.bar{grid-template-columns:minmax(0,1fr) 88px;gap:8px;padding:10px 12px}.bar .role-box{grid-column:1/3}.bar .compose{grid-column:1/2}#send{grid-column:2/3;min-width:88px;padding:0 12px}.compose-line{grid-template-columns:minmax(0,1fr) 40px}.bar select,.bar textarea,.attach-btn,#send,.role-box{height:40px;border-radius:13px}.bar textarea{min-height:40px;padding-top:9px;padding-bottom:9px}.attach-btn{width:40px}}
-				  @media(max-width:560px){.tb-head{align-items:stretch;flex-wrap:wrap}.tb-head .qsum{width:100%;justify-content:flex-start}.qtools{width:100%;justify-content:stretch}.qtools button{flex:1 1 0;min-width:0}.llm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.llm-focus{grid-template-columns:1fr}.llm-window{grid-template-columns:1fr;align-items:start}.tb-actions,.tb-running-card .tb-actions,.tb-ceo-card .tb-actions,.tb-queue-card .tb-actions,.qactions{grid-template-columns:repeat(5,minmax(42px,1fr))}.tb-actions input,.qactions input{grid-column:1/-1}.tb-actions button,.qactions button{min-height:38px}}
+		  @keyframes sparkRay{0%{opacity:.95;transform:scale(.55) rotate(0)}100%{opacity:0;transform:scale(1.65) rotate(24deg)}}
+		  @keyframes nativeBorderGlow{to{transform:rotate(1turn)}}
+		  @keyframes nativePillSheen{0%,62%,100%{transform:translateX(-120%);opacity:0}12%{opacity:.75}36%{transform:translateX(120%);opacity:0}}
+		  @keyframes nativeListReveal{0%{opacity:0;transform:translateY(6px) scale(.992);filter:saturate(.88)}100%{opacity:1;transform:translateY(0) scale(1);filter:saturate(1)}}
+			  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}.click-spark{display:none!important}.desk::after,.tb-card::before,.tb-card::after,.llm-card::after,.peek-shot::after,.qchip.on::after,.vtab.on::after,.side-tab.on::after,.fnode::before{display:none!important}.motion-enter{animation:none!important}.tb-latest-progress-track,.tb-latest-progress-label::before{animation:none!important}.tb-latest-progress-copy{display:none!important}.tb-latest-progress-viewport{text-overflow:ellipsis}}
+			  @media(max-width:900px){body{height:auto;min-height:100vh;overflow:auto;padding-bottom:176px}body.has-attachments{padding-bottom:228px}header{gap:8px;padding:10px 12px}header h1{flex:1 1 136px}.nav{padding:5px 8px}header .sp{display:none}#ts{margin-left:auto}main{grid-template-columns:1fr;overflow:visible}.stage{min-height:720px}.side{min-height:760px}.bar{grid-template-columns:minmax(0,1fr) 88px;gap:8px;padding:10px 12px}.bar .role-box{grid-column:1/3}.bar .compose{grid-column:1/2}#send{grid-column:2/3;min-width:88px;padding:0 12px}.compose-line{grid-template-columns:minmax(0,1fr) 40px}.bar select,.bar textarea,.attach-btn,#send,.role-box{height:40px;border-radius:13px}.bar textarea{min-height:40px;padding-top:9px;padding-bottom:9px}.attach-btn{width:40px}}
+				  @media(max-width:640px){#view-flow{overflow:visible}.flowbar{grid-template-columns:1fr;align-items:start}.flowbar .empty{white-space:normal;line-height:1.4}.flow-tools{justify-content:flex-start}.flow-legend{align-items:flex-start}.flowwrap{min-height:2200px;--flow-node-w:132px;--flow-node-h:88px}.fhead .fname{font-size:11.5px}.ftask{-webkit-line-clamp:2}.flow-lane-name{font-size:9px}}
+				  @media(max-width:560px){.tb-head{align-items:stretch;flex-wrap:wrap}.tb-head .qsum{width:100%;justify-content:flex-start}.qtools{width:100%;justify-content:stretch}.qtools button{flex:1 1 0;min-width:0}.llm-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.llm-focus{grid-template-columns:1fr}.llm-window{grid-template-columns:1fr;align-items:start}.tb-actions,.tb-running-card .tb-actions,.tb-ceo-card .tb-actions,.tb-queue-card .tb-actions,.qactions{grid-template-columns:repeat(5,minmax(42px,1fr))}.tb-actions input,.qactions input{grid-column:1/-1}.tb-actions button,.qactions button{min-height:38px}.flow-tools{gap:5px}.flow-toggle,.flow-action{min-height:36px}.flow-legend{gap:7px 10px}}
 			  @media(max-width:900px){body.compose-expanded{padding-bottom:236px}body.compose-expanded.has-attachments{padding-bottom:292px}}
 .tb-node.absent{border-color:#6b5422}
 .tb-node.absent em{color:#fee3aa}
+	  .settings-button{width:34px;height:34px;padding:0;display:grid;place-items:center;font-size:18px;line-height:1;border-color:rgba(110,168,254,.38);background:#111a2a;color:#cfe0ff}
+	  .settings-button:hover,.settings-button:focus-visible{border-color:rgba(110,168,254,.82);background:#16243a;color:#fff}
+	  .settings-overlay{position:fixed;inset:0;z-index:140;display:none;align-items:flex-start;justify-content:flex-end;padding:58px 18px 18px;background:rgba(6,10,18,.58);backdrop-filter:blur(3px)}
+	  .settings-overlay.show{display:flex}
+	  .settings-panel{width:min(470px,calc(100vw - 28px));max-height:calc(100vh - 76px);overflow:auto;border:1px solid rgba(110,168,254,.38);border-radius:16px;background:#0e1626;box-shadow:0 22px 60px rgba(0,0,0,.55)}
+	  .settings-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:#0e1626}
+	  .settings-head h2{margin:0;font-size:15px;color:#edf4ff}.settings-head p{margin:2px 0 0;font-size:11px;color:#7e93b4}.settings-save-state{margin-left:auto;min-width:58px;padding:4px 9px;border:1px solid rgba(107,123,150,.42);border-radius:999px;background:rgba(107,123,150,.1);color:#aebbd0;font-size:10px;font-weight:850;text-align:center}.settings-save-state[data-state="saved"]{border-color:rgba(70,211,154,.58);background:rgba(20,89,66,.24);color:#9ff0c7}.settings-save-state[data-state="unsaved"]{border-color:rgba(255,107,107,.62);background:rgba(106,31,38,.25);color:#ffb5b5}.settings-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;background:transparent;font-size:20px;color:#8aa0bf}.settings-close:hover{background:rgba(255,255,255,.08);color:#fff}
+	  .settings-body{display:grid;gap:14px;padding:16px}.settings-card{display:grid;gap:12px;padding:14px;border:1px solid rgba(107,123,150,.34);border-radius:13px;background:rgba(17,25,39,.78)}
+	  .settings-card-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#eaf2ff}.settings-help{margin:0;font-size:11px;line-height:1.5;color:#8fa0b8}
+	  .settings-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;border:1px solid rgba(78,91,112,.62);border-radius:10px;background:#0a101b}.settings-preset{min-width:0;min-height:38px;padding:7px 5px;border:0;border-radius:7px;background:transparent;color:#8fa0b8;font-size:11px;font-weight:780;white-space:nowrap}.settings-preset:hover,.settings-preset:focus-visible{background:#162238;color:#e4efff;outline:2px solid rgba(110,168,254,.72);outline-offset:-2px}.settings-preset[aria-selected="true"]{background:#1b3659;color:#eef5ff;box-shadow:inset 0 0 0 1px rgba(110,168,254,.68)}.settings-preset:disabled{opacity:.34;cursor:not-allowed}.settings-preset[hidden]{display:none}
+	  .settings-preview{display:grid;gap:6px;padding:11px 12px;border-left:3px solid #6ea8fe;border-radius:7px;background:#0b111d}.settings-preview-title{font-size:13px;font-weight:850;color:#e8f1ff}.settings-preview-resources{font:11px/1.5 var(--mono);color:#a9c8f5}.settings-preview-copy{margin:0;font-size:11px;line-height:1.55;color:#9eabc0}.settings-preview-note{margin:0;font-size:10px;line-height:1.5;color:#68778f}
+	  .settings-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.settings-save{background:#1a3353;border-color:rgba(110,168,254,.64);color:#dceaff;font-weight:750}.settings-restart{border-color:rgba(255,107,107,.5);background:rgba(78,15,15,.38);color:#ffd0d0;font-weight:750}.settings-restart:hover,.settings-restart:focus-visible{border-color:var(--err);background:rgba(78,15,15,.88);outline-color:var(--err)}
+	  .settings-feedback{padding:8px 10px;border:1px solid rgba(107,123,150,.28);border-radius:9px;background:rgba(8,13,22,.62);font-size:11px;line-height:1.45;color:#9fb0c7}.settings-feedback[hidden]{display:none}.settings-feedback[data-tone="warn"]{border-color:rgba(251,191,36,.48);color:#fee3aa}.settings-feedback[data-tone="err"]{border-color:rgba(255,107,107,.54);color:#ffd0d0}
+	  .task-context-menu{position:fixed;z-index:170;display:grid;min-width:174px;padding:5px;border:1px solid rgba(107,123,150,.58);border-radius:10px;background:#111927;box-shadow:0 16px 38px rgba(0,0,0,.5)}.task-context-menu[hidden]{display:none}.task-context-menu button{width:100%;padding:8px 10px;text-align:left;border:0;background:transparent;color:#e7edf7}.task-context-menu button:hover,.task-context-menu button:focus-visible{background:#1b2a40;outline:2px solid var(--accent);outline-offset:-2px}.task-context-menu button[data-context-action="delete-bulletin"]{color:#ffd0d0}.task-context-menu button[data-context-action="delete-bulletin"]:hover,.task-context-menu button[data-context-action="delete-bulletin"]:focus-visible{background:rgba(78,15,15,.72);outline-color:var(--err)}
+	  @media(max-width:560px){.settings-overlay{padding:52px 8px 8px}.settings-panel{width:100%;max-height:calc(100vh - 60px)}.settings-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-actions button{flex:1 1 130px}}
 </style>
 </head>
 <body>
 <header>
   <h1>玉兔6 · 工作区</h1>
   <a class="nav" href="/control-room">控制室</a>
-  <a class="nav" href="/public/office-experiment.html">办公室·实验版</a>
   <a class="nav" href="/api-gateway">API 网关</a>
   <span class="sp"></span>
   <span id="versionBadge" class="version-badge" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="verOverlay" aria-expanded="false" title="点击看版本历史" aria-label="版本 v0.0.0.0,点击看版本历史">v0.0.0.0</span>
   <span id="ts" class="empty" role="status" aria-live="polite" aria-atomic="true" title="工作区更新时间: 待读取" aria-label="工作区更新时间: 待读取">待读取</span>
   <button type="button" onclick="pollEvents(true)" title="刷新工作区状态" aria-label="刷新工作区状态">刷新</button>
+	  <button id="settingsButton" class="settings-button" type="button" title="打开设置中心" aria-label="打开设置中心" aria-haspopup="dialog" aria-controls="settingsOverlay" aria-expanded="false">⚙</button>
 	</header>
 	<div id="verOverlay" class="ver-overlay" onclick="if(event.target===this)closeVersionPopup()">
 	  <div class="ver-pop" role="dialog" aria-modal="true" aria-label="版本历史">
@@ -363,6 +397,40 @@
 	    <div id="verBody"></div>
 	  </div>
 	</div>
+	<div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
+	  <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-describedby="settingsDescription">
+	    <div class="settings-head">
+	      <div><h2 id="settingsTitle">设置中心</h2><p id="settingsDescription">仅管理本机控制台的安全运行设置</p></div>
+	      <span id="settingsSaveState" class="settings-save-state" data-state="loading" role="status" aria-live="polite" aria-atomic="true">读取中</span>
+	      <button id="settingsClose" class="settings-close" type="button" title="关闭设置中心" aria-label="关闭设置中心">×</button>
+	    </div>
+	    <div class="settings-body">
+	      <section class="settings-card" aria-labelledby="concurrencySettingTitle">
+	        <div class="settings-card-title"><span id="concurrencySettingTitle">运行资源档位</span></div>
+	        <div id="settingsPresets" class="settings-presets" role="tablist" aria-label="选择运行资源档位">
+	          <button class="settings-preset" type="button" role="tab" aria-selected="false" tabindex="0" data-settings-preset="lean" data-concurrency="1">低内存</button>
+	          <button class="settings-preset" type="button" role="tab" aria-selected="false" tabindex="-1" data-settings-preset="balanced" data-concurrency="2">均衡</button>
+	          <button class="settings-preset" type="button" role="tab" aria-selected="false" tabindex="-1" data-settings-preset="productive" data-concurrency="3">高效率</button>
+	          <button class="settings-preset" type="button" role="tab" aria-selected="false" tabindex="-1" data-settings-preset="full" data-concurrency="4">全速</button>
+	          <button id="settingsCustomPreset" class="settings-preset" type="button" role="tab" aria-selected="false" tabindex="-1" data-settings-preset="custom" hidden>现有配置</button>
+	        </div>
+	        <input id="settingsConcurrency" type="hidden" disabled>
+	        <div id="settingsPresetPreview" class="settings-preview" role="tabpanel" aria-live="polite">
+	          <div id="settingsPreviewTitle" class="settings-preview-title">正在读取资源档位…</div>
+	          <div id="settingsPreviewResources" class="settings-preview-resources">并发 — · 内存上限 — · CPU —</div>
+	          <p id="settingsPreviewCopy" class="settings-preview-copy">读取完成后可一键选择整组配置。</p>
+	          <p id="settingsPreviewNote" class="settings-preview-note">内存为控制台、worker 与模型 CLI 的保守估算，不含浏览器、Unity、ToDesk 等其他应用。</p>
+	        </div>
+	        <div class="settings-actions">
+	          <button id="settingsSave" class="settings-save" type="button" disabled>保存配置</button>
+	          <button id="settingsRestart" class="settings-restart" type="button" disabled>重启控制台</button>
+	        </div>
+	      </section>
+	      <div id="settingsFeedback" class="settings-feedback" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+	    </div>
+	  </section>
+	</div>
+	<div id="taskContextMenu" class="task-context-menu" role="menu" aria-label="任务操作" hidden><button id="taskContextAction" type="button" role="menuitem"></button></div>
 	<div class="bar">
 			  <div class="role-box"><label class="field-label" for="role">派给</label><select id="role"></select></div>
 	  <div class="compose">
@@ -382,12 +450,14 @@
       <!-- 视图切换标签:此前唯独这组 tab 缺 role/aria-selected/type(同页 side-tab line353、qchip line3005 都齐全),屏阅器读不出"标签/已选中"=可访问性+一致性双缺口。补 ARIA tab 语义,选中态由 setView() 同步(对齐 setSideView line832)。洞察员 insights.md:475(UI 自身 a11y role/aria/键盘可达应是默认能力)/:209(借 React Aria tab 键盘焦点规范)背书 -->
       <div class="seg" role="tablist" aria-label="舞台视图切换">
         <button class="vtab on" type="button" role="tab" id="vtab-office" aria-controls="view-office" aria-selected="true" tabindex="0" data-view="office">办公室</button>
+        <button class="vtab" type="button" role="tab" id="vtab-building" aria-controls="view-building" aria-selected="false" tabindex="-1" data-view="building">办公楼</button>
         <button class="vtab" type="button" role="tab" id="vtab-desks" aria-controls="view-desks" aria-selected="false" tabindex="-1" data-view="desks">工位</button>
         <button class="vtab" type="button" role="tab" id="vtab-flow" aria-controls="view-flow" aria-selected="false" tabindex="-1" data-view="flow">链路图</button>
       </div>
       <span id="stageHint" class="stagehint" role="status" aria-live="polite" aria-atomic="true" title="舞台视图提示: 待读取" aria-label="舞台视图提示: 待读取"></span>
     </div>
     <div class="viewbody">
+      <div id="view-building" class="view" role="tabpanel" aria-labelledby="vtab-building" aria-hidden="true" hidden data-scroll-key="view:building" data-scroll-mode="preserve"><iframe src="/public/office-building.html" style="width:100%;height:100%;min-height:760px;border:0;border-radius:12px;background:#0b0d12" title="办公楼视图" loading="lazy"></iframe></div>
       <div id="view-desks" class="view" role="tabpanel" aria-labelledby="vtab-desks" aria-hidden="true" hidden data-scroll-key="view:desks" data-scroll-mode="preserve">
         <div class="overview" id="overview" role="list" aria-label="工位状态概览"></div>
         <div class="gtitle">董事长办公室</div>
@@ -454,7 +524,8 @@
         </div>
       </div>
       <div id="view-flow" class="view" role="tabpanel" aria-labelledby="vtab-flow" aria-hidden="true" hidden data-scroll-key="view:flow" data-scroll-mode="preserve">
-		        <div class="flowbar"><span id="mapHint" class="empty" role="status" aria-live="polite" aria-atomic="true" title="等待事件" aria-label="链路图提示: 等待事件">等待事件</span><span class="flow-tools" id="flowTools" role="toolbar" aria-label="链路图模块"></span></div>
+		        <div class="flowbar"><span id="mapHint" class="empty" role="status" aria-live="polite" aria-atomic="true" title="等待事件" aria-label="链路图提示: 等待事件">等待事件</span><span class="flow-tools" id="flowTools" role="toolbar" aria-label="链路图筛选与视图操作"></span></div>
+		        <div class="flow-legend" role="list" aria-label="链路图图例"><span class="flow-legend-title" role="listitem">图例</span><span class="flow-key flow-key-line" role="listitem"><i aria-hidden="true"></i>主链</span><span class="flow-key flow-key-line flow-key-support" role="listitem"><i aria-hidden="true"></i>支撑支线</span><span class="flow-key flow-key-line flow-key-return" role="listitem"><i aria-hidden="true"></i>回路线</span><span class="flow-key flow-key-state" role="listitem"><i aria-hidden="true"></i>空闲</span><span class="flow-key flow-key-state working" role="listitem"><i aria-hidden="true"></i>工作中</span><span class="flow-key flow-key-state done" role="listitem"><i aria-hidden="true"></i>完成</span><span class="flow-key flow-key-state fail" role="listitem"><i aria-hidden="true"></i>失败</span></div>
 	        <div class="flowwrap" id="flowmap" role="group" tabindex="0" title="任务链路图 · 等待事件" aria-label="任务链路图 · 等待事件"></div>
       </div>
     </div>
@@ -464,6 +535,7 @@
 	      <div class="side-seg">
 	        <button class="side-tab on" type="button" id="tab-task-board" data-side-view="task-board" role="tab" aria-selected="true" aria-controls="side-task-board">任务板</button>
 	        <button class="side-tab" type="button" id="tab-llm-usage" data-side-view="llm-usage" role="tab" aria-selected="false" aria-controls="side-llm-usage">模型用量</button>
+	        <button class="side-tab" type="button" id="tab-peekaboo-baseline" data-side-view="peekaboo-baseline" role="tab" aria-selected="false" aria-controls="side-peekaboo-baseline">Peekaboo</button>
 	      </div>
 	    </div>
 	    <div id="side-task-board" class="side-view on" role="tabpanel" aria-labelledby="tab-task-board" tabindex="0">
@@ -474,6 +546,12 @@
 	      <div class="llm-panel">
 		        <div class="llm-head"><h2 class="sec">模型用量</h2><span id="llmHint" class="empty" role="status" aria-live="polite" aria-atomic="true" title="模型用量读取中" aria-label="模型用量读取中">读取中</span></div>
 	        <div class="llm-body" id="llmUsage" data-scroll-key="side:llm-usage" data-scroll-mode="preserve"><div class="empty" role="status" aria-label="模型用量读取中">读取中…<span class="loading-dot" aria-hidden="true"></span></div></div>
+	      </div>
+	    </div>
+	    <div id="side-peekaboo-baseline" class="side-view" role="tabpanel" aria-labelledby="tab-peekaboo-baseline" tabindex="0">
+	      <div class="peek-panel">
+	        <div class="peek-head"><h2 class="sec">Peekaboo 产物</h2><span id="peekHint" class="empty" role="status" aria-live="polite" aria-atomic="true" title="Peekaboo 产物读取中" aria-label="Peekaboo 产物读取中">读取中</span><button id="peekRefresh" type="button" title="刷新 Peekaboo 产物" aria-label="刷新 Peekaboo 产物">刷新</button></div>
+	        <div class="peek-body" id="peekArtifacts" data-scroll-key="side:peekaboo-baseline" data-scroll-mode="preserve"><div class="empty" role="status" aria-label="Peekaboo 产物读取中">读取中…<span class="loading-dot" aria-hidden="true"></span></div></div>
 	      </div>
 	    </div>
 	  </section>
@@ -490,7 +568,7 @@
 	  quality_ops:'quality_ops.png',governance:'governance.png',
 	  'insight-scout':'reasoning_architect.png','repair-lead':'supervisor.png',repair:'dev_worker.png',it_engineer:'dev_worker.png',
 	  memory_officer:'reasoning_architect.png',
-	  board_deepseek:'governance.png',board_glm52:'governance.png',board_opus48:'governance.png',
+		  board_deepseek:'governance.png',board_glm52:'governance.png',board_claude:'governance.png',board_opus48:'governance.png',
 	  gui_desktop_control:'gui_desktop_control.png',ui_optimizer:'ui_optimizer.png',dev_worker:'dev_worker.png',hermes:'hermes.png'
 	};
 	const AVATAR_FALLBACK_SRC=AVATAR_BASE+AVATAR_DEFAULT_FILE;
@@ -516,8 +594,9 @@
 	  'repair-lead':'repair-lead',repair_lead:'repair-lead','维修主管':'repair-lead','维修部门主管':'repair-lead',
 	  mechanic:'repair','repair-agent':'repair','维修员':'repair',
 	  board:'governance','董事':'governance','董事会':'governance',
-	  'board-deepseek':'board_deepseek','董事DeepSeek':'board_deepseek','董事 DeepSeek':'board_deepseek','董事 · DeepSeek':'board_deepseek',
-	  'board-glm52':'board_glm52','board-glm-5.2':'board_glm52','董事GLM-5.2':'board_glm52','董事 GLM-5.2':'board_glm52','董事 · GLM-5.2':'board_glm52',
+		  'board-deepseek':'board_deepseek','董事DeepSeek':'board_deepseek','董事 DeepSeek':'board_deepseek','董事 · DeepSeek':'board_deepseek',
+		  'board-glm52':'board_glm52','board-glm-5.2':'board_glm52','董事GLM-5.2':'board_glm52','董事 GLM-5.2':'board_glm52','董事 · GLM-5.2':'board_glm52',
+		  'board-claude':'board_claude','board-fable':'board_claude','董事Claude':'board_claude','董事 Claude':'board_claude','董事 · Claude':'board_claude','董事Claude Fable':'board_claude','董事 · Claude Fable':'board_claude',
 	  'board-gpt55':'board_opus48','board-gpt-5.5':'board_opus48','董事GPT-5.5':'board_opus48','董事 GPT-5.5':'board_opus48','董事 · GPT-5.5':'board_opus48',
 	  'board-opus48':'board_opus48','board-opus-4.8':'board_opus48','董事Opus-4.8':'board_opus48','董事 Opus-4.8':'board_opus48','董事 · Opus-4.8':'board_opus48','董事Codex':'board_opus48','董事 · Codex':'board_opus48','董事Codex/GPT-5.5':'board_opus48','董事 · Codex/GPT-5.5':'board_opus48',
 	  'memory-officer':'memory_officer','记忆官':'memory_officer',
@@ -529,16 +608,8 @@
 	  chairman:'chairman','董事长':'chairman',secretary:'secretary','秘书':'secretary',supervisor:'supervisor','主管':'supervisor'
 	};
 	const OFFICE_BASE='/public/office-demo-assets/';
-	// 地毯图块(老板最新指定):厚实等距 v3,192x126,顶面菱形 footprint 176x88、可见厚度 32、顶面中心(96,50)。
-	// 几何取自 office-tile-library/thick-solid-carpet-isometric-v3.metrics.json。
-	const CARPET_TILE={
-	  src:OFFICE_BASE+'office-tile-library/thick-solid-carpet-isometric-v3.png',
-	  natW:192,natH:126,footW:176,footH:88,cx:96,cy:50,
-	  displayW:120,                          // 显示宽(可调大小);其余按比例缩放
-	};
-	  const OFFICE_ASSETS={
-		  floor:CARPET_TILE.src,
-		  wall:OFFICE_BASE+'office-wall-seamless-isometric.png',
+		  const OFFICE_ASSETS={
+			  wall:OFFICE_BASE+'office-wall-seamless-isometric.png',
 		  handoff:{
 		    secretary:OFFICE_BASE+'chairman-handoff/secretary-walk-v2.png',
 		    scene:OFFICE_BASE+'chairman-handoff/chairman-handoff.png'
@@ -559,6 +630,10 @@
 	  common:{wallCols:3,wallRows:2,floorCols:3,floorRows:5,floorTop:136},
 	  hr:{wallCols:3,wallRows:1,floorCols:3,floorRows:3,floorTop:76}
 	};
+	const OFFICE_GATE_TIMEOUT_MS=5*60*1000;
+	const OFFICE_TOOL_APPLY_MIN_MS=100;
+	// Rule order is intentional: file/library readers run before web/open fallbacks
+	// so open_file/read_file settle at the library station instead of browser.
 	const OFFICE_TOOL_STATION_RULES=[
 	  {station:'library',action:'资料',facing:-1,match:/(^|[_\s-])(read|grep|glob|ls|list|cat|sed|rg|search|scan|inspect|view|open_file|read_file)([_\s-]|$)/i},
 	  {station:'terminal',action:'终端',facing:1,match:/(^|[_\s-])(bash|shell|terminal|exec|run|build|compile|test|lint|npm|pnpm|yarn|node|python|pytest|make)([_\s-]|$)/i},
@@ -578,16 +653,20 @@
 		  frontend_designer:{label:'前端程序员',runner:'zhipu-glm'},
 		  hr_manager:{label:'HR主管',runner:'codex'},
 		  hr_specialist:{label:'HR专员',runner:'zhipu-glm'},
-	  board_deepseek:{label:'董事 DeepSeek',runner:'new-api'},
-	  board_glm52:{label:'董事 GLM-5.2',runner:'zhipu-glm'},
-	  board_opus48:{label:'董事 Codex/GPT-5.5',runner:'codex'},
+		  board_deepseek:{label:'董事 DeepSeek',runner:'new-api'},
+		  board_glm52:{label:'董事 GLM-5.2',runner:'zhipu-glm'},
+		  board_claude:{label:'董事 Claude Fable 5',runner:'claude-fable-5'},
+		  board_opus48:{label:'董事 Codex/GPT-5.5',runner:'codex'},
 	  dev_worker:{label:'自优化开发',runner:'dev-worker'},
 	  hermes:{label:'Hermes',runner:'hermes'}
 	};
-	const BOARD_DIRECTOR_IDS=['board_deepseek','board_glm52','board_opus48'];
+		const BOARD_DIRECTOR_IDS=['board_deepseek','board_glm52','board_claude','board_opus48'];
+	const FLOW_BOARD_DIRECTOR_IDS=BOARD_DIRECTOR_IDS;
 	const BOARD_VACATION_STATUS='休假中';
 	const BOARD_VACATION_TASK='董事会评议已关闭';
 	const BOARD_REVIEW_CONTROL_FALLBACK={enabled:false,status:'vacation',statusLabel:BOARD_VACATION_STATUS};
+		const FLOW_VIEW_STATE_VERSION='2026-07-14-main-chain-v3';
+	const FLOW_VIEW_STATE_VERSION_KEY='yt6-flow-state-version';
 	const FLOW_NODE_ROLE={
 	  'orchestrator-plan':'orchestrator',orchestrator:'orchestrator',secretary:'secretary',expand:'secretary',
 		  implement:'worker_code',review:'supervisor',done:'orchestrator',frontend:'frontend_designer',frontend_designer:'frontend_designer',
@@ -600,29 +679,35 @@
 		  developer:'dev_worker','dev-worker':'dev_worker',hermes:'hermes'
 	};
 	const FLOW_GROUP_DEFS=[
-	  {id:'core',label:'核心',defaultOpen:true,locked:true,labelX:21,labelY:5},
-	  {id:'project',label:'项目',defaultOpen:true,labelX:35,labelY:40},
-	  {id:'automation',label:'自优化',defaultOpen:true,labelX:78,labelY:25},
-	  {id:'quality',label:'质量/架构',defaultOpen:true,labelX:78,labelY:65},
-	  {id:'ops',label:'运维/洞察',defaultOpen:false,labelX:78,labelY:5},
-	  {id:'repair',label:'维修',defaultOpen:true,labelX:92,labelY:18},
-	  {id:'hr',label:'HR',defaultOpen:false,labelX:58,labelY:5}
+	  {id:'entry',label:'董事长 / 秘书入口',defaultOpen:true,locked:true,lane:{left:1,top:1,width:58,height:15}},
+	  {id:'review',label:'董事会事前评议',defaultOpen:true,locked:true,lane:{left:1,top:17,width:58,height:18}},
+	  {id:'core',label:'CEO 总指挥',defaultOpen:true,locked:true,lane:{left:1,top:36,width:58,height:17}},
+	  {id:'project',label:'项目主管与执行层',defaultOpen:true,locked:true,lane:{left:1,top:54,width:58,height:45}},
+	  {id:'support',label:'公共支撑',defaultOpen:false,lane:{left:59,top:1,width:26,height:98}},
+	  {id:'repair',label:'维修',defaultOpen:false,lane:{left:86,top:1,width:13,height:98}}
 	];
 	function defaultFlowCollapsedGroups(){ return Object.fromEntries(FLOW_GROUP_DEFS.filter(g=>!g.locked).map(g=>[g.id,!g.defaultOpen])); }
 	function loadFlowCollapsedGroups(){
 	  try{
+	    const defaults=defaultFlowCollapsedGroups();
+	    if(localStorage.getItem(FLOW_VIEW_STATE_VERSION_KEY)!==FLOW_VIEW_STATE_VERSION){
+	      localStorage.setItem(FLOW_VIEW_STATE_VERSION_KEY,FLOW_VIEW_STATE_VERSION);
+	      localStorage.setItem('yt6-flow-collapsed-groups',JSON.stringify(defaults));
+	      localStorage.setItem('yt6-flow-show-all-edges','0');
+	      return defaults;
+	    }
 	    const saved=JSON.parse(localStorage.getItem('yt6-flow-collapsed-groups')||'{}');
-	    return Object.assign(defaultFlowCollapsedGroups(),saved&&typeof saved==='object'?saved:{});
+	    return Object.assign(defaults,saved&&typeof saved==='object'?saved:{});
 	  }catch(e){ return defaultFlowCollapsedGroups(); }
 	}
-	let PROJECTS=[], AGENT_META=[], META={}, GRAPH_NODES=[], GRAPH_POS={}, BASE_EDGES=[];
-		let roles={}, queueAgents=[], boardReviewControl=BOARD_REVIEW_CONTROL_FALLBACK, busy=false, eventCursor=0, manualSeq=0, queueState={}, ceoTaskBoard=null, bulletinCards=[], llmUsage=null, imageAttachments=[], dragQueueId=null, dragQueueAgent=null, dragQueueStatus=null, queueOpenState={running:true,queued:true,paused:false,agents:false,history:false}, queueTaskCache={}, queueHistory=[], queueBoardDirty=false, queueFeedback={text:'',until:0}, taskBoardScrollState={}, taskBoardRenderKey='', taskBoardSelectedKey='', taskBoardOutsideCollapseBound=false, taskBoardMode=(function(){try{const m=taskBoardNormalizeMode(localStorage.getItem('yt6-task-board-mode'));localStorage.setItem('yt6-task-board-mode',m);return m;}catch(e){return 'running';}})(), flowCollapsedGroups=loadFlowCollapsedGroups(), flowShowAllEdges=(function(){try{return localStorage.getItem('yt6-flow-show-all-edges')==='1';}catch(e){return false;}})(), flowRenderKey='', flowRenderPending=false, chairmanHandoffTimer=null, chairmanHandoffKey='';
+	let PROJECTS=[], AGENT_META=[], META={}, GRAPH_NODES=[], GRAPH_POS={}, FLOW_RENDER_POS={}, BASE_EDGES=[];
+		let roles={}, queueAgents=[], boardReviewControl=BOARD_REVIEW_CONTROL_FALLBACK, busy=false, eventCursor=0, manualSeq=0, queueState={}, ceoTaskBoard=null, bulletinCards=[], llmUsage=null, peekabooBaseline=null, imageAttachments=[], dragQueueId=null, dragQueueAgent=null, dragQueueStatus=null, queueOpenState={running:true,queued:true,paused:false,agents:false,history:false}, queueTaskCache={}, queueHistory=[], queueBoardDirty=false, queueFeedback={text:'',until:0}, taskBoardScrollState={}, taskBoardRenderKey='', taskBoardSelectedKey='', taskBoardOutsideCollapseBound=false, taskBoardMode=(function(){try{const m=taskBoardNormalizeMode(localStorage.getItem('yt6-task-board-mode'));localStorage.setItem('yt6-task-board-mode',m);return m;}catch(e){return 'running';}})(), flowCollapsedGroups=loadFlowCollapsedGroups(), flowShowAllEdges=(function(){try{return localStorage.getItem('yt6-flow-show-all-edges')==='1';}catch(e){return false;}})(), flowFitView=(function(){try{return new URLSearchParams(location.search).get('flowFit')==='1';}catch(e){return false;}})(), flowRenderKey='', flowRenderPending=false, motionSeenKeys=new Set(), chairmanHandoffTimer=null, chairmanHandoffKey='', runtimeSettingsData=null, settingsSelectedConcurrency=null, settingsReturnFocus=null, taskContextTarget=null, taskContextReturnFocus=null;
 		const TASK_BOARD_ACTIVE_LIMIT=20, TASK_BOARD_HISTORY_LIMIT=50;
-				const nodeRoles={}, taskGoals={}, taskProjects={}, taskRanks={}, taskFinals={}, taskProgress={}, finalClearTimers={}, agents={}, graphEdges={};
+				const nodeRoles={}, taskGoals={}, taskProjects={}, taskRanks={}, taskFinals={}, taskProgress={}, taskProgressPending={}, finalClearTimers={}, officeGateTimers={}, officeToolApplyTimers={}, agents={}, graphEdges={};
 		const MAX_IMAGE_ATTACHMENTS=12, MAX_IMAGE_BYTES=10*1024*1024;
-		let latestEdgeKey='', latestTaskRankSeen=0;
-		const WORKSPACE_VIEWS=['office','desks','flow'];
-		const SIDE_VIEWS=['task-board','llm-usage'];
+		let latestEdgeKey='', latestTaskRankSeen=0, taskProgressOverflowFrame=0;
+		const WORKSPACE_VIEWS=['office','building','desks','flow'];
+		const SIDE_VIEWS=['task-board','llm-usage','peekaboo-baseline'];
 		function isWorkspaceView(v){ return WORKSPACE_VIEWS.includes(String(v||'')); }
 		function normalizeWorkspaceView(v){ return isWorkspaceView(v)?String(v):'office'; }
 		function normalizeSideView(v){ return SIDE_VIEWS.includes(String(v||''))?String(v):'task-board'; }
@@ -740,9 +825,6 @@
 	function officeTileProfile(name){
 	  return OFFICE_TILE_PROFILES[name]||OFFICE_TILE_PROFILES.project;
 	}
-	function officeTileImgs(src,count,kind){
-	  return Array.from({length:count},(_,i)=>`<img class="office-tile ${kind}" src="${src}" alt="" loading="lazy" data-tile-index="${i+1}">`).join('');
-	}
 		function chairmanHandoffLayerHtml(){
 		  return `<div class="chairman-handoff-map" data-chairman-handoff aria-hidden="true">
 		    <img class="handoff-actor handoff-chairman-idle" src="${OFFICE_ASSETS.sprites.chairman.idle}" alt="">
@@ -754,28 +836,8 @@
 		  </div>`;
 		}
 		function officeTileInnerHtml(profile,name){
-		  const wallCount=profile.wallCols*profile.wallRows;
-		  // 墙面仍走原 grid 平铺;地面留空容器,由 renderCarpetFloor() 按实测尺寸用等距菱形铺满。
-		  return `<div class="office-wall-tiles">${officeTileImgs(OFFICE_ASSETS.wall,wallCount,'wall')}</div><div class="office-floor-tiles" data-carpet></div>${name==='chairman'?chairmanHandoffLayerHtml():''}`;
-		}
-		// ── 专门的地毯渲染函数(老板要求:后续地毯渲染统一走这里)──
-		// 用 CARPET_TILE 按等距菱形错位铺满 floor 容器:逐行自上而下,奇数行半格错位,行内按整 footprint 宽平铺 → 菱形互锁、无缝、自动填满任意尺寸。
-		function carpetFloorTilesHtml(W,H){
-		  const t=CARPET_TILE, scale=t.displayW/t.natW;
-		  const dispW=t.natW*scale, dispH=t.natH*scale;
-		  const footW=t.footW*scale, footH=t.footH*scale;
-		  const stepX=footW/2, stepY=footH/2;
-		  const cxOff=t.cx*scale, cyOff=t.cy*scale;
-		  const out=[];
-		  let row=0;
-		  for(let cyc=-footH; cyc<=H+footH; cyc+=stepY, row++){
-		    const xoff=(row&1)?stepX:0;
-		    for(let cxc=-footW+xoff; cxc<=W+footW; cxc+=footW){
-		      const left=Math.round(cxc-cxOff), top=Math.round(cyc-cyOff);
-		      out.push(`<img class="office-tile carpet" src="${t.src}" alt="" loading="lazy" style="left:${left}px;top:${top}px;width:${dispW.toFixed(1)}px;height:${dispH.toFixed(1)}px">`);
-		    }
-		  }
-		  return out.join('');
+		  // 连续背景层替代重叠厚地块，避免每行尖角形成齿轮状墙面。
+		  return `<div class="office-wall-tiles"></div><div class="office-floor-tiles" data-carpet></div>${name==='chairman'?chairmanHandoffLayerHtml():''}`;
 		}
 		function renderCarpetFloor(tilesEl){
 		  const floor=tilesEl&&tilesEl.querySelector('.office-floor-tiles[data-carpet]');
@@ -786,7 +848,8 @@
 		  const fh=Math.max(0,H-floorTop);
 		  const sig=W+'x'+fh;
 		  if(floor.dataset.carpetSig===sig) return true;             // 尺寸未变 → 跳过重绘
-		  floor.innerHTML=carpetFloorTilesHtml(W,fh);
+		  // 连续 CSS 地面无需图片节点；热更新时清掉旧版本遗留的重叠地块。
+		  if(floor.childElementCount) floor.replaceChildren();
 		  floor.dataset.carpetSig=sig;
 		  return true;
 		}
@@ -829,9 +892,9 @@
 	  document.querySelectorAll('#view-office .office-tiles[data-office-tiles]').forEach(el=>applyOfficeTileProfile(el,el.dataset.officeTiles||'project'));
 	}
 	function projectLaneXs(count){
-		  if(count<=1) return [36];
-		  if(count===2) return [25,47];
-		  const start=18, end=54;
+		  if(count<=1) return [30];
+		  if(count===2) return [18,48];
+		  const start=10, end=54;
 	  return Array.from({length:count},(_,i)=>start+(end-start)*(i/Math.max(1,count-1)));
 	}
 	function projectOfficeAgentIds(projectId){
@@ -845,51 +908,59 @@
 	function repairOfficeAgentIds(){
 	  return ['repair-lead','repair'];
 	}
-	function baseEdge(from,to,tier){ return {from,to,tier:tier||'primary'}; }
+	function baseEdge(from,to,tier,category){ return {from,to,tier:tier||'primary',category:category||'support'}; }
 	function rebuildTopology(){
-	  PROJECTS=uniq(queueAgents.filter(a=>a.projectId&&a.projectId!=='Starlaid').map(a=>a.projectId));
+	  PROJECTS=uniq(queueAgents.filter(a=>a.projectId).map(a=>a.projectId));
 	  if(!PROJECTS.length) PROJECTS=['控制台'];
 	  const metas=[
-	    {id:'chairman',label:'董事长',group:'office',flowGroup:'core',accent:'#d6b56d',x:10,y:10},
-	    {id:'secretary',label:'秘书',group:'office',flowGroup:'core',accent:'#7dd3fc',x:26,y:10},
-	    {id:'orchestrator',label:'CEO 总指挥',group:'ceo',flowGroup:'core',accent:'#8b7cf6',x:26,y:29},
+	    {id:'chairman',label:'董事长',group:'office',flowGroup:'entry',accent:'#d6b56d',x:16,y:8},
+	    {id:'secretary',label:'秘书',group:'office',flowGroup:'entry',accent:'#7dd3fc',x:42,y:8},
 	  ];
+	  const reviewXs=FLOW_BOARD_DIRECTOR_IDS.length===1?[30]:FLOW_BOARD_DIRECTOR_IDS.map((_,i)=>8+43*i/(FLOW_BOARD_DIRECTOR_IDS.length-1));
+	  FLOW_BOARD_DIRECTOR_IDS.forEach((id,i)=>{
+	    const extra=EXTRA_AGENTS[id]||{};
+	    metas.push({id,label:extra.label||roleLabel(id),group:'board',flowGroup:'review',accent:['#60a5fa','#34d399','#c084fc','#fbbf24'][i]||'#8b7cf6',x:reviewXs[i],y:26});
+	  });
+	  metas.push({id:'orchestrator',label:'CEO 总指挥',group:'ceo',flowGroup:'core',accent:'#8b7cf6',x:30,y:44});
 	  const projectXs=projectLaneXs(PROJECTS.length);
 	  PROJECTS.forEach((p,i)=>{
-	    const x=projectXs[i], stackedWorkers=PROJECTS.length>2, spread=stackedWorkers?0:6.5;
-	    metas.push({id:`supervisor-${p}`,label:`主管 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#6ea8fe',x,y:48});
-	    metas.push({id:`worker_code-${p}`,label:`后端程序员 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#46d39a',x:x-spread,y:stackedWorkers?64:67});
-	    metas.push({id:`worker_narrow-${p}`,label:`外包员工 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#3fb6c9',x:x+spread,y:stackedWorkers?80:67});
-	    if(p==='控制台') metas.push({id:'frontend_designer',label:'前端程序员',group:'project',flowGroup:'project',projectId:p,accent:'#a78bfa',x,y:stackedWorkers?94:86});
+	    const x=projectXs[i], stackedWorkers=PROJECTS.length>2, spread=stackedWorkers?0:7.5;
+	    metas.push({id:`supervisor-${p}`,label:`主管 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#6ea8fe',x,y:61});
+	    metas.push({id:`worker_code-${p}`,label:`后端程序员 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#46d39a',x:x-spread,y:stackedWorkers?76:78});
+	    metas.push({id:`worker_narrow-${p}`,label:`外包员工 · ${p}`,group:'project',flowGroup:'project',projectId:p,accent:'#3fb6c9',x:x+spread,y:stackedWorkers?89:78});
+	    if(p==='控制台') metas.push({id:'frontend_designer',label:'前端程序员',group:'project',flowGroup:'project',projectId:p,accent:'#a78bfa',x,y:92});
 	  });
 	  metas.push(
-	    {id:'hr_manager',label:'HR主管',group:'hr',flowGroup:'hr',accent:'#d6b56d',x:52,y:12},
-	    {id:'hr_specialist',label:'HR专员',group:'hr',flowGroup:'hr',accent:'#3fb6c9',x:52,y:29}
+	    {id:'hr_manager',label:'HR主管',group:'hr',flowGroup:'support',accent:'#d6b56d',x:65,y:10},
+	    {id:'hr_specialist',label:'HR专员',group:'hr',flowGroup:'support',accent:'#3fb6c9',x:79.5,y:10}
 	  );
 	  metas.push(
-	    {id:'repair-lead',label:'维修主管',group:'repair',flowGroup:'repair',accent:'#fb923c',x:88,y:12},
-	    {id:'repair',label:'维修员',group:'repair',flowGroup:'repair',accent:'#f97316',x:98,y:32}
+	    {id:'repair-lead',label:'维修主管',group:'repair',flowGroup:'repair',accent:'#fb923c',x:93.5,y:24},
+	    {id:'repair',label:'维修员',group:'repair',flowGroup:'repair',accent:'#f97316',x:93.5,y:44}
 	  );
 	  metas.push(
-	    {id:'insight-scout',label:'洞察员',group:'edge',flowGroup:'ops',accent:'#38bdf8',x:70,y:12},
-	    {id:'ui_optimizer',label:'优化师',group:'edge',flowGroup:'automation',accent:'#a78bfa',x:70,y:32},
-	    {id:'gui_desktop_control',label:'Peekaboo',group:'edge',flowGroup:'automation',accent:'#94a3b8',x:86,y:32},
-	    {id:'dev_worker',label:'自优化开发',group:'edge',flowGroup:'automation',accent:'#8aa0b8',x:70,y:52},
-	    {id:'hermes',label:'Hermes',group:'edge',flowGroup:'automation',accent:'#7f93a8',x:86,y:52},
-	    {id:'reasoning_architect',label:'架构 / 推理',group:'edge',flowGroup:'quality',accent:'#5ed6c4',x:70,y:72},
-	    {id:'quality_ops',label:'质量运营',group:'edge',flowGroup:'quality',accent:'#fbbf24',x:86,y:72},
-	    {id:'governance',label:'监管 / 复盘',group:'edge',flowGroup:'quality',accent:'#fb7185',x:86,y:91},
-	    {id:'it_engineer',label:'IT 工程师',group:'edge',flowGroup:'ops',accent:'#22c55e',x:70,y:91}
+	    {id:'insight-scout',label:'洞察员',group:'edge',flowGroup:'support',accent:'#38bdf8',x:65,y:26},
+	    {id:'it_engineer',label:'IT 工程师',group:'edge',flowGroup:'support',accent:'#22c55e',x:79.5,y:26},
+	    {id:'ui_optimizer',label:'优化师',group:'edge',flowGroup:'support',accent:'#a78bfa',x:65,y:42},
+	    {id:'gui_desktop_control',label:'Peekaboo',group:'edge',flowGroup:'support',accent:'#94a3b8',x:79.5,y:42},
+	    {id:'dev_worker',label:'自优化开发',group:'edge',flowGroup:'support',accent:'#8aa0b8',x:65,y:58},
+	    {id:'hermes',label:'Hermes',group:'edge',flowGroup:'support',accent:'#7f93a8',x:79.5,y:58},
+	    {id:'reasoning_architect',label:'架构 / 推理',group:'edge',flowGroup:'support',accent:'#5ed6c4',x:65,y:74},
+	    {id:'quality_ops',label:'质量运营',group:'edge',flowGroup:'support',accent:'#fbbf24',x:79.5,y:74},
+	    {id:'governance',label:'监管 / 复盘',group:'edge',flowGroup:'support',accent:'#fb7185',x:65,y:90}
 	  );
 	  AGENT_META=metas; META=Object.fromEntries(AGENT_META.map(a=>[a.id,a]));
 	  GRAPH_NODES=AGENT_META.map(({id,label,x,y})=>({id,label,x,y}));
 	  GRAPH_POS=Object.fromEntries(GRAPH_NODES.map(n=>[n.id,n]));
-	  BASE_EDGES=[baseEdge('chairman','secretary'),baseEdge('secretary','orchestrator')];
-	  PROJECTS.forEach(p=>{
-	    BASE_EDGES.push(baseEdge('orchestrator',`supervisor-${p}`),baseEdge(`supervisor-${p}`,`worker_code-${p}`),baseEdge(`supervisor-${p}`,`worker_narrow-${p}`),baseEdge(`worker_code-${p}`,`supervisor-${p}`,'secondary'),baseEdge(`worker_narrow-${p}`,`supervisor-${p}`,'secondary'),baseEdge(`supervisor-${p}`,'orchestrator','secondary'));
-	    if(p==='控制台') BASE_EDGES.push(baseEdge(`supervisor-${p}`,'frontend_designer'),baseEdge('frontend_designer',`supervisor-${p}`,'secondary'));
+	  BASE_EDGES=[baseEdge('chairman','secretary','primary','spine'),baseEdge('secretary','orchestrator','secondary','spine')];
+	  FLOW_BOARD_DIRECTOR_IDS.forEach(id=>{
+	    BASE_EDGES.push(baseEdge('secretary',id,'primary','review'),baseEdge(id,'orchestrator','primary','review'));
 	  });
-	  BASE_EDGES.push(baseEdge('secretary','hr_manager'),baseEdge('orchestrator','hr_manager','secondary'),baseEdge('hr_manager','hr_specialist'),baseEdge('hr_specialist','hr_manager','secondary'),baseEdge('hr_manager','orchestrator','secondary'),baseEdge('secretary','insight-scout'),baseEdge('insight-scout','orchestrator','secondary'),baseEdge('secretary','repair-lead'),baseEdge('repair-lead','repair'),baseEdge('repair','repair-lead','secondary'),baseEdge('repair-lead','orchestrator','secondary'),baseEdge('repair-lead','it_engineer'),baseEdge('repair','it_engineer'),baseEdge('it_engineer','repair-lead','secondary'),baseEdge('it_engineer','repair','secondary'),baseEdge('orchestrator','it_engineer'),baseEdge('it_engineer','orchestrator','secondary'),baseEdge('orchestrator','ui_optimizer'),baseEdge('ui_optimizer','gui_desktop_control'),baseEdge('gui_desktop_control','ui_optimizer','secondary'),baseEdge('ui_optimizer','dev_worker'),baseEdge('dev_worker','hermes'),baseEdge('hermes','orchestrator','secondary'),baseEdge('orchestrator','reasoning_architect'),baseEdge('reasoning_architect','orchestrator','secondary'),baseEdge('orchestrator','quality_ops'),baseEdge('quality_ops','governance'),baseEdge('governance','orchestrator','secondary'));
+	  PROJECTS.forEach(p=>{
+	    BASE_EDGES.push(baseEdge('orchestrator',`supervisor-${p}`,'primary','project'),baseEdge(`supervisor-${p}`,`worker_code-${p}`,'primary','project'),baseEdge(`supervisor-${p}`,`worker_narrow-${p}`,'primary','project'),baseEdge(`worker_code-${p}`,`supervisor-${p}`,'secondary','project'),baseEdge(`worker_narrow-${p}`,`supervisor-${p}`,'secondary','project'),baseEdge(`supervisor-${p}`,'orchestrator','secondary','project'));
+	    if(p==='控制台') BASE_EDGES.push(baseEdge(`supervisor-${p}`,'frontend_designer','primary','project'),baseEdge('frontend_designer',`supervisor-${p}`,'secondary','project'));
+	  });
+	  BASE_EDGES.push(baseEdge('secretary','hr_manager','primary','support'),baseEdge('orchestrator','hr_manager','secondary','support'),baseEdge('hr_manager','hr_specialist','primary','support'),baseEdge('hr_specialist','hr_manager','secondary','support'),baseEdge('hr_manager','orchestrator','secondary','support'),baseEdge('secretary','insight-scout','primary','support'),baseEdge('insight-scout','orchestrator','secondary','support'),baseEdge('secretary','repair-lead','primary','repair'),baseEdge('repair-lead','repair','primary','repair'),baseEdge('repair','repair-lead','secondary','repair'),baseEdge('repair-lead','orchestrator','secondary','repair'),baseEdge('repair-lead','it_engineer','primary','repair'),baseEdge('repair','it_engineer','primary','repair'),baseEdge('it_engineer','repair-lead','secondary','repair'),baseEdge('it_engineer','repair','secondary','repair'),baseEdge('orchestrator','it_engineer','primary','support'),baseEdge('it_engineer','orchestrator','secondary','support'),baseEdge('orchestrator','ui_optimizer','primary','support'),baseEdge('ui_optimizer','gui_desktop_control','primary','support'),baseEdge('gui_desktop_control','ui_optimizer','secondary','support'),baseEdge('ui_optimizer','dev_worker','primary','support'),baseEdge('dev_worker','hermes','primary','support'),baseEdge('hermes','orchestrator','secondary','support'),baseEdge('orchestrator','reasoning_architect','primary','support'),baseEdge('reasoning_architect','orchestrator','secondary','support'),baseEdge('orchestrator','quality_ops','primary','support'),baseEdge('quality_ops','governance','primary','support'),baseEdge('governance','orchestrator','secondary','support'));
 	  flowRenderKey='';
 	}
 		function bindViews(){
@@ -944,21 +1015,53 @@
 	function flowNodeVisible(id){ return !flowGroupCollapsed(flowGroupOf(id)); }
 	function saveFlowState(){
 	  try{
+	    localStorage.setItem(FLOW_VIEW_STATE_VERSION_KEY,FLOW_VIEW_STATE_VERSION);
 	    localStorage.setItem('yt6-flow-collapsed-groups',JSON.stringify(flowCollapsedGroups));
 	    localStorage.setItem('yt6-flow-show-all-edges',flowShowAllEdges?'1':'0');
 	  }catch(e){}
 	}
 	function invalidateFlowRender(){ flowRenderKey=''; }
+	function announceFlow(text){
+	  const hint=$('#mapHint'), value=String(text||'').trim();
+	  if(!hint||!value) return;
+	  hint.textContent=value;
+	  hint.title=value;
+	  hint.setAttribute('aria-label','链路图提示: '+value);
+	}
+	function focusFlowOrigin(){
+	  const root=$('#view-flow'), wrap=$('#flowmap');
+	  const run=()=>{
+	    if(root&&typeof root.scrollTo==='function') root.scrollTo({left:0,top:0,behavior:REDUCED_MOTION?'auto':'smooth'});
+	    if(wrap) wrap.focus({preventScroll:true});
+	  };
+	  (window.requestAnimationFrame||function(fn){return setTimeout(fn,0);})(run);
+	}
+	function fitFlowView(){
+	  flowFitView=true;
+	  invalidateFlowRender(); renderFlowControls(); renderGraph({force:true}); focusFlowOrigin();
+	  announceFlow('已适配当前视图，节点已紧凑排布');
+	}
+	function resetFlowView(){
+	  flowCollapsedGroups=defaultFlowCollapsedGroups();
+	  flowShowAllEdges=false;
+	  flowFitView=false;
+	  saveFlowState(); invalidateFlowRender(); renderFlowControls(); renderGraph({force:true}); focusFlowOrigin();
+	  announceFlow('链路图已复位：主链优先，公共支撑与维修按需展开');
+	}
 	function renderFlowControls(){
 	  const box=$('#flowTools'); if(!box) return;
 	  const groupButtons=FLOW_GROUP_DEFS.filter(g=>!g.locked).map(g=>{
 	    const pressed=!flowGroupCollapsed(g.id);
-	    const action=pressed?'折叠':'显示';
-	    const label=`${action}${g.label}模块`;
+	    const action=pressed?'隐藏':'显示';
+	    const label=`${action}${g.label}分组`;
 	    return `<button class="flow-toggle" type="button" data-flow-group="${esc(g.id)}" data-state="${pressed?'开':'关'}" aria-pressed="${pressed?'true':'false'}" title="${esc(label)}" aria-label="${esc(label)}">${esc(g.label)}</button>`;
 	  }).join('');
-	  const edgeLabel=flowShowAllEdges?'隐藏非活跃连线':'显示全部连线';
-	  box.innerHTML=groupButtons+`<button class="flow-toggle flow-secondary" type="button" data-flow-edges="all" data-state="${flowShowAllEdges?'全':'主'}" aria-pressed="${flowShowAllEdges?'true':'false'}" title="${esc(edgeLabel)}" aria-label="${esc(edgeLabel)}">全部连线</button>`;
+	  const edgeLabel=flowShowAllEdges?'切回主链优先，弱化次级回路线':'显示全部连线与完整关系';
+	  const fitLabel=flowFitView?'当前已适配视图':'适配当前视图';
+	  box.innerHTML=groupButtons+
+	    `<button class="flow-toggle flow-secondary" type="button" data-flow-edges="all" data-state="${flowShowAllEdges?'全':'简'}" aria-pressed="${flowShowAllEdges?'true':'false'}" title="${esc(edgeLabel)}" aria-label="${esc(edgeLabel)}">完整关系</button>`+
+	    `<button class="flow-action" type="button" data-flow-action="fit" aria-pressed="${flowFitView?'true':'false'}" title="${esc(fitLabel)}" aria-label="${esc(fitLabel)}">适配视图</button>`+
+	    `<button class="flow-action" type="button" data-flow-action="reset" title="复位链路图筛选与视图" aria-label="复位链路图筛选与视图">复位</button>`;
 	  box.querySelectorAll('[data-flow-group]').forEach(btn=>{
 	    btn.onclick=()=>{
 	      const id=btn.dataset.flowGroup;
@@ -968,6 +1071,10 @@
 	  });
 	  const edgeBtn=box.querySelector('[data-flow-edges]');
 	  if(edgeBtn) edgeBtn.onclick=()=>{ flowShowAllEdges=!flowShowAllEdges; saveFlowState(); invalidateFlowRender(); renderFlowControls(); renderGraph({force:true}); };
+	  const fitBtn=box.querySelector('[data-flow-action="fit"]');
+	  const resetBtn=box.querySelector('[data-flow-action="reset"]');
+	  if(fitBtn) fitBtn.onclick=fitFlowView;
+	  if(resetBtn) resetBtn.onclick=resetFlowView;
 	}
 	function scheduleGraphRender(force){
 	  if(force) invalidateFlowRender();
@@ -981,16 +1088,17 @@
 	  currentView=v; try{ localStorage.setItem('yt6-ws-view',v); }catch(e){}
 	  document.querySelectorAll('.vtab').forEach(b=>syncTabState(b,b.dataset.view===v));
 	  syncPanelState($('#view-office'),v==='office');
+	  syncPanelState($('#view-building'),v==='building');
 	  syncPanelState($('#view-desks'),v==='desks');
 	  syncPanelState($('#view-flow'),v==='flow');
 	  const hint=$('#stageHint');
 	  if(hint){
-	    hint.textContent=v==='office'?'等距办公室 · 总裁办公室 / 董事会 / 公共协作区 / 维修部门 / 项目片区':(v==='desks'?'组织层级工位 · 董事长办公室 / 项目主管 / 维修部门 / 外围':'组织链路 · 董事长→秘书→CEO→项目主管→员工 / 维修主管→维修员');
+	    hint.textContent=v==='office'?'等距办公室 · 总裁办公室 / 董事会 / 公共协作区 / 维修部门 / 项目片区':(v==='building'?'办公楼 · 完整房间 · 可切换各办公室':(v==='desks'?'组织层级工位 · 董事长办公室 / 项目主管 / 维修部门 / 外围':'组织链路 · 重要任务：董事长→秘书→董事会→CEO→主管→员工；常规任务可直达 CEO'));
 	    const hintLabel='舞台视图提示: '+hint.textContent;
 	    hint.title=hintLabel;
 	    hint.setAttribute('aria-label',hintLabel);
 	  }
-	  if(v==='office'){ renderOffice(); requestAnimationFrame(renderCarpetFloors); } else if(v==='desks') renderDesks(); else { renderFlowControls(); scheduleGraphRender(true); }
+	  if(v==='office'){ renderOffice(); requestAnimationFrame(renderCarpetFloors); } else if(v==='desks') renderDesks(); else if(v==='flow'){ renderFlowControls(); scheduleGraphRender(true); }
 	}
 	let _carpetResizeTimer=null;
 	window.addEventListener('resize',()=>{ clearTimeout(_carpetResizeTimer); _carpetResizeTimer=setTimeout(()=>{ if(currentView==='office') renderCarpetFloors(); },180); });
@@ -1002,10 +1110,11 @@
 		    const on=b.dataset.sideView===v;
 		    syncTabState(b,on);
 		  });
-		  const taskPanel=$('#side-task-board'), llmPanel=$('#side-llm-usage');
+		  const taskPanel=$('#side-task-board'), llmPanel=$('#side-llm-usage'), peekPanel=$('#side-peekaboo-baseline');
 		  syncPanelState(taskPanel,v==='task-board');
 		  syncPanelState(llmPanel,v==='llm-usage');
-	  const panel=v==='task-board'?taskPanel:llmPanel;
+		  syncPanelState(peekPanel,v==='peekaboo-baseline');
+	  const panel=v==='task-board'?taskPanel:(v==='llm-usage'?llmPanel:peekPanel);
 	  if(panel){ bindScrollMemory(panel); restoreTaskBoardScrollState(panel); }
 	}
 			function autosizeTask(){
@@ -1079,9 +1188,9 @@
 	  const n=Number(value)||0, from=Object.prototype.hasOwnProperty.call(countState,key)?countState[key]:0;
 	  return `<b class="count-pop" data-count-key="${esc(key)}" data-count-from="${from}" data-count-to="${n}">${n}</b>`;
 	}
-	function animateCountUps(root){
-	  if(!root) return;
-	  root.querySelectorAll('[data-count-to]').forEach(el=>{
+		function animateCountUps(root){
+		  if(!root) return;
+		  root.querySelectorAll('[data-count-to]').forEach(el=>{
 	    const from=Number(el.dataset.countFrom)||0, to=Number(el.dataset.countTo)||0, key=el.dataset.countKey||'';
 	    countState[key]=to;
 	    if(REDUCED_MOTION||from===to){ el.textContent=String(to); return; }
@@ -1092,15 +1201,41 @@
 	      el.textContent=String(Math.round(from+diff*eased));
 	      if(t<1) requestAnimationFrame(tick);
 	    };
-	    requestAnimationFrame(tick);
-	  });
-	}
-	function bindMotionEffects(){
-	  if(motionEffectsBound) return;
-	  motionEffectsBound=true;
-	  if(REDUCED_MOTION) return;
-	  document.addEventListener('pointermove',e=>{
-	    const card=e.target.closest('.desk,.tb-card,.fnode');
+		    requestAnimationFrame(tick);
+		  });
+		}
+		function motionKeyForElement(el,idx){
+		  if(!el) return '';
+		  if(el.dataset&&el.dataset.tbCardKey) return `tb:${el.dataset.tbCardKey}`;
+		  if(el.dataset&&el.dataset.motionKey) return `mk:${el.dataset.motionKey}`;
+		  const href=el.getAttribute&&el.getAttribute('href');
+		  if(href) return `href:${href}`;
+		  if(el.id) return `id:${el.id}`;
+		  return `${el.tagName||'node'}:${idx}:${String(el.textContent||'').replace(/\s+/g,' ').trim().slice(0,80)}`;
+		}
+		function decorateDynamicMotion(root){
+		  if(REDUCED_MOTION||!root||!root.querySelectorAll) return;
+		  const nodes=[...root.querySelectorAll('.tb-list>.tb-card,.tb-list>.tb-past-card,.peek-shot,.peek-log,.llm-card,.qagent-row')].slice(0,24);
+		  nodes.forEach((el,idx)=>{
+		    const key=motionKeyForElement(el,idx);
+		    if(!key||motionSeenKeys.has(key)) return;
+		    motionSeenKeys.add(key);
+		    el.style.setProperty('--motion-delay',`${Math.min(idx,8)*32}ms`);
+		    el.classList.remove('motion-enter');
+		    void el.offsetWidth;
+		    el.classList.add('motion-enter');
+		    el.addEventListener('animationend',()=>{
+		      el.classList.remove('motion-enter');
+		      el.style.removeProperty('--motion-delay');
+		    },{once:true});
+		  });
+		}
+		function bindMotionEffects(){
+		  if(motionEffectsBound) return;
+		  motionEffectsBound=true;
+		  if(REDUCED_MOTION) return;
+		  document.addEventListener('pointermove',e=>{
+		    const card=e.target.closest('.desk,.tb-card,.fnode,.llm-card,.peek-shot');
 	    if(!card) return;
 	    const r=card.getBoundingClientRect();
 	    card.style.setProperty('--mx',`${Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100))}%`);
@@ -1118,21 +1253,278 @@
 	  });
 	}
 
+	function pageCookie(name){
+	  const prefix=String(name||'')+'=';
+	  for(const part of String(document.cookie||'').split(';')){
+	    const item=part.trim();
+	    if(item.startsWith(prefix)) return decodeURIComponent(item.slice(prefix.length));
+	  }
+	  return '';
+	}
+	const RUNTIME_SETTING_PRESETS=[
+	  {id:'lean',value:1,label:'低内存',memory:'4–8 GB',memoryCap:'约 8 GB',cpu:'低',summary:'一次只运行一个重型模型任务，最稳，适合后台常驻或同时打开 Unity 等大型应用。'},
+	  {id:'balanced',value:2,label:'均衡',memory:'8–14 GB',memoryCap:'约 14 GB',cpu:'中',summary:'最多并行两个重型模型任务，在响应速度和长期稳定运行之间取平衡，推荐日常使用。'},
+	  {id:'productive',value:3,label:'高效率',memory:'12–20 GB',memoryCap:'约 20 GB',cpu:'高',summary:'最多并行三个重型模型任务，适合任务集中时使用，系统内存与 CPU 占用会明显上升。'},
+	  {id:'full',value:4,label:'全速',memory:'16–26 GB',memoryCap:'约 26 GB',cpu:'很高',summary:'最多并行四个重型模型任务，只建议短时突发处理，不宜与 Unity、浏览器重负载同时运行。'}
+	];
+	function runtimePresetForValue(value){
+	  const n=Number(value), known=RUNTIME_SETTING_PRESETS.find(item=>item.value===n);
+	  if(known) return known;
+	  const low=Math.max(4,n*4), high=Math.max(low+2,n*6+2);
+	  return {id:'custom',value:n,label:`现有 ${n}`,memory:`${low}–${high} GB`,memoryCap:`约 ${high} GB`,cpu:n>4?'极高':'高',summary:'这是此前保存的非标准档位。资源需求会随模型、上下文长度和桌面工具数量显著波动，建议改用常用预设。'};
+	}
+	function settingsSetSaveState(saved,detail){
+	  const el=$('#settingsSaveState'); if(!el) return;
+	  const state=saved==null?'loading':saved?'saved':'unsaved';
+	  el.dataset.state=state;
+	  el.textContent=state==='loading'?'读取中':state==='saved'?'已保存':'未保存';
+	  el.title=String(detail||el.textContent);
+	}
+	function settingsSetFeedback(text,tone){
+	  const el=$('#settingsFeedback'); if(!el) return;
+	  const message=String(text||'');
+	  el.hidden=!message;
+	  el.textContent=message;
+	  if(tone) el.dataset.tone=tone; else delete el.dataset.tone;
+	}
+	function settingsPresetButtons(){ return [...document.querySelectorAll('[data-settings-preset]')]; }
+	function renderSettingsPreview(value){
+	  const preset=runtimePresetForValue(value);
+	  $('#settingsPreviewTitle').textContent=`${preset.label}模式`;
+	  $('#settingsPreviewResources').textContent=`并发 ${preset.value} · 预计内存 ${preset.memory}（上限 ${preset.memoryCap}） · CPU ${preset.cpu}`;
+	  $('#settingsPreviewCopy').textContent=preset.summary;
+	  const needsRestart=!!runtimeSettingsData&&preset.value!==runtimeSettingsData.current;
+	  $('#settingsPreviewNote').textContent='内存为控制台、worker 与模型 CLI 的保守估算，不含浏览器、Unity、ToDesk 等其他应用。'+(needsRestart?' 该档位保存后需重启控制台才能应用。':'');
+	}
+	function syncSettingsSelection(){
+	  const input=$('#settingsConcurrency'), save=$('#settingsSave'), restart=$('#settingsRestart');
+	  const n=Number(settingsSelectedConcurrency);
+	  const valid=!!runtimeSettingsData&&Number.isInteger(n)&&n>=runtimeSettingsData.min&&n<=runtimeSettingsData.max;
+	  if(input){ input.value=valid?String(n):''; input.disabled=!valid; }
+	  settingsPresetButtons().forEach(button=>{
+	    const selected=valid&&Number(button.dataset.concurrency)===n;
+	    button.setAttribute('aria-selected',selected?'true':'false');
+	    button.tabIndex=selected?0:-1;
+	  });
+	  if(!valid){ save.disabled=true; restart.disabled=true; settingsSetSaveState(null,'设置尚未加载'); return; }
+	  const saved=n===runtimeSettingsData.pending;
+	  save.disabled=saved;
+	  restart.disabled=!saved||!runtimeSettingsData.restartRequired;
+	  restart.textContent=!saved?'先保存再重启':runtimeSettingsData.restartRequired?'重启以应用':'无需重启';
+	  settingsSetSaveState(saved,saved?'所选档位已写入本机配置':'所选档位尚未保存');
+	  renderSettingsPreview(n);
+	}
+	function renderRuntimeSettings(data){
+	  runtimeSettingsData=data&&data.ok?data:null;
+	  const save=$('#settingsSave'), restart=$('#settingsRestart'), custom=$('#settingsCustomPreset');
+	  if(!runtimeSettingsData){
+	    settingsSelectedConcurrency=null;
+	    settingsPresetButtons().forEach(button=>{ button.disabled=true; button.setAttribute('aria-selected','false'); });
+	    if(save) save.disabled=true;
+	    if(restart) restart.disabled=true;
+	    return;
+	  }
+	  const standardValues=new Set(RUNTIME_SETTING_PRESETS.map(item=>item.value));
+	  settingsPresetButtons().forEach(button=>{
+	    if(button===custom) return;
+	    const n=Number(button.dataset.concurrency);
+	    button.disabled=n<runtimeSettingsData.min||n>runtimeSettingsData.max;
+	  });
+	  if(custom){
+	    const showCustom=!standardValues.has(runtimeSettingsData.pending);
+	    custom.hidden=!showCustom;
+	    custom.disabled=!showCustom;
+	    custom.dataset.concurrency=String(runtimeSettingsData.pending);
+	    custom.textContent=`现有 ${runtimeSettingsData.pending}`;
+	  }
+	  settingsSelectedConcurrency=runtimeSettingsData.pending;
+	  syncSettingsSelection();
+	}
+	async function loadRuntimeSettingsPanel(){
+	  const save=$('#settingsSave'), restart=$('#settingsRestart');
+	  settingsPresetButtons().forEach(button=>button.disabled=true);
+	  if(save) save.disabled=true; if(restart) restart.disabled=true;
+	  settingsSetSaveState(null,'正在读取本机运行设置');
+	  settingsSetFeedback('');
+	  try{
+	    const resp=await fetch('/api/settings/runtime',{cache:'no-store',credentials:'same-origin'});
+	    const data=await resp.json().catch(()=>({}));
+	    if(!resp.ok||!data.ok) throw new Error(data.error||`HTTP ${resp.status}`);
+	    renderRuntimeSettings(data);
+	    return data;
+	  }catch(e){
+	    renderRuntimeSettings(null);
+	    settingsSetSaveState(false,'设置读取失败');
+	    settingsSetFeedback('设置读取失败：'+(e&&e.message||e),'err');
+	    throw e;
+	  }
+	}
+	async function settingsPost(url,body){
+	  let token=pageCookie('yutu6_console_csrf');
+	  if(!token){ await loadRuntimeSettingsPanel(); token=pageCookie('yutu6_console_csrf'); }
+	  if(!token) throw new Error('未取得本机 CSRF 会话');
+	  const resp=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Console-CSRF':token},body:JSON.stringify(body)});
+	  const data=await resp.json().catch(()=>({}));
+	  if(!resp.ok||!data.ok){ const error=new Error(data.error||`HTTP ${resp.status}`); error.status=resp.status; error.data=data; throw error; }
+	  return data;
+	}
+	function settingsFocusable(){
+	  const panel=$('#settingsOverlay .settings-panel');
+	  return panel?[...panel.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex]:not([tabindex="-1"])')].filter(el=>!el.hidden):[];
+	}
+	async function openSettingsCenter(){
+	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton');
+	  settingsReturnFocus=document.activeElement;
+	  overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); trigger.setAttribute('aria-expanded','true');
+	  $('#settingsClose').focus();
+	  try{ await loadRuntimeSettingsPanel(); }catch(_){}
+	}
+	function closeSettingsCenter(){
+	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton');
+	  overlay.classList.remove('show'); overlay.setAttribute('aria-hidden','true'); trigger.setAttribute('aria-expanded','false');
+	  const target=settingsReturnFocus&&settingsReturnFocus.isConnected?settingsReturnFocus:trigger;
+	  settingsReturnFocus=null; if(target) target.focus();
+	}
+	function bindSettingsCenter(){
+	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton'), close=$('#settingsClose'), save=$('#settingsSave'), restart=$('#settingsRestart');
+	  trigger.onclick=()=>openSettingsCenter(); close.onclick=()=>closeSettingsCenter();
+	  overlay.addEventListener('click',e=>{ if(e.target===overlay) closeSettingsCenter(); });
+	  overlay.addEventListener('keydown',e=>{
+	    if(e.key==='Escape'){ e.preventDefault(); closeSettingsCenter(); return; }
+	    if(e.key!=='Tab') return;
+	    const items=settingsFocusable(); if(!items.length) return;
+	    const first=items[0], last=items[items.length-1];
+	    if(e.shiftKey&&document.activeElement===first){ e.preventDefault(); last.focus(); }
+	    else if(!e.shiftKey&&document.activeElement===last){ e.preventDefault(); first.focus(); }
+	  });
+	  settingsPresetButtons().forEach(button=>{
+	    button.addEventListener('click',()=>{
+	      if(button.disabled||button.hidden||!runtimeSettingsData) return;
+	      settingsSelectedConcurrency=Number(button.dataset.concurrency);
+	      settingsSetFeedback('');
+	      syncSettingsSelection();
+	    });
+	    button.addEventListener('keydown',e=>{
+	      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+	      const available=settingsPresetButtons().filter(item=>!item.disabled&&!item.hidden);
+	      const index=available.indexOf(button); if(index<0||!available.length) return;
+	      e.preventDefault();
+	      const next=e.key==='Home'?available[0]:e.key==='End'?available[available.length-1]:available[(index+(e.key==='ArrowRight'?1:-1)+available.length)%available.length];
+	      next.focus(); next.click();
+	    });
+	  });
+	  save.onclick=async()=>{
+	    await runButtonBusy(save,'保存中…',async()=>{
+	    const n=Number(settingsSelectedConcurrency);
+	    try{
+	      const data=await settingsPost('/api/settings/runtime',{engineMaxConcurrency:n});
+	      renderRuntimeSettings(data);
+	      settingsSetFeedback('');
+	    }catch(e){ settingsSetSaveState(false,'保存失败'); settingsSetFeedback('保存失败，原配置未改变：'+(e&&e.message||e),'err'); }
+	    });
+	    syncSettingsSelection();
+	  };
+	  restart.onclick=async()=>{
+	    let requested=false;
+	    await runButtonBusy(restart,'重启请求中…',async()=>{
+	    if(!confirm('确认重启控制台？仅在没有运行中任务时执行；页面会短暂断开。')) return;
+	    try{
+	      const data=await settingsPost('/api/console/restart',{});
+	      requested=true;
+	      settingsSetFeedback(`安全重启已排程；${data.cooldownSec||30} 秒内不会重复执行。`,'warn');
+	    }catch(e){
+	      const count=e&&e.data&&e.data.runningCount;
+	      settingsSetFeedback(count?`当前有 ${count} 个运行中任务，未执行重启。`:'重启未执行：'+(e&&e.message||e),'err');
+	    }
+	    });
+	    syncSettingsSelection();
+	    if(requested){ restart.disabled=true; restart.textContent='正在重启…'; }
+	  };
+	}
+	function contextInfoForElement(element){
+	  const card=element&&element.closest?element.closest('#queue [data-kind]'):null;
+	  if(!card) return null;
+	  if(card.dataset.kind==='bulletin'&&(card.dataset.status==='todo'||card.dataset.status==='待拍板')&&card.dataset.id){
+	    return {action:'delete-bulletin',id:card.dataset.id,title:card.dataset.title||'该待拍板',card};
+	  }
+	  if(card.dataset.kind==='queue'&&(card.dataset.status==='queued'||card.dataset.status==='paused')&&card.dataset.id&&card.dataset.agent){
+	    return {action:'cancel-queue',id:card.dataset.id,agent:card.dataset.agent,title:card.dataset.title||'该任务',card};
+	  }
+	  return null;
+	}
+	function closeTaskContextMenu(restoreFocus){
+	  const menu=$('#taskContextMenu'); if(!menu||menu.hidden) return;
+	  menu.hidden=true; taskContextTarget=null;
+	  if(restoreFocus&&taskContextReturnFocus&&taskContextReturnFocus.isConnected) taskContextReturnFocus.focus();
+	  taskContextReturnFocus=null;
+	}
+	function openTaskContextMenu(info,x,y,returnFocus){
+	  const menu=$('#taskContextMenu'), action=$('#taskContextAction'); if(!menu||!action||!info) return;
+	  taskContextTarget=info; taskContextReturnFocus=returnFocus||info.card;
+	  action.dataset.contextAction=info.action;
+	  action.textContent=info.action==='delete-bulletin'?'删除待拍板':'取消任务';
+	  action.title=info.action==='delete-bulletin'?'删除此公告板待拍板卡':'取消此排队或暂停任务';
+	  action.setAttribute('aria-label',action.title);
+	  menu.hidden=false; menu.style.left='0px'; menu.style.top='0px';
+	  const width=menu.offsetWidth, height=menu.offsetHeight;
+	  menu.style.left=Math.max(6,Math.min(Number(x)||6,window.innerWidth-width-6))+'px';
+	  menu.style.top=Math.max(6,Math.min(Number(y)||6,window.innerHeight-height-6))+'px';
+	  action.focus();
+	}
+	async function runTaskContextAction(){
+	  const target=taskContextTarget; if(!target) return;
+	  closeTaskContextMenu(false);
+	  if(target.action==='delete-bulletin'){
+	    if(!confirm(`确认删除待拍板「${target.title}」？此操作只删除公告卡，不会取消或删除真实运行任务。`)) return;
+	    setTaskBoardFeedback('正在删除待拍板…');
+	    try{ await bulletinApi(`/api/bulletin/${encodeURIComponent(target.id)}/remove`,{}); await pollBulletin(); setTaskBoardFeedback('待拍板已删除'); }
+	    catch(e){ setTaskBoardFeedback('删除失败 '+(e&&e.message||e)); }
+	    return;
+	  }
+	  if(target.action==='cancel-queue'){
+	    if(!confirm(`确认取消任务「${target.title}」？此操作走任务取消流程，不会执行“删除”。`)) return;
+	    setTaskBoardFeedback('正在取消任务…');
+	    try{ await queueApi(`/api/queue/${encodeURIComponent(target.agent)}/${encodeURIComponent(target.id)}/cancel`,{}); setTaskBoardFeedback('取消任务已提交'); }
+	    catch(e){ setTaskBoardFeedback('取消任务失败 '+(e&&e.message||e)); }
+	  }
+	}
+	function bindTaskContextMenu(){
+	  const menu=$('#taskContextMenu'), action=$('#taskContextAction');
+	  document.addEventListener('contextmenu',e=>{
+	    const info=contextInfoForElement(e.target); if(!info){ closeTaskContextMenu(false); return; }
+	    e.preventDefault(); openTaskContextMenu(info,e.clientX,e.clientY,e.target.closest('summary,article,details')||info.card);
+	  });
+	  document.addEventListener('keydown',e=>{
+	    if(!menu.hidden){
+	      if(e.key==='Escape'){ e.preventDefault(); closeTaskContextMenu(true); return; }
+	      if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){ e.preventDefault(); action.focus(); return; }
+	    }
+	    if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){
+	      const info=contextInfoForElement(e.target); if(!info) return;
+	      e.preventDefault(); const rect=info.card.getBoundingClientRect(); openTaskContextMenu(info,rect.left+18,rect.top+18,e.target);
+	    }
+	  });
+	  action.onclick=()=>runTaskContextAction();
+	  document.addEventListener('pointerdown',e=>{ if(!menu.hidden&&!menu.contains(e.target)) closeTaskContextMenu(false); },true);
+	  document.addEventListener('scroll',()=>closeTaskContextMenu(false),true);
+	  window.addEventListener('resize',()=>closeTaskContextMenu(false));
+	}
+
 	async function init(){
 	  try{ const r=await (await fetch('/api/runners')).json(); roles=r.roles||{}; queueAgents=r.queueAgents||[]; boardReviewControl=normalizeBoardReviewControl(r.boardReviewControl); }catch(e){}
 	  if(!queueAgents.length) queueAgents=[{id:'ceo',role:'orchestrator',label:'CEO'}];
 	  rebuildTopology();
 	  const sel=$('#role'); sel.innerHTML='';
-	  const roleEntries={...roles};
+	  const roleEntries={secretary:roles.secretary||{label:'秘书',runner:'codex'},'repair-lead':roles['repair-lead']||{label:'维修主管',runner:'codex-privileged'}};
 	  if(!roleEntries.secretary) roleEntries.secretary={label:'秘书',runner:'codex'};
 	  Object.entries(roleEntries).forEach(([k,v])=>{ const o=document.createElement('option'); o.value=k; o.textContent=v.label; sel.appendChild(o); });
 	  if(roleEntries.secretary) sel.value='secretary';
 	  else if(roles.orchestrator) sel.value='orchestrator';
 	  autosizeTask();
-	  bindViews(); bindSideViews(); bindMotionEffects(); bindScrollMemory(document);
+	  bindViews(); bindSideViews(); bindMotionEffects(); bindScrollMemory(document); bindSettingsCenter(); bindTaskContextMenu();
 	  renderDesks(); renderOffice(); renderFlowControls(); renderGraph({force:true}); setView(currentView); setSideView(currentSideView);
 	  try{ if(new URLSearchParams(location.search).get('handoff')==='1') setTimeout(()=>triggerChairmanHandoff({queueId:'preview-'+Date.now(),forceView:true}),600); }catch(e){}
-	  await pollVersion(); await pollQueue(); await pollEvents(true); syncAgentsFromQueueState(); await pollLlmUsage(); await pollBulletin();
+	  await pollVersion(); await pollQueue(); await pollEvents(true); syncAgentsFromQueueState(); await pollLlmUsage(); await pollPeekabooBaseline(); await pollBulletin();
 	  renderDesks(); renderOffice(); renderFlowControls(); renderGraph({force:true}); setView(currentView); setSideView(currentSideView);
 	}
 	function agentRunner(id){
@@ -1142,7 +1534,7 @@
 	  return (roles[id]&&roles[id].runner)||(EXTRA_AGENTS[id]&&EXTRA_AGENTS[id].runner)||'—';
 	}
 	// N1:把 runner 映射成清楚的模型名,工位上直接标"用什么模型"(董事不标,保留 runner)
-	const RUNNER_MODEL={claude:'Claude · 已停用','claude-code':'Claude Code · 已停用','claude-opus-4-8':'Opus 4.8 · 已停用',codex:'Codex · GPT','codex-privileged':'Codex · GPT · 特权','zhipu-glm':'GLM-5.2','zhipu-glm-tools':'GLM-5.2 + Codex 落盘','ui-opt':'Codex · 识图','new-api':'new-api 网关',hermes:'MiniMax-M3','dev-worker':'GLM-5.2',peekaboo:'Codex + Peekaboo · 桌控',queue:'—','入口':'—'};
+		const RUNNER_MODEL={claude:'Claude · 已停用','claude-code':'Claude Code · 已停用','claude-fable-5':'Claude Fable 5','claude-opus-4-8':'Opus 4.8 · 已停用',codex:'Codex · GPT','codex-privileged':'Codex · GPT · 特权','zhipu-glm':'GLM-5.2','zhipu-glm-tools':'GLM-5.2 + Codex 落盘','ui-opt':'Codex · 识图','new-api':'new-api 网关',hermes:'MiniMax-M3','dev-worker':'GLM-5.2',peekaboo:'Codex + Peekaboo · 桌控',queue:'—','入口':'—'};
 	function agentModel(id){
 	  if(typeof BOARD_DIRECTOR_IDS!=='undefined'&&BOARD_DIRECTOR_IDS.includes(id)) return agentRunner(id);
 	  const r=agentRunner(id);
@@ -1189,9 +1581,11 @@
 			  const name=m.label||roleLabel(id);
 			  const statusText=officeStatusText(a,id);
 			  const statusLabelAttr=`状态 ${statusText}`;
-			  const actorLabel=officeActorLabel(name,statusText,task);
-				  const actorTitle=[actorLabel,vacation?'':officeStationTitle(a)].filter(Boolean).join(' · ');
-			  return `<article class="${officeAgentClass(id,vacation?'idle':state,vacation?null:a)}" data-office-role="${officeSpriteKey(id)}" data-office-station="${vacation?'':esc(a.officeStation||'')}" data-office-gate="${vacation?'0':(a.officeGate?'1':'0')}" data-office-tool="${vacation?'':esc(a.officeTool||'')}" data-office-vacation="${vacation?'1':'0'}" id="${esc(officeActorDomId(id))}" style="--ac:${m.accent||'#6ea8fe'}" role="group" title="${esc(actorTitle)}" aria-label="${esc(actorTitle)}">
+				  const actorLabel=officeActorLabel(name,statusText,task);
+					  const actorTitle=[actorLabel,vacation?'':officeStationTitle(a)].filter(Boolean).join(' · ');
+				  const actorRole=!vacation&&a.officeGate?'alert':'group';
+				  const actorLive=!vacation&&a.officeGate?'assertive':'polite';
+				  return `<article class="${officeAgentClass(id,vacation?'idle':state,vacation?null:a)}" data-office-role="${officeSpriteKey(id)}" data-office-station="${vacation?'':esc(a.officeStation||'')}" data-office-gate="${vacation?'0':(a.officeGate?'1':'0')}" data-office-tool="${vacation?'':esc(a.officeTool||'')}" data-office-vacation="${vacation?'1':'0'}" id="${esc(officeActorDomId(id))}" style="--ac:${m.accent||'#6ea8fe'}" role="${actorRole}" aria-live="${actorLive}" aria-atomic="true" title="${esc(actorTitle)}" aria-label="${esc(actorTitle)}">
 	    <span class="office-status" title="${esc(statusLabelAttr)}" aria-label="${esc(statusLabelAttr)}"><span class="office-status-text">${esc(statusText)}</span></span>
 	    <span class="office-computer" aria-hidden="true"></span>
 	    <span class="office-station" aria-hidden="true"></span>
@@ -1305,14 +1699,16 @@
 	  const visibleTask=vacation?BOARD_VACATION_TASK:displayTask(a).replace(/^当前任务: /,'');
 		  const visibleStatus=officeStatusText(a,role);
 		  const actorLabel=officeActorLabel(name,visibleStatus,visibleTask);
-		  el.title=[actorLabel,vacation?'':officeStationTitle(a)].filter(Boolean).join(' · ');
-		  el.setAttribute('role','group');
-			  el.setAttribute('aria-label',el.title);
+			  el.title=[actorLabel,vacation?'':officeStationTitle(a)].filter(Boolean).join(' · ');
+			  el.setAttribute('role',!vacation&&a.officeGate?'alert':'group');
+			  el.setAttribute('aria-live',!vacation&&a.officeGate?'assertive':'polite');
+			  el.setAttribute('aria-atomic','true');
+				  el.setAttribute('aria-label',el.title);
 		  const status=el.querySelector('.office-status'), statusText=el.querySelector('.office-status-text'), task=el.querySelector('.office-task'), img=el.querySelector('[data-office-sprite]');
 		  if(statusText) statusText.textContent=visibleStatus;
 		  else if(status) status.textContent=visibleStatus;
 		  if(status){ const statusLabelAttr='状态 '+visibleStatus; status.title=statusLabelAttr; status.setAttribute('aria-label',statusLabelAttr); }
-		  if(task){ task.textContent=visibleTask; task.title=visibleTask; task.setAttribute('aria-label','当前任务 '+visibleTask); }
+		  if(task){ task.innerHTML=linkifyHtml(visibleTask); task.title=visibleTask; task.setAttribute('aria-label','当前任务 '+visibleTask); }
 	  if(img) img.src=officeSprite(role,vacation?'idle':officeVisualState(a,a.state||'idle'));
 	}
 	function updateOverview(){
@@ -1358,6 +1754,7 @@
 		  return id;
 	}
 		const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+		const linkifyHtml=s=>esc(s).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer" class="task-link">$1</a>');
 		function shortTask(t){ return String(t||'').slice(-8)||'-'; }
 		function statusLabel(state){ return {working:'工作中',done:'完成',fail:'失败',absent:'缺席',idle:'空闲'}[state]||'空闲'; }
 		function cleanTaskText(text){
@@ -1444,20 +1841,25 @@
 	  const q=queueAgents.find(x=>x.id===id);
 	  return (q&&q.label)||roleLabel(id);
 	}
-	function clearOfficeActivity(a,opts){
-	  if(!a) return;
-	  const keepGate=opts&&opts.keepGate;
-	  a.officeTool='';
-	  a.officeStation='';
-	  a.officeAction='';
-	  a.officeFacing=1;
-	  if(!keepGate) a.officeGate=false;
-	}
-	function ensureAgent(role){
-	  const r=normalizeRole(role); if(!r) return null;
-	  if(!agents[r]) agents[r]={state:'idle',curTask:null,taskRank:0,curSeq:0,curTs:0,taskText:'',lastFrom:'',lastTo:'',lastAction:'',active:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGate:false};
-	  return agents[r];
-	}
+		function clearOfficeActivity(a,opts){
+		  if(!a) return;
+		  const keepGate=opts&&opts.keepGate;
+		  a.officeTool='';
+		  a.officeStation='';
+		  a.officeAction='';
+		  a.officeFacing=1;
+		  if(!keepGate){
+		    a.officeGate=false;
+		    a.officeGateSince=0;
+		    a.officeGateOrder=0;
+		    a.officeGatePrev=null;
+		  }
+		}
+		function ensureAgent(role){
+		  const r=normalizeRole(role); if(!r) return null;
+		  if(!agents[r]) agents[r]={state:'idle',curTask:null,taskRank:0,curSeq:0,curTs:0,taskText:'',lastFrom:'',lastTo:'',lastAction:'',active:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGate:false,officeGateSince:0,officeGateOrder:0,officeGatePrev:null,officeToolAppliedAt:0};
+		  return agents[r];
+		}
 	function eventTypeKey(ev){ return String(ev&&ev.type||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
 	function eventPayload(ev){
 	  if(ev&&ev.payload&&typeof ev.payload==='object') return ev.payload;
@@ -1465,10 +1867,10 @@
 	  if(ev&&ev.detail&&typeof ev.detail==='object') return ev.detail;
 	  return {};
 	}
-	function officeToolName(ev){
-	  const p=eventPayload(ev);
-	  return ev.toolName||ev.tool_name||ev.tool||ev.name||ev.command||p.toolName||p.tool_name||p.tool||p.name||p.command||'';
-	}
+		function officeToolName(ev){
+		  const p=eventPayload(ev);
+		  return ev.toolName||ev.tool_name||ev.tool||ev.name||p.toolName||p.tool_name||p.tool||p.name||ev.command||p.command||'';
+		}
 	function officeToolStation(tool){
 	  const raw=String(tool||'').trim();
 	  if(!raw) return {tool:'',station:'',action:'',facing:1};
@@ -1494,12 +1896,64 @@
 	  const t=eventTypeKey(ev);
 	  return t==='node_human'||t.includes('permission_approve')||t.includes('permission_grant')||t.includes('permission_deny')||t.includes('permission_resolve')||t.includes('permission_response')||t.includes('human_gate_resolve')||t.includes('human_gate_clear')||/^(task_done|task_failed|task_timeout|engine_worker_end|engine_worker_crash)$/.test(t);
 	}
-	function officeToolPatch(ev,text){
-	  const info=officeToolStation(officeToolName(ev));
-	  const activeTask=!!(ev&&ev.task);
-	  if(!info.station) return {state:activeTask?'working':'idle',taskText:text,active:activeTask,officeTool:'',officeStation:'',officeAction:'',officeFacing:1};
-	  return {state:'working',taskText:text||info.tool,active:true,officeTool:info.tool,officeStation:info.station,officeAction:info.action,officeFacing:info.facing};
-	}
+		function officeToolPatch(ev,text){
+		  const info=officeToolStation(officeToolName(ev));
+		  const activeTask=!!(ev&&ev.task);
+		  if(!info.station) return {state:activeTask?'working':'idle',taskText:text,active:activeTask,officeTool:'',officeStation:'',officeAction:'',officeFacing:1};
+		  return {state:'working',taskText:text||info.tool,active:true,officeTool:info.tool,officeStation:info.station,officeAction:info.action,officeFacing:info.facing};
+		}
+		function officeGatePrevious(a){
+		  if(!a||a.officeGate) return a&&a.officeGatePrev||null;
+		  return {state:a.state||'idle',active:!!a.active,taskText:a.taskText||'',officeTool:a.officeTool||'',officeStation:a.officeStation||'',officeAction:a.officeAction||'',officeFacing:a.officeFacing||1};
+		}
+		function officeGatePatch(role,ev,text){
+		  const a=ensureAgent(role), order=eventOrder(ev);
+		  return {state:'working',taskText:text,lastAction:'确认',active:true,officeGate:true,officeTool:'human_gate',officeStation:'gate',officeAction:'审批',officeFacing:1,officeGateSince:Date.now(),officeGateOrder:order,officeGatePrev:officeGatePrevious(a)};
+		}
+		function officeGateRestorePatch(a){
+		  const prev=a&&a.officeGatePrev;
+		  const hasPrev=prev&&(prev.officeTool||prev.officeStation||prev.officeAction);
+		  if(hasPrev){
+		    return {state:prev.state||'working',active:!!prev.active,taskText:a.taskText||prev.taskText||'',officeGate:false,officeTool:prev.officeTool||'',officeStation:prev.officeStation||'',officeAction:prev.officeAction||'',officeFacing:prev.officeFacing||1,officeGateSince:0,officeGateOrder:0,officeGatePrev:null};
+		  }
+		  return {state:a&&a.curTask?'working':'idle',active:!!(a&&a.curTask),officeGate:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGateSince:0,officeGateOrder:0,officeGatePrev:null};
+		}
+		function clearOfficeGateTimer(role){
+		  const r=normalizeRole(role);
+		  if(r&&officeGateTimers[r]){ clearTimeout(officeGateTimers[r]); delete officeGateTimers[r]; }
+		}
+		function clearOfficeToolTimer(role){
+		  const r=normalizeRole(role);
+		  if(r&&officeToolApplyTimers[r]){ clearTimeout(officeToolApplyTimers[r]); delete officeToolApplyTimers[r]; }
+		}
+		function scheduleOfficeGateTimeout(role,ev){
+		  const r=normalizeRole(role), a=ensureAgent(r); if(!r||!a) return;
+		  clearOfficeGateTimer(r);
+		  const order=a.officeGateOrder||eventOrder(ev), task=a.curTask;
+		  officeGateTimers[r]=setTimeout(()=>{
+		    delete officeGateTimers[r];
+		    const cur=ensureAgent(r);
+		    if(!cur||!cur.officeGate) return;
+		    if(task&&cur.curTask&&cur.curTask!==task) return;
+		    if(order&&cur.officeGateOrder&&cur.officeGateOrder!==order) return;
+		    Object.assign(cur,officeGateRestorePatch(cur));
+		    renderDesk(r); updateOverview();
+		  },OFFICE_GATE_TIMEOUT_MS);
+		}
+		function applyOfficeToolPatch(role,ev,patch){
+		  const r=normalizeRole(role), a=ensureAgent(r); if(!r||!a) return false;
+		  if(a.officeGate&&!isHumanGateClear(ev)) return false;
+		  const run=()=>{
+		    delete officeToolApplyTimers[r];
+		    const cur=ensureAgent(r);
+		    if(!cur||cur.officeGate) return;
+		    if(updateAgent(r,ev,patch)) cur.officeToolAppliedAt=Date.now();
+		  };
+		  const wait=Math.max(0,OFFICE_TOOL_APPLY_MIN_MS-(Date.now()-(a.officeToolAppliedAt||0)));
+		  if(wait<=0) run();
+		  else { clearOfficeToolTimer(r); officeToolApplyTimers[r]=setTimeout(run,wait); }
+		  return true;
+		}
 	function visibleOfficeRole(role){
 	  const r=normalizeRole(role);
 	  if(!r) return null;
@@ -1516,13 +1970,14 @@
 	function clearOfficeGateForEvent(ev,role){
 	  const normalized=officeEventRole(ev,role);
 	  const known=normalized&&(META[normalized]||roles[normalized]||EXTRA_AGENTS[normalized]||agents[normalized]);
-	  const rolesToClear=known?[normalized]:Object.keys(agents).filter(r=>!ev.task||agents[r].curTask===ev.task);
-	  rolesToClear.forEach(r=>{
-	    const a=ensureAgent(r);
-	    if(!a||!a.officeGate) return;
-	    updateAgent(r,ev,{officeGate:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1});
-	  });
-	}
+		  const rolesToClear=known?[normalized]:Object.keys(agents).filter(r=>!ev.task||agents[r].curTask===ev.task);
+		  rolesToClear.forEach(r=>{
+		    const a=ensureAgent(r);
+		    if(!a||!a.officeGate) return;
+		    clearOfficeGateTimer(r);
+		    updateAgent(r,ev,officeGateRestorePatch(a));
+		  });
+		}
 	function eventOrder(ev){ return Number(ev&&ev.seq)||((Date.parse(ev&&ev.ts)||0)/1000); }
 	function eventStamp(ev){ return Date.parse(ev&&ev.ts)||0; }
 	function taskSeed(task,ev){
@@ -1579,14 +2034,15 @@
 	  return rank>a.taskRank&&order>a.curSeq&&canSwitchTask(ev);
 	}
 	function updateAgent(role,ev,patch){
-	  const r=normalizeRole(role), a=ensureAgent(r); if(!a) return false;
-	  if(isBoardDirectorOnLeave(r)){
-	    Object.assign(a,{state:'idle',taskText:BOARD_VACATION_TASK,active:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGate:false});
-	    renderOfficeAgent(r);
-	    return false;
-	  }
+		  const r=normalizeRole(role), a=ensureAgent(r); if(!a) return false;
+		  if(isBoardDirectorOnLeave(r)){
+		    clearOfficeGateTimer(r); clearOfficeToolTimer(r);
+		    Object.assign(a,{state:'idle',taskText:BOARD_VACATION_TASK,active:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGate:false,officeGateSince:0,officeGateOrder:0,officeGatePrev:null});
+		    renderOfficeAgent(r);
+		    return false;
+		  }
 	  if(!acceptsEvent(r,ev)) return false;
-	  if(ev.task&&a.curTask!==ev.task){ a.lastFrom=''; a.lastTo=''; a.lastAction=''; clearOfficeActivity(a); }
+		  if(ev.task&&a.curTask!==ev.task){ a.lastFrom=''; a.lastTo=''; a.lastAction=''; clearOfficeGateTimer(r); clearOfficeToolTimer(r); clearOfficeActivity(a); }
 	  if(ev.task){ a.curTask=ev.task; a.taskRank=Math.max(a.taskRank,taskRank(ev)); a.taskText=taskText(ev); }
 	  a.curSeq=Math.max(a.curSeq,eventOrder(ev)); a.curTs=Math.max(a.curTs,eventStamp(ev));
 	  Object.assign(a,patch||{});
@@ -1598,19 +2054,21 @@
 		  markTaskFinal(ev,state);
 		  const txt=taskText(ev), prefix=state==='done'?'已完成: ':'失败: ';
 		  Object.keys(agents).forEach(role=>{
-	    const a=agents[role];
-	    if(a.curTask!==ev.task||!acceptsEvent(role,ev)) return;
-	    a.state=state; a.active=false; a.taskText=txt?prefix+txt:''; a.curSeq=Math.max(a.curSeq,eventOrder(ev)); a.curTs=Math.max(a.curTs,eventStamp(ev)); clearOfficeActivity(a); renderDesk(role);
-	  });
+		    const a=agents[role];
+		    if(a.curTask!==ev.task||!acceptsEvent(role,ev)) return;
+		    clearOfficeGateTimer(role); clearOfficeToolTimer(role);
+		    a.state=state; a.active=false; a.taskText=txt?prefix+txt:''; a.curSeq=Math.max(a.curSeq,eventOrder(ev)); a.curTs=Math.max(a.curTs,eventStamp(ev)); clearOfficeActivity(a); renderDesk(role);
+		  });
 		  scheduleFinishedClear(ev);
 		}
 		function clearFinishedTask(task){
 		  if(!task) return;
 		  Object.keys(agents).forEach(role=>{
 		    const a=agents[role];
-		    if(a.curTask!==task||a.active) return;
-		    if(a.state!=='done'&&a.state!=='fail') return;
-		    a.state='idle'; a.curTask=''; a.taskText=''; a.lastAction=''; clearOfficeActivity(a); renderDesk(role);
+			    if(a.curTask!==task||a.active) return;
+			    if(a.state!=='done'&&a.state!=='fail') return;
+			    clearOfficeGateTimer(role); clearOfficeToolTimer(role);
+			    a.state='idle'; a.curTask=''; a.taskText=''; a.lastAction=''; clearOfficeActivity(a); renderDesk(role);
 		  });
 		  updateOverview();
 			  if(currentView==='flow') scheduleGraphRender();
@@ -1651,7 +2109,7 @@
 		  const status=statusLabel(a.state);
 		  d.className='desk '+(a.state==='working'?'working':a.state==='done'?'done':a.state==='fail'?'fail':'');
 		  st.className='st '+(a.state||''); st.innerHTML='<span class="dot"></span><span>'+status+'</span>';
-		  const task=displayTask(a), tk=$('#tk-'+role); if(tk){ tk.textContent=task; tk.title=task; tk.setAttribute('aria-label','当前任务 '+task); }
+		  const task=displayTask(a), tk=$('#tk-'+role); if(tk){ tk.innerHTML=linkifyHtml(task); tk.title=task; tk.setAttribute('aria-label','当前任务 '+task); }
 		  const hf=$('#hf-'+role), ht=handoffText(a); if(hf){ hf.textContent=ht; hf.title=ht; hf.setAttribute('aria-label',ht); }
 		  const name=(META[role]&&META[role].label)||roleLabel(role);
 		  const label=`${name} · ${status} · 当前任务 ${task||'-'} · ${ht} · 使用模型 ${agentModel(role)}`;
@@ -1718,6 +2176,7 @@
 	  if(ev.type==='board.review.round.start') return `董事会评议中(第 ${ev.round||1}/${ev.maxRounds||1} 轮)`;
 	  if(ev.type==='board.review.round.end') return `董事会第 ${ev.round||1} 轮完成 · ${ev.issueCount||0} 条挑刺`;
 	  if(ev.type==='board.review.approved') return `董事会评议通过,默认执行 · ${ev.rounds||1}/${ev.maxRounds||1} 轮`;
+	  if(ev.type==='board.review.quorum_lost') return `董事缺席过半 · ${ev.absentCount||0}/${ev.directorCount||0} · 等主人拍板`;
 	  if(ev.type==='board.review.await_owner') return `董事会需主人拍板 · ${ev.bulletinId||ev.decisionId||''}`;
 	  if(ev.type==='secretary.expanded') return `秘书补全 ${qid} · projectId=${ev.projectId||'-'}`;
 	  if(ev.type==='project.brief.written') return `CEO 写 brief · ${ev.projectId||'-'} · ${ev.file||''}`;
@@ -1775,9 +2234,11 @@ function addFeed(ev){
 	  const f=unscopedRole(from), t=unscopedRole(to);
 	  if(ev&&/human/.test(ev.type)) return '确认';
 	  if(f==='chairman'&&t==='secretary') return '下达';
+	  if(f==='secretary'&&FLOW_BOARD_DIRECTOR_IDS.includes(t)) return '重要任务评议';
+	  if(FLOW_BOARD_DIRECTOR_IDS.includes(f)&&t==='orchestrator') return '评议通过';
 	  if(t==='repair') return '维修工单';
 	  if(f==='repair') return '修复回报';
-	  if(f==='secretary'&&t==='orchestrator') return '转交';
+	  if(f==='secretary'&&t==='orchestrator') return '常规任务转交';
 	  if(t==='orchestrator') return '汇报';
 	  if(f==='orchestrator') return '派单';
 	  if(t==='supervisor'&&f!=='orchestrator') return '汇报';
@@ -1805,10 +2266,116 @@ function addFeed(ev){
 		  if(fromOk) updateAgent(from,ev,{lastTo:to,lastAction:action});
 		  if(toOk) updateAgent(to,ev,{lastFrom:from,lastAction:action});
 		}
-		const NODE_W=126, NODE_H=90;
 		function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
 		function fmt(n){ return (Math.round(n*10)/10).toString(); }
-		function graphCenter(id,W,H){ const n=GRAPH_POS[id]; return {x:n.x/100*W,y:n.y/100*H}; }
+		function flowNodeMetrics(W){
+		  if(W<640) return {w:132,h:88};
+		  if(flowFitView) return {w:118,h:70};
+		  if(W<1080) return {w:132,h:76};
+		  return {w:138,h:88};
+		}
+	function flowLayout(nodes,W,H){
+	  const source=(nodes||[]).map(n=>Object.assign({},n));
+	  if(W>=1080){
+	    const hasOptional=source.some(n=>['support','repair'].includes(flowGroupOf(n.id)));
+	    const laid=hasOptional?source:source.map(n=>Object.assign({},n,{x:8+(n.x/60)*84}));
+	    return {
+	      nodes:laid,
+	      lanes:FLOW_GROUP_DEFS.filter(g=>source.some(n=>flowGroupOf(n.id)===g.id)).map(g=>Object.assign({id:g.id,label:g.label},hasOptional?g.lane:Object.assign({},g.lane,{left:1,width:98}))),
+	      narrow:false,
+	      compact:false
+		    };
+		  }
+		  if(W>=640){
+		    const members=groupId=>source.filter(n=>flowGroupOf(n.id)===groupId);
+		    const project=members('project');
+		    const mainOnly=!members('support').length&&!members('repair').length;
+		    if(mainOnly){
+		      const supervisors=project.filter(n=>/^supervisor-/.test(n.id));
+		      const workers=project.filter(n=>!/^supervisor-/.test(n.id));
+		      const supervisorRows=Math.max(1,Math.ceil(supervisors.length/3));
+		      const workerRows=Math.max(1,Math.ceil(workers.length/3));
+		      const workerStartRow=3+supervisorRows;
+		      const rowCount=workerStartRow+workerRows;
+		      const rows=Array.from({length:rowCount},(_,i)=>9+84*i/Math.max(1,rowCount-1));
+		      const laid=[];
+		      const rowXs=count=>count<=1?[50]:(count===2?[32,68]:(count===3?[18,50,82]:Array.from({length:count},(_,i)=>15+70*i/Math.max(1,count-1))));
+		      const placeRow=(items,row)=>items.forEach((n,i)=>laid.push(Object.assign({},n,{x:rowXs(items.length)[i],y:rows[row]})));
+		      const placeRows=(items,startRow,cols)=>items.forEach((n,i)=>{
+		        const row=startRow+Math.floor(i/cols), rowStart=Math.floor(i/cols)*cols, count=Math.min(cols,items.length-rowStart);
+		        laid.push(Object.assign({},n,{x:rowXs(count)[i-rowStart],y:rows[row]}));
+		      });
+		      placeRow(members('entry'),0);
+		      placeRow(members('review'),1);
+		      placeRow(members('core'),2);
+		      placeRows(supervisors,3,3);
+		      placeRows(workers,workerStartRow,3);
+		      const compactMainLanes={
+		        entry:{left:1,top:1,width:98,height:15},
+		        review:{left:1,top:17,width:98,height:17},
+		        core:{left:1,top:35,width:98,height:14},
+		        project:{left:1,top:50,width:98,height:50}
+		      };
+		      return {
+		        nodes:laid,
+		        lanes:FLOW_GROUP_DEFS.filter(g=>members(g.id).length).map(g=>Object.assign({id:g.id,label:g.label},compactMainLanes[g.id])),
+		        narrow:false,
+		        compact:true
+		      };
+		    }
+		    const rowCount=Math.max(7,5+Math.ceil(Math.max(0,project.length-1)/2));
+		    const rows=Array.from({length:rowCount},(_,i)=>9+84*i/(rowCount-1));
+		    const mainCols=[16,42], sideCols=[66,89], laid=[];
+		    const placeGrid=(items,startRow,cols)=>{
+		      items.forEach((n,i)=>{
+		        const row=startRow+Math.floor(i/cols.length), offset=i%cols.length;
+		        const countInRow=Math.min(cols.length,items.length-Math.floor(i/cols.length)*cols.length);
+		        const x=countInRow===1?cols.reduce((sum,value)=>sum+value,0)/cols.length:cols[offset];
+		        laid.push(Object.assign({},n,{x,y:rows[row]}));
+		      });
+		    };
+		    placeGrid(members('entry'),0,mainCols);
+		    placeGrid(members('review'),1,mainCols);
+		    placeGrid(members('core'),3,[29]);
+		    placeGrid(project.slice(0,1),4,[29]);
+		    placeGrid(project.slice(1),5,mainCols);
+		    placeGrid(members('support'),0,sideCols);
+		    placeGrid(members('repair'),rowCount-1,sideCols);
+		    const sideSplit=rowCount>7?76:86;
+		    const compactLanes={
+		      entry:{left:1,top:1,width:52,height:15},
+		      review:{left:1,top:17,width:52,height:28},
+		      core:{left:1,top:46,width:52,height:13},
+		      project:{left:1,top:60,width:52,height:40},
+		      support:{left:55,top:1,width:45,height:sideSplit-1},
+		      repair:{left:55,top:sideSplit,width:45,height:100-sideSplit}
+		    };
+		    return {
+		      nodes:laid,
+		      lanes:FLOW_GROUP_DEFS.filter(g=>members(g.id).length).map(g=>Object.assign({id:g.id,label:g.label},compactLanes[g.id])),
+		      narrow:false,
+		      compact:true
+		    };
+		  }
+		  const laid=[], lanes=[];
+		  const order=FLOW_GROUP_DEFS.map(g=>g.id), rowGap=106, groupGap=58;
+		  let cursor=82;
+		  order.forEach(groupId=>{
+		    const def=flowGroupDef(groupId), members=source.filter(n=>flowGroupOf(n.id)===groupId);
+		    if(!members.length) return;
+		    const rows=Math.ceil(members.length/2), laneTop=cursor-48;
+		    members.forEach((n,i)=>{
+		      const row=Math.floor(i/2), countInRow=Math.min(2,members.length-row*2);
+		      const x=countInRow===1?50:(i%2===0?27:73);
+		      laid.push(Object.assign({},n,{x,y:(cursor+row*rowGap)/H*100}));
+		    });
+		    const laneBottom=cursor+(rows-1)*rowGap+52;
+		    lanes.push({id:groupId,label:def&&def.label||groupId,left:3,top:laneTop/H*100,width:94,height:(laneBottom-laneTop)/H*100});
+		    cursor=laneBottom+groupGap;
+		  });
+		  return {nodes:laid,lanes,narrow:true,compact:false};
+		}
+		function graphCenter(id,W,H){ const n=FLOW_RENDER_POS[id]||GRAPH_POS[id]; return {x:n.x/100*W,y:n.y/100*H}; }
 		const SPLIT_LEFT_PORTS={gui_desktop_control:{in:-24,out:24},hermes:{in:-24,out:24}};
 		function splitLeftPortOffset(id,kind){ const p=SPLIT_LEFT_PORTS[id]; return p?p[kind]||0:0; }
 		function splitLeftPortLane(from,to,dx){
@@ -1817,15 +2384,15 @@ function addFeed(ev){
 		  return 0;
 		}
 		function edgePorts(from,to,W,H){
-		  const a=graphCenter(from,W,H), b=graphCenter(to,W,H), dx=b.x-a.x, dy=b.y-a.y;
-		  if(Math.abs(dx)<NODE_W*.9||Math.abs(dx)<Math.abs(dy)*.55){
+		  const metrics=flowNodeMetrics(W), a=graphCenter(from,W,H), b=graphCenter(to,W,H), dx=b.x-a.x, dy=b.y-a.y;
+		  if(Math.abs(dx)<metrics.w*.9||Math.abs(dx)<Math.abs(dy)*.55){
 		    const dir=dy>=0?1:-1;
-		    return {x1:a.x,y1:a.y+dir*NODE_H/2,x2:b.x,y2:b.y-dir*NODE_H/2,mode:'vertical'};
+		    return {x1:a.x,y1:a.y+dir*metrics.h/2,x2:b.x,y2:b.y-dir*metrics.h/2,mode:'vertical'};
 		  }
 		  const dir=dx>=0?1:-1;
 		  const y1=a.y+(dir<0?splitLeftPortOffset(from,'out'):0);
 		  const y2=b.y+(dir>0?splitLeftPortOffset(to,'in'):0);
-		  return {x1:a.x+dir*NODE_W/2,y1,x2:b.x-dir*NODE_W/2,y2,mode:'horizontal'};
+		  return {x1:a.x+dir*metrics.w/2,y1,x2:b.x-dir*metrics.w/2,y2,mode:'horizontal'};
 		}
 	function bezierPoint(g,t){
 	  const mt=1-t;
@@ -1845,8 +2412,9 @@ function addFeed(ev){
 	  const p=edgePorts(e.from,e.to,W,H), dx=p.x2-p.x1, dy=p.y2-p.y1, len=Math.hypot(dx,dy)||1;
 		  let nx=-dy/len, ny=dx/len, lane=laneSlot*24;
 		  const fg=META[e.from]&&META[e.from].group, tg=META[e.to]&&META[e.to].group;
-		  if(fg==='edge'||tg==='edge') lane+=(GRAPH_POS[e.from].y<=GRAPH_POS[e.to].y?-12:12);
-		  if(fg==='project'||tg==='project') lane+=(GRAPH_POS[e.from].x<=GRAPH_POS[e.to].x?-6:6);
+		  const fromPos=FLOW_RENDER_POS[e.from]||GRAPH_POS[e.from], toPos=FLOW_RENDER_POS[e.to]||GRAPH_POS[e.to];
+		  if(fg==='edge'||tg==='edge') lane+=(fromPos.y<=toPos.y?-12:12);
+		  if(fg==='project'||tg==='project') lane+=(fromPos.x<=toPos.x?-6:6);
 		  lane+=splitLeftPortLane(e.from,e.to,dx);
 	  let c1x,c1y,c2x,c2y;
 	  if(p.mode==='vertical'){
@@ -1858,7 +2426,7 @@ function addFeed(ev){
 	    c1x=p.x1+dir*bend+nx*lane; c1y=p.y1+ny*lane;
 	    c2x=p.x2-dir*bend+nx*lane; c2y=p.y2+ny*lane;
 	  }
-	  return Object.assign({key,action:e.action,active:key===latestEdgeKey,lane},p,{c1x,c1y,c2x,c2y,d:`M ${fmt(p.x1)} ${fmt(p.y1)} C ${fmt(c1x)} ${fmt(c1y)}, ${fmt(c2x)} ${fmt(c2y)}, ${fmt(p.x2)} ${fmt(p.y2)}`});
+	  return Object.assign({key,action:e.action,active:key===latestEdgeKey,lane,tier:e.tier||'dynamic',category:e.category||'dynamic'},p,{c1x,c1y,c2x,c2y,d:`M ${fmt(p.x1)} ${fmt(p.y1)} C ${fmt(c1x)} ${fmt(c1y)}, ${fmt(c2x)} ${fmt(c2y)}, ${fmt(p.x2)} ${fmt(p.y2)}`});
 	}
 	function rectHit(a,b,pad){
 	  const p=pad==null?4:pad;
@@ -1869,9 +2437,10 @@ function addFeed(ev){
 	  return {w:Math.max(42,Math.ceil(units*12+20)),h:20};
 	}
 	function nodeBlockers(W,H,nodes){
+	  const metrics=flowNodeMetrics(W);
 	  return (nodes||GRAPH_NODES).map(n=>{
 	    const c=graphCenter(n.id,W,H);
-	    return {x:c.x-NODE_W/2-8,y:c.y-NODE_H/2-8,w:NODE_W+16,h:NODE_H+16};
+	    return {x:c.x-metrics.w/2-8,y:c.y-metrics.h/2-8,w:metrics.w+16,h:metrics.h+16};
 	  });
 	}
 	function placeEdgeLabel(g,blocked,placed,W,H){
@@ -1899,7 +2468,7 @@ function addFeed(ev){
 	  return fallback||{x:W/2,y:H/2,size};
 	}
 	function normalizedBaseEdge(edge){
-	  if(Array.isArray(edge)) return {from:edge[0],to:edge[1],tier:edge[2]||'primary'};
+	  if(Array.isArray(edge)) return {from:edge[0],to:edge[1],tier:edge[2]||'primary',category:edge[3]||'support'};
 	  return edge||{};
 	}
 	function flowEdgeVisible(edge,key){
@@ -1914,15 +2483,20 @@ function addFeed(ev){
 	  const root=$('#view-flow'), prevScroll=captureTaskBoardScrollState(root||wrap);
 	  AGENT_META.forEach(m=>ensureAgent(m.id));
 	  const W=wrap.clientWidth||1120, H=wrap.clientHeight||840;
-	  const visibleNodes=GRAPH_NODES.filter(n=>flowNodeVisible(n.id));
+	  const rawVisibleNodes=GRAPH_NODES.filter(n=>flowNodeVisible(n.id));
+	  const layout=flowLayout(rawVisibleNodes,W,H), visibleNodes=layout.nodes, metrics=flowNodeMetrics(W);
+	  FLOW_RENDER_POS=Object.fromEntries(visibleNodes.map(n=>[n.id,n]));
+	  wrap.style.setProperty('--flow-node-w',`${metrics.w}px`);
+	  wrap.style.setProperty('--flow-node-h',`${metrics.h}px`);
+	  wrap.dataset.flowLayout=layout.narrow?'narrow':(flowFitView?'fit':(layout.compact?'compact':'layered'));
 	  const edges={};
-	  BASE_EDGES.map(normalizedBaseEdge).forEach(({from,to,tier})=>{ edges[edgeKey(from,to)]={from,to,tier:tier||'primary',action:inferAction(from,to,{type:'edge.take'}),base:true}; });
-	  Object.entries(graphEdges).forEach(([k,v])=>{ edges[k]=Object.assign({tier:'dynamic'},v); });
+	  BASE_EDGES.map(normalizedBaseEdge).forEach(({from,to,tier,category})=>{ edges[edgeKey(from,to)]={from,to,tier:tier||'primary',category:category||'support',action:inferAction(from,to,{type:'edge.take'}),base:true}; });
+	  Object.entries(graphEdges).forEach(([k,v])=>{ edges[k]=Object.assign({tier:'dynamic',category:'dynamic'},v); });
 	  const edgeEntries=Object.entries(edges).filter(([key,e])=>GRAPH_POS[e.from]&&GRAPH_POS[e.to]&&flowEdgeVisible(e,key));
 	  const signature=JSON.stringify({
-	    w:Math.round(W),h:Math.round(H),all:flowShowAllEdges,collapsed:flowCollapsedGroups,latest:latestEdgeKey,
+	    w:Math.round(W),h:Math.round(H),all:flowShowAllEdges,fit:flowFitView,narrow:layout.narrow,collapsed:flowCollapsedGroups,latest:latestEdgeKey,
 	    nodes:visibleNodes.map(n=>{ const a=ensureAgent(n.id); return [n.id,n.x,n.y,a.state||'idle',a.active?'1':'0',displayTask(a).replace(/^当前任务: /,'')]; }),
-	    edges:edgeEntries.map(([key,e])=>[key,e.from,e.to,e.action,e.tier,key===latestEdgeKey?'1':'0'])
+	    edges:edgeEntries.map(([key,e])=>[key,e.from,e.to,e.action,e.tier,e.category,key===latestEdgeKey?'1':'0'])
 	  });
 	  if(!opts.force&&signature===flowRenderKey) return;
 	  flowRenderKey=signature;
@@ -1934,29 +2508,36 @@ function addFeed(ev){
 	    return buildEdgeGeometry(key,e,W,H,seen-(total-1)/2);
 	  });
 	  const blocked=nodeBlockers(W,H,visibleNodes), placed=[];
-	  [...geometries].sort((a,b)=>Number(b.active)-Number(a.active)||Math.abs(b.lane)-Math.abs(a.lane)).forEach(g=>{ g.label=placeEdgeLabel(g,blocked,placed,W,H); });
+	  [...geometries].filter(g=>g.active||g.category==='spine').sort((a,b)=>Number(b.active)-Number(a.active)||Math.abs(b.lane)-Math.abs(a.lane)).forEach(g=>{ g.label=placeEdgeLabel(g,blocked,placed,W,H); });
 	  const paths=[...geometries].sort((a,b)=>Number(a.active)-Number(b.active)).map(g=>{
-	    const l=g.label, active=g.active?'active':'';
-	    return `<path class="edge-line ${active}" d="${g.d}" marker-end="url(#arw)"></path>`+
-	           `<g class="edge-label-group ${active}" transform="translate(${fmt(l.x)} ${fmt(l.y)})"><rect class="edge-label-bg" x="${fmt(-l.size.w/2)}" y="${fmt(-l.size.h/2)}" width="${l.size.w}" height="${l.size.h}" rx="7"></rect><text class="edge-label" x="0" y="1">${esc(g.action)}</text></g>`;
+	    const l=g.label, active=g.active?'active':'', classes=[g.category,g.tier,active].filter(Boolean).join(' ');
+	    const label=l?`<g class="edge-label-group ${active}" transform="translate(${fmt(l.x)} ${fmt(l.y)})"><rect class="edge-label-bg" x="${fmt(-l.size.w/2)}" y="${fmt(-l.size.h/2)}" width="${l.size.w}" height="${l.size.h}" rx="7"></rect><text class="edge-label" x="0" y="1">${esc(g.action)}</text></g>`:'';
+	    return `<path class="edge-line ${classes}" d="${g.d}" marker-end="url(#arw)"></path>${label}`;
 	  }).join('');
-	  const labels=FLOW_GROUP_DEFS.filter(g=>!flowGroupCollapsed(g.id)&&visibleNodes.some(n=>flowGroupOf(n.id)===g.id)).map(g=>`<div class="flow-module-label" style="left:${g.labelX}%;top:${g.labelY}%">${esc(g.label)}</div>`).join('');
+	  const lanes=layout.lanes.map(l=>`<div class="flow-lane" data-flow-lane="${esc(l.id)}" aria-hidden="true" style="left:${l.left}%;top:${l.top}%;width:${l.width}%;height:${l.height}%"><span class="flow-lane-name">${esc(l.label)}</span></div>`).join('');
 	  const nodes=visibleNodes.map(n=>{
-	  const m=META[n.id], a=ensureAgent(n.id), state=a.state||'idle', task=displayTask(a).replace(/^当前任务: /,'');
-		    const nodeTitle=[m.label,statusLabel(state),task||'待命'].filter(Boolean).join(' · ');
+	  const m=META[n.id], a=ensureAgent(n.id), state=a.state||'idle', boardVacation=FLOW_BOARD_DIRECTOR_IDS.includes(n.id)&&isBoardReviewVacation();
+		    const task=boardVacation?BOARD_VACATION_TASK:displayTask(a).replace(/^当前任务: /,'');
+		    const stateText=boardVacation?boardVacationStatus():statusLabel(state);
+		    const nodeTitle=[m.label,stateText,task||'待命'].filter(Boolean).join(' · ');
 		    const nodeTaskText=task||'待命';
 		    const nodeTaskLabel=`链路节点任务: ${nodeTaskText}`;
 				    return `<div class="fnode ${state} ${a.active?'active':''}" data-flow-group="${esc(flowGroupOf(n.id))}" role="group" tabindex="0" style="left:${n.x}%;top:${n.y}%;--ac:${m.accent}" title="${esc(nodeTitle)}" aria-label="${esc(nodeTitle)}">
 			      <span class="port pin" aria-hidden="true"></span><span class="port pout" aria-hidden="true"></span>
 			      <div class="fhead"><span class="fico">${avatarHtml(n.id)}</span><span class="fname">${esc(m.label)}</span><span class="fdot" aria-hidden="true"></span></div>
-		      <div class="fbody"><div class="fstate">${statusLabel(state)}</div><div class="ftask" title="${esc(nodeTaskLabel)}" aria-label="${esc(nodeTaskLabel)}">${esc(nodeTaskText)}</div></div>
+		      <div class="fbody"><div class="fstate" title="链路节点状态: ${esc(stateText)}" aria-label="链路节点状态: ${esc(stateText)}">${esc(stateText)}</div><div class="ftask" title="${esc(nodeTaskLabel)}" aria-label="${esc(nodeTaskLabel)}">${esc(nodeTaskText)}</div></div>
 		    </div>`;
 	  }).join('');
-	  wrap.innerHTML=`<svg class="edge-layer" width="100%" height="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+	  wrap.innerHTML=`${lanes}<svg class="edge-layer" width="100%" height="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
 	    <defs><marker id="arw" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6ea8fe"></path></marker></defs>
-	    ${paths}</svg>${labels}${nodes}`;
+	    ${paths}</svg>${nodes}`;
+	  const currentHint=($('#mapHint')&&$('#mapHint').textContent||'等待事件').trim();
+	  const mapState=`任务链路图 · ${visibleNodes.length} 个真实角色节点 · ${edgeEntries.length} 条当前可见连线 · 主链顺序：入口、董事会事前评议、CEO、项目主管与执行层；公共支撑与维修按需展开 · ${currentHint}`;
+	  wrap.title=mapState;
+	  wrap.setAttribute('aria-label',mapState);
 	  bindScrollMemory(root||wrap);
-	  restoreTaskBoardScrollState(root||wrap,prevScroll);
+	  if(flowFitView&&root){ root.scrollLeft=0; root.scrollTop=0; }
+	  else restoreTaskBoardScrollState(root||wrap,prevScroll);
 	}
 	function queueCacheKey(agent,id){ return `${agent||'ceo'}:${id||''}`; }
 	function rememberQueueTask(agent,item,status){
@@ -2047,20 +2628,21 @@ function addFeed(ev){
 		  rememberQueueEvent(ev);
 		  if(ev.type==='queue.enqueued'&&ev.queueAgent==='secretary') triggerChairmanHandoff({queueId:ev.queueId,goal:ev.goal});
 		  const role=eventRole(ev);
-	  const officeRole=officeEventRole(ev,role);
-	  const text=taskText(ev);
-	  const gateStart=isHumanGateStart(ev);
-	  if(gateStart&&officeRole){
-	    updateAgent(officeRole,ev,{state:'working',taskText:text,lastAction:'确认',active:true,officeGate:true,officeTool:'human_gate',officeStation:'gate',officeAction:'审批',officeFacing:1});
-	  }else if(isHumanGateClear(ev)){
-	    clearOfficeGateForEvent(ev,role);
-	  }
-	  if(isOfficeToolStart(ev)&&officeRole&&!gateStart){
-	    updateAgent(officeRole,ev,officeToolPatch(ev,text));
-	  }else if(isOfficeToolEnd(ev)&&officeRole&&!gateStart){
-	    const a=ensureAgent(officeRole);
-	    updateAgent(officeRole,ev,{state:(a&&a.curTask)?'working':'idle',active:!!(a&&a.curTask),officeTool:'',officeStation:'',officeAction:'',officeFacing:1});
-	  }
+		  const officeRole=officeEventRole(ev,role);
+		  const text=taskText(ev);
+		  const gateStart=isHumanGateStart(ev);
+		  if(gateStart&&officeRole){
+		    clearOfficeToolTimer(officeRole);
+		    if(updateAgent(officeRole,ev,officeGatePatch(officeRole,ev,text))) scheduleOfficeGateTimeout(officeRole,ev);
+		  }else if(isHumanGateClear(ev)){
+		    clearOfficeGateForEvent(ev,role);
+		  }
+		  if(isOfficeToolStart(ev)&&officeRole&&!gateStart){
+		    applyOfficeToolPatch(officeRole,ev,officeToolPatch(ev,text));
+		  }else if(isOfficeToolEnd(ev)&&officeRole&&!gateStart){
+		    const a=ensureAgent(officeRole);
+		    applyOfficeToolPatch(officeRole,ev,{state:(a&&a.curTask)?'working':'idle',active:!!(a&&a.curTask),officeTool:'',officeStation:'',officeAction:'',officeFacing:1});
+		  }
 	  if(ev.type==='task.queued'||ev.type==='engine.worker.start'||ev.type==='task.created') updateAgent(eventRole(ev)||'orchestrator',ev,{state:'working',taskText:text,active:true});
 	  else if(ev.type==='node.start'&&role) updateAgent(role,ev,{state:'working',taskText:text,active:true});
 	  else if(ev.type==='node.output'&&role) updateAgent(role,ev,{state:'working',taskText:text,active:true});
@@ -2068,8 +2650,11 @@ function addFeed(ev){
 	  else if(ev.type==='peekaboo.soft_skip') updateAgent('gui_desktop_control',ev,{state:'done',taskText:'截图待补: '+(ev.reason||''),active:false});
 	  else if((ev.type==='node.absent'||isBoardRunnerAbsenceEvent(ev))&&role) updateAgent(role,ev,{state:'absent',taskText:text,active:false});
 	  else if(ev.type==='node.fail'&&role) updateAgent(role,ev,{state:'fail',taskText:text,active:false});
-	  else if(ev.type==='node.await_human'&&officeRole) updateAgent(officeRole,ev,{state:'working',taskText:text,lastAction:'确认',active:true,officeGate:true,officeTool:'human_gate',officeStation:'gate',officeAction:'审批',officeFacing:1});
-	  else if(ev.type==='node.human'&&officeRole) updateAgent(officeRole,ev,{state:'done',taskText:text,lastAction:'确认',active:false,officeGate:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1});
+		  else if(ev.type==='node.await_human'&&officeRole){
+		    clearOfficeToolTimer(officeRole);
+		    if(updateAgent(officeRole,ev,officeGatePatch(officeRole,ev,text))) scheduleOfficeGateTimeout(officeRole,ev);
+		  }
+		  else if(ev.type==='node.human'&&officeRole){ clearOfficeGateTimer(officeRole); updateAgent(officeRole,ev,{state:'done',taskText:text,lastAction:'确认',active:false,officeGate:false,officeTool:'',officeStation:'',officeAction:'',officeFacing:1,officeGateSince:0,officeGateOrder:0,officeGatePrev:null}); }
 	  else if(ev.type==='edge.take') applyEdge(ev);
 	  else if(ev.type==='secretary.expanded') updateAgent('secretary',ev,{state:'done',taskText:text||('projectId '+(ev.projectId||'')),active:false});
 	  else if(ev.type==='project.brief.written') updateAgent('orchestrator',ev,{state:'working',taskText:text||('写 brief '+(ev.projectId||'')),active:true});
@@ -2184,9 +2769,10 @@ async function pollEvents(initial){
     const events=data.events||[];
     const feed=$('#feed');
 	    if(!events.length&&initial&&feed){ feed.setAttribute('role','list'); feed.setAttribute('aria-label','引擎事件流'); feed.innerHTML='<div class="empty" role="status" title="暂无引擎事件" aria-label="暂无引擎事件">暂无引擎事件</div>'; }
-    for(const ev of events){ eventCursor=Math.max(eventCursor,ev.seq||0); applyEvent(ev); }
-    if(data.lastSeq) eventCursor=Math.max(eventCursor,data.lastSeq);
-    if(queueBoardDirty){ queueBoardDirty=false; renderQueue(); }
+	    for(const ev of events){ eventCursor=Math.max(eventCursor,ev.seq||0); applyEvent(ev); }
+	    if(data.lastSeq) eventCursor=Math.max(eventCursor,data.lastSeq);
+	    if(queueBoardDirty){ queueBoardDirty=false; renderQueue(); }
+	    flushTaskBoardProgressUpdates();
   }catch(e){
     const errText='事件流读取失败';
 	    if(tsEl){
@@ -2249,7 +2835,7 @@ function syncAgentsFromQueueState(){
     const running=(state&&state.running||[])[0];
     if(!running) return;
     const taskId=queueEntryTaskId(running)||`queue:${agentId}:${running.id||''}`;
-    const started=Date.parse(running.started_at||running.enqueued_at||running.updated_at||'')||Date.now();
+    const started=Date.parse(taskBoardRunningStartedAt(running)||'')||Date.now();
     const task=queueTaskText(running.task)||`队列任务 ${running.id||''}`;
     const a=ensureAgent(role);
     a.curTask=taskId;
@@ -2579,14 +3165,23 @@ function taskBoardGoalSource(text){
 	  const first=source.split(/(?:\s*\d+[)）.、]\s*|[。；;!?？！]\s*)/).filter(Boolean)[0]||source;
 	  return taskBoardTrimFragment(first,72)||'本次任务已处理';
 	}
-	function taskBoardTimeValue(item){
+function taskBoardTimeValue(item){
   const raw=item&&(item.started_at||item.startedAt||item.enqueued_at||item.enqueuedAt||item.paused_at||item.updated_at||item.created_at);
   const t=Date.parse(raw||'');
   return isFinite(t)?t:0;
 }
+function taskBoardRunningStartedAt(item){
+  if(!item) return '';
+  const fields=[item.engine_started_at,item.engineStartedAt,item.started_at,item.startedAt,item.claimed_at,item.claimedAt];
+  for(const raw of fields){
+    const t=Date.parse(raw||'');
+    if(isFinite(t)) return raw;
+  }
+  return '';
+}
 function queueElapsedLabel(item){
-  const raw=item&&(item.engine_started_at||item.engineStartedAt||item.started_at||item.startedAt||item.claimed_at||item.claimedAt);
-  return taskBoardElapsedFrom(raw);
+  const raw=taskBoardRunningStartedAt(item);
+  return raw?taskBoardElapsedFrom(raw):'运行中...';
 	}
 function taskBoardElapsedFrom(raw){
   const t=Date.parse(raw||'');
@@ -2594,7 +3189,7 @@ function taskBoardElapsedFrom(raw){
   const minutes=Math.floor(Math.max(0,Date.now()-t)/60000);
   if(minutes<1) return '刚开始';
   const d=Math.floor(minutes/1440), h=Math.floor((minutes%1440)/60), m=minutes%60;
-  if(d) return h?`${d} 天 ${h} 小时`:`${d} 天`;
+  if(d) return `${d} 天 ${h} 小时`;
   if(h) return `${h} 小时 ${m} 分钟`;
 	  return `${minutes} 分钟`;
 	}
@@ -2623,7 +3218,7 @@ function taskBoardFormatElapsedSeconds(totalSeconds){
 	function taskBoardDurationValue(raw,label,cls){
 		  const valid=taskBoardHasTime(raw);
 		  const attr=valid?` data-duration-at="${esc(raw||'')}"`:'';
-		  const value=valid?taskBoardElapsedFrom(raw):(label==='运行'?'运行中':'刚开始');
+		  const value=valid?taskBoardElapsedFrom(raw):(label==='运行'?'运行中...':'刚开始');
 		  const durationLabel=taskBoardDurationA11yLabel(label,value);
 		  return `<span class="${esc(cls||'tb-duration')}"${attr} data-duration-label="${esc(label||'')}" title="${esc(durationLabel)}" aria-label="${esc(durationLabel)}"><b>${esc(label||'')}</b><span class="tb-duration-value">${esc(value)}</span></span>`;
 		}
@@ -2646,9 +3241,33 @@ function taskBoardProgressTimerHtml(progress,fallbackAt,status){
   const raw=taskBoardProgressTimerStart(p,fallbackAt);
   if(!taskBoardHasTime(raw)) return '';
 	  const label=`当前进展已运行 ${taskBoardFormatElapsedSeconds(taskBoardElapsedSecondsFrom(raw))}`;
-	  return `<span class="tb-progress-timer" data-progress-start="${esc(raw)}" title="${esc(label)}" aria-label="${esc(label)}"><b>本步</b><span class="tb-progress-timer-value">${esc(taskBoardFormatElapsedSeconds(taskBoardElapsedSecondsFrom(raw)))}</span></span>`;
+		  return `<span class="tb-progress-timer" data-progress-start="${esc(raw)}" title="${esc(label)}" aria-label="${esc(label)}"><b>本步</b><span class="tb-progress-timer-value">${esc(taskBoardFormatElapsedSeconds(taskBoardElapsedSecondsFrom(raw)))}</span></span>`;
 }
-function taskBoardProgressHtml(progress,progressLine,fallbackAt,status){
+function taskBoardLatestProgressLine(progress){
+	const p=progress||{};
+	const base=taskBoardProgressShort(p.text||'处理中',100)||'处理中';
+	let count='';
+	if(p.kind==='script'&&p.scriptProgress&&p.scriptProgress.current){
+		count=p.scriptProgress.total?`第 ${p.scriptProgress.current}/${p.scriptProgress.total} 个`:`第 ${p.scriptProgress.current} 个`;
+	}else if(p.outputCount){
+		count=`进展更新 ${p.outputCount} 次`;
+	}
+	return [base,count].filter(Boolean).join(' · ');
+}
+function taskBoardLatestProgressLabel(progress){
+	return `最新进展: ${taskBoardLatestProgressLine(progress)}`;
+}
+function taskBoardLatestProgressSignature(progress){
+	const p=progress||{};
+	return `${String(p.state||'run')}\n${taskBoardLatestProgressLine(p)}`;
+}
+function taskBoardLatestProgressHtml(progress,taskId,status){
+	if(status!=='running'||!taskId) return '';
+	const p=progress||{}, state=String(p.state||'run'), text=taskBoardLatestProgressLine(p);
+	const label=taskBoardLatestProgressLabel(p), signature=taskBoardLatestProgressSignature(p);
+	return `<div class="tb-latest-progress ${esc(state)}" data-task-progress-id="${esc(taskId)}" data-progress-order="${esc(p.order||'')}" data-progress-signature="${esc(signature)}" role="status" aria-live="polite" aria-atomic="true" tabindex="0" title="${esc(label)}" aria-label="${esc(label)}"><span class="tb-latest-progress-label">最新进展:</span><span class="tb-latest-progress-viewport"><span class="tb-latest-progress-track"><span class="tb-latest-progress-text">${esc(text)}</span><span class="tb-latest-progress-copy" aria-hidden="true">${esc(text)}</span></span></span></div>`;
+}
+function taskBoardProgressHtml(progress,progressLine,fallbackAt,status,taskId){
   const p=progress||{};
   const state=String(p.state||'run');
   const active=status==='running'&&state==='run';
@@ -2658,9 +3277,59 @@ function taskBoardProgressHtml(progress,progressLine,fallbackAt,status){
   const progressTitle=[progressLabel,p.text&&p.text!==progressText?p.text:''].filter(Boolean).join(' · ');
   const motion=active?'<span class="tb-progress-motion" role="status" title="进展运行中" aria-label="进展运行中"><i aria-hidden="true"></i></span>':'';
   const side=timer||motion?`<span class="tb-progress-side">${motion}${timer}</span>`:'';
-		  return `<div class="tb-progress-row ${esc(state)}${active?' active':''}" role="group" title="${esc(progressTitle||progressLabel)}" aria-label="${esc(progressTitle||progressLabel)}"><div class="tb-progress ${esc(state)}" title="${esc(progressTitle)}" aria-label="${esc(progressTitle||progressLabel)}">进展: ${esc(progressText)}</div>${side}</div>`;
-	}
-	function updateTaskBoardDurations(root){
+			  return `<div class="tb-progress-row ${esc(state)}${active?' active':''}" role="group" title="${esc(progressTitle||progressLabel)}" aria-label="${esc(progressTitle||progressLabel)}"><div class="tb-progress ${esc(state)}" title="${esc(progressTitle)}" aria-label="${esc(progressTitle||progressLabel)}">进展: ${esc(progressText)}</div>${side}</div>${taskBoardLatestProgressHtml(p,taskId,status)}`;
+		}
+		function taskBoardLatestProgressNodes(root){
+		  const scope=root||document, selector='.tb-latest-progress[data-task-progress-id]';
+		  if(!scope) return [];
+		  const nodes=[];
+		  if(scope.matches&&scope.matches(selector)) nodes.push(scope);
+		  if(scope.querySelectorAll) nodes.push(...scope.querySelectorAll(selector));
+		  return nodes;
+		}
+		function refreshTaskBoardLatestProgressOverflow(root){
+		  const scope=root||document;
+		  if(taskProgressOverflowFrame&&window.cancelAnimationFrame) window.cancelAnimationFrame(taskProgressOverflowFrame);
+		  taskProgressOverflowFrame=window.requestAnimationFrame(()=>{
+		    taskProgressOverflowFrame=0;
+		    taskBoardLatestProgressNodes(scope).forEach(el=>{
+		      const viewport=el.querySelector('.tb-latest-progress-viewport');
+		      const text=el.querySelector('.tb-latest-progress-text');
+		      const overflowing=!!(viewport&&text&&text.scrollWidth>viewport.clientWidth+2&&!REDUCED_MOTION);
+		      el.classList.toggle('is-overflowing',overflowing);
+		    });
+		  });
+		}
+		function updateTaskBoardLatestProgressNode(el,taskId,progress){
+		  if(!el||String(el.dataset&&el.dataset.taskProgressId||'')!==String(taskId||'')) return false;
+		  const p=progress||{}, signature=taskBoardLatestProgressSignature(p);
+		  if(el.dataset.progressSignature===signature) return false;
+		  const state=String(p.state||'run'), text=taskBoardLatestProgressLine(p), label=taskBoardLatestProgressLabel(p);
+		  el.dataset.progressSignature=signature;
+		  el.dataset.progressOrder=String(p.order||'');
+			  el.classList.remove('run','done','fail','wait','absent');
+		  el.classList.add(state);
+		  const latest=el.querySelector('.tb-latest-progress-text'), copy=el.querySelector('.tb-latest-progress-copy');
+		  if(latest) latest.textContent=text;
+		  if(copy) copy.textContent=text;
+		  el.title=label;
+		  el.setAttribute('aria-label',label);
+		  if(el.style&&el.style.setProperty) el.style.setProperty('--tb-latest-duration',`${Math.max(9,Math.min(24,text.length*.34)).toFixed(1)}s`);
+		  refreshTaskBoardLatestProgressOverflow(el);
+		  return true;
+		}
+		function flushTaskBoardProgressUpdates(){
+		  const pending=Object.keys(taskProgressPending);
+		  pending.forEach(taskId=>{
+		    const progress=taskProgressPending[taskId];
+		    delete taskProgressPending[taskId];
+		    taskBoardLatestProgressNodes(document).forEach(el=>{
+		      if(String(el.dataset.taskProgressId||'')===String(taskId)) updateTaskBoardLatestProgressNode(el,taskId,progress);
+		    });
+		  });
+		  return pending.length;
+		}
+		function updateTaskBoardDurations(root){
 	  const scope=root||document;
 	  if(!scope||!scope.querySelectorAll) return;
 		  scope.querySelectorAll('[data-duration-at]').forEach(el=>{
@@ -2872,9 +3541,10 @@ function taskBoardProgressFromEvent(ev,goal){
   if(ev.type==='secretary.important_architecture') return {text:'秘书识别为重要架构,接入董事会',state:'run'};
   if(ev.type==='board.review.required') return {text:`重要架构任务接入董事会${ev.labels&&ev.labels.length?' · '+ev.labels.join('/'):''}`,state:'run'};
   if(ev.type==='board.review.round.start') return {text:`董事会评议中(第 ${ev.round||1}/${ev.maxRounds||1} 轮)`,state:'run'};
-  if(ev.type==='board.review.round.end') return {text:`董事会第 ${ev.round||1} 轮完成 · ${ev.issueCount||0} 条挑刺`,state:ev.continue?'run':'done'};
-  if(ev.type==='board.review.approved') return {text:`董事会评议通过,默认执行 · ${ev.rounds||1}/${ev.maxRounds||1} 轮`,state:'done'};
-  if(ev.type==='board.review.await_owner') return {text:`董事会需主人拍板 · ${ev.bulletinId||ev.decisionId||''}`,state:'wait'};
+	  if(ev.type==='board.review.round.end') return {text:`董事会第 ${ev.round||1} 轮完成 · ${ev.issueCount||0} 条挑刺`,state:ev.continue?'run':'done'};
+	  if(ev.type==='board.review.approved') return {text:`董事会评议通过,默认执行 · ${ev.rounds||1}/${ev.maxRounds||1} 轮`,state:'done'};
+	  if(ev.type==='board.review.quorum_lost') return {text:`董事缺席过半 · ${ev.absentCount||0}/${ev.directorCount||0} · 等主人拍板`,state:'wait'};
+	  if(ev.type==='board.review.await_owner') return {text:`董事会需主人拍板 · ${ev.bulletinId||ev.decisionId||''}`,state:'wait'};
   if(ev.type==='node.output'){
     if(!String(ev.text||ev.output||ev.delta||'').trim()) return null;
     return taskBoardOutputProgress(ev);
@@ -2924,21 +3594,10 @@ function taskBoardProgressElapsed(progress,fallbackAt){
 	  return taskBoardQuestionText(raw,96)||taskBoardRunningBrief(raw)||taskBoardBrief(raw)||'待处理';
 	}
 	function taskBoardNormalizeNodeChain(nodes){
-	  const list=(Array.isArray(nodes)?nodes:[]).filter(Boolean).map(n=>Object.assign({},n));
-	  let downstreamStarted=false;
-	  for(let i=list.length-1;i>=0;i--){
-	    const n=list[i]||{};
-	    const status=String(n.status||'pending');
-	    const text=String(n.statusText||'');
-	    const started=status!=='pending'||(/(✅|🔵|↩|⏳|⏸|❌|完成|运行|打回|等待|暂停|失败)/.test(text)&&!/待开始/.test(text));
-	    if(downstreamStarted&&status==='pending'){
-	      n.status='done';
-	      n.statusText='✅完成';
-	      n.inferredDone=true;
-	    }
-	    if(started) downstreamStarted=true;
-	  }
-	  return list;
+	  // The server owns lifecycle truth. A later gate/board node may run before
+	  // implementation, so presentation order is never evidence that an earlier
+	  // pending node completed.
+	  return (Array.isArray(nodes)?nodes:[]).filter(Boolean).map(n=>Object.assign({},n));
 	}
 		function taskBoardNodeChain(nodes){
 		  const list=taskBoardNormalizeNodeChain(nodes);
@@ -2953,13 +3612,19 @@ function taskBoardProgressElapsed(progress,fallbackAt){
 	    return i?`<span class="tb-node-arrow" aria-hidden="true">→</span>${node}`:node;
 	  }).join('');
 	}
-function taskBoardCeoActions(card){
+	function taskBoardCeoActions(card){
   const action=card&&card.action;
   if(!action||!action.agent||!action.id) return '';
   const status=card.status==='paused'?'paused':(card.status==='queued'?'queued':'running');
-  return taskBoardQueueActions(status,card.status==='canceling');
-}
-function taskBoardNormalizeMode(v){
+	  return taskBoardQueueActions(status,card.status==='canceling');
+	}
+	function taskBoardCeoProgressTaskId(card){
+	  const nodes=Array.isArray(card&&card.nodes)?card.nodes:[];
+	  const running=nodes.find(n=>n&&n.status==='running'&&n.taskId);
+	  const action=card&&card.action||{};
+	  return running&&running.taskId||action.taskId||card&&card.taskId||card&&card.rootTaskId||'';
+	}
+	function taskBoardNormalizeMode(v){
 	  const m=String(v==null?'':v).trim();
 	  if(m==='past'||m==='过往') return 'past';
 	  if(m==='queue'||m==='队列') return 'queue';
@@ -2989,7 +3654,8 @@ function taskBoardCeoCard(card,idx){
 			  const draggable=status==='queued'&&action.agent==='ceo';
 	  const stateText=card.statusText||(status==='running'?'执行中':'排队中');
 	  const progress=taskBoardCeoProgress(card);
-	  const progressStartAt=card.started_at||card.enqueued_at;
+	  const progressTaskId=taskBoardCeoProgressTaskId(card);
+	  const progressStartAt=status==='running'?(card.started_at||''):(card.started_at||card.enqueued_at);
 	  const progressLine=taskBoardDisplayProgress(raw,taskBoardProgressLine(progress,taskBoardProgressElapsed(progress,progressStartAt)));
 			  const displayId=rawRootId||rawId||card.rootTaskId||card.id;
 			  const metaExtra=taskBoardDurationHtml(card.enqueued_at,card.started_at,status);
@@ -3001,17 +3667,17 @@ function taskBoardCeoCard(card,idx){
 	      ${taskBoardIdStateRow(displayId,stateText,'tb-ceo-state',metaExtra)}`;
 				  const detailHtml=`<div class="tb-ceo-detail">
 		      <div class="tb-node-chain" role="list" aria-label="任务链路">${taskBoardNodeChain(card.nodes)}</div>
-		      ${taskBoardProgressHtml(progress,progressLine,progressStartAt,status)}
+			      ${taskBoardProgressHtml(progress,progressLine,progressStartAt,status,progressTaskId)}
 			      <details class="tb-original" ${detailOpenAttr}><summary>详情</summary><div class="tb-full tb-ceo-full" ${taskBoardScrollAttrs(fullKey,'tail')}>${task||'-'}${card.runDir?`\n\nruns: ${esc(card.runDir)}`:''}</div></details>
 			    </div>`;
 				  if(status==='running'){
-					    return `<details class="tb-card tb-ceo-card qitem ${esc(status)}${reworkClass}${repairClass}${selectedClass}" data-agent="${agent}" data-id="${id}" ${cardAttrs} ${queueRememberAttr(openKey,true)}>
+					    return `<details class="tb-card tb-ceo-card qitem ${esc(status)}${reworkClass}${repairClass}${selectedClass}" data-kind="queue" data-status="${esc(status)}" data-title="${esc(briefText)}" data-agent="${agent}" data-id="${id}" ${cardAttrs} ${queueRememberAttr(openKey,true)}>
 			    <summary class="tb-ceo-summary" title="${summaryLabel}" aria-label="${summaryLabel}">${headerHtml}</summary>
 			    ${detailHtml}
 			    ${taskBoardCeoActions(card)}
 			  </details>`;
 				  }
-				  return `<details class="tb-card tb-ceo-card qitem ${esc(status)}${reworkClass}${selectedClass}" data-agent="${agent}" data-id="${id}" ${cardAttrs} ${draggable?'draggable="true"':''} ${queueRememberAttr(openKey,false)}>
+				  return `<details class="tb-card tb-ceo-card qitem ${esc(status)}${reworkClass}${selectedClass}" data-kind="queue" data-status="${esc(status)}" data-title="${esc(briefText)}" data-agent="${agent}" data-id="${id}" ${cardAttrs} ${draggable?'draggable="true"':''} ${queueRememberAttr(openKey,false)}>
 			    <summary class="tb-ceo-summary" title="${summaryLabel}" aria-label="${summaryLabel}">
 			      ${headerHtml}
 			    </summary>
@@ -3109,15 +3775,19 @@ function taskBoardSourceLabel(source){
 	  return `${node}-${ev.attempt||1}`;
 	}
 	function rememberTaskProgress(ev){
-	  if(!ev||!ev.task) return;
+	  if(!ev||!ev.task) return false;
 	  const progress=taskBoardProgressFromEvent(ev,taskText(ev));
-	  if(!progress) return;
+	  if(!progress) return false;
 	  const order=eventOrder(ev), prev=taskProgress[ev.task];
-	  if(prev&&order&&prev.order&&order<prev.order) return;
+	  if(prev&&order&&prev.order&&order<=prev.order) return false;
 	  const node=ev.node||'';
 	  const sameStep=prev&&node&&prev.node===node;
 	  const stepStartedAt=ev.type==='node.start'?(ev.ts||''):(sameStep&&prev.stepStartedAt||progress.stepStartedAt||ev.ts||'');
-	  taskProgress[ev.task]=Object.assign({},progress,{order,ts:ev.ts||'',node,stepText:taskBoardFallbackStep(node),stepStartedAt});
+	  const outputCount=ev.type==='node.output'?((sameStep&&prev&&prev.outputCount)||0)+1:0;
+	  const next=Object.assign({},progress,{order,ts:ev.ts||'',node,stepText:taskBoardFallbackStep(node),stepStartedAt,outputCount});
+	  taskProgress[ev.task]=next;
+	  taskProgressPending[ev.task]=next;
+	  return true;
 	}
 	function taskBoardStepFromNodes(nodes,taskId,node){
 	  const list=Array.isArray(nodes)?nodes:[];
@@ -3172,8 +3842,9 @@ function taskBoardSourceLabel(source){
 			function taskBoardRunningCard(row){
 		  const item=row.item||{}, id=esc(item.id||''), taskRaw=queueTaskText(item.task);
 			  const task=esc(taskRaw||''), brief=taskBoardRunningBrief(taskRaw)||taskBoardBrief(taskRaw)||'处理中', progress=taskBoardProgress(row,'running');
-		  const startedAt=item.engine_started_at||item.engineStartedAt||item.started_at||item.startedAt||item.claimed_at||item.claimedAt||'';
-		  const progressStartAt=startedAt||item.enqueued_at||item.enqueuedAt;
+		  const startedAt=taskBoardRunningStartedAt(item);
+		  const progressStartAt=startedAt;
+		  const progressTaskId=taskBoardTaskId(row);
 		  const progressLine=taskBoardDisplayProgress(taskRaw,taskBoardProgressLine(progress,taskBoardProgressElapsed(progress,progressStartAt)));
 		  const keySeed=`${row.agent.id}:${item.id||''}`;
 			  const openKey=`running-card:${keySeed}`;
@@ -3201,7 +3872,7 @@ function taskBoardSourceLabel(source){
 	    </summary>
 	    <div class="tb-ceo-detail">
 		      <div class="tb-node-chain" role="list" aria-label="任务链路"><span class="tb-node running" role="listitem" aria-label="${esc((row.agent.label||queueAgentLabel(row.agent.id))+' · 运行中')}"><b>${esc(row.agent.label||queueAgentLabel(row.agent.id))}</b><em>🔵运行中</em></span></div>
-	      ${taskBoardProgressHtml(progress,progressLine,progressStartAt,'running')}
+		      ${taskBoardProgressHtml(progress,progressLine,progressStartAt,'running',progressTaskId)}
 	      <details class="tb-original" ${detailOpenAttr}><summary>详情</summary><div class="tb-full tb-ceo-full" ${taskBoardScrollAttrs(fullKey,'tail')}>${task||'-'}</div></details>
 	    </div>
 	    ${taskBoardQueueActions('running',item.status==='canceling')}
@@ -3224,7 +3895,7 @@ function taskBoardSourceLabel(source){
 			  const cardAttrs=taskBoardCardAttrs(cardKey,cardStatus);
 			  const selectedClass=taskBoardCardSelectedClass(cardKey);
 			  const summaryLabel=esc([stateText,row.agent.label||queueAgentLabel(row.agent.id),brief,answer,item.id?`#${item.id}`:''].filter(Boolean).join(' · '));
-			  return `<details class="tb-card tb-queue-card qitem ${esc(cardStatus)}${selectedClass}" data-agent="${esc(row.agent.id)}" data-id="${id}" ${cardAttrs} ${status==='queued'?'draggable="true"':''} ${queueRememberAttr(openKey,false)}>
+			  return `<details class="tb-card tb-queue-card qitem ${esc(cardStatus)}${selectedClass}" data-kind="queue" data-status="${esc(status)}" data-title="${esc(brief)}" data-agent="${esc(row.agent.id)}" data-id="${id}" ${cardAttrs} ${status==='queued'?'draggable="true"':''} ${queueRememberAttr(openKey,false)}>
 			    <summary class="tb-ceo-summary" title="${summaryLabel}" aria-label="${summaryLabel}">
 		      <span class="tb-ceo-title">${taskBoardQaHtml(brief,answer,item.id)}</span>
 		      ${taskBoardIdStateRow(item.id,stateText,`tb-tag ${status==='paused'?'paused':'queue'}`,durationHtml)}
@@ -3246,7 +3917,8 @@ function taskBoardSourceLabel(source){
 	  const brief=taskBoardQuestionText(text,72)||title;
 	  const target=queueAgentLabel(card.target||'ceo');
 	  const cardLabel=['公告板候选',source&&`来源 ${source}`,target&&`目标 ${target}`,card.project&&`项目 ${card.project}`,title,brief].filter(Boolean).join(' · ');
-	  return `<article class="tb-card tb-board-card" data-id="${esc(card.id)}" role="group" title="${esc(cardLabel)}" aria-label="${esc(cardLabel)}">
+	  const status=card.status==='待拍板'?'待拍板':'todo';
+	  return `<article class="tb-card tb-board-card" data-kind="bulletin" data-status="${esc(status)}" data-title="${esc(title)}" data-id="${esc(card.id)}" role="group" tabindex="0" title="${esc(cardLabel)}" aria-label="${esc(cardLabel)}">
 	    <div class="tb-agent">
 	      <span class="tb-avatar">${avatarHtml(card.source&&/insight|scout|洞察/.test(card.source)?'insight-scout':(card.target||'ceo'))}</span>
 	      <span><span class="tb-name">${esc(title)}</span><span class="tb-sub">${esc(target)}</span></span>
@@ -3297,7 +3969,7 @@ function taskBoardEmpty(text){
 			    (agent.state.queued||[]).forEach(item=>waitingAll.push({kind:'queue',status:'queued',agent,item,sort:taskBoardTimeValue(item)}));
 			    (agent.state.paused||[]).forEach(item=>waitingAll.push({kind:'queue',status:'paused',agent,item,sort:taskBoardTimeValue(item)}));
 			  });
-			  const candidateAll=bulletinCards.filter(c=>c&&c.status!=='enabled'&&!taskBoardIsRepairBulletin(c)).map(card=>({kind:'bulletin',card,sort:Date.parse(card.created_at||'')||0}));
+			  const candidateAll=bulletinCards.filter(c=>c&&(c.status==='todo'||c.status==='待拍板')&&!taskBoardIsRepairBulletin(c)).map(card=>({kind:'bulletin',card,sort:Date.parse(card.created_at||'')||0}));
 			  runningAll.sort((a,b)=>(a.sort||0)-(b.sort||0));
 			  waitingAll.sort((a,b)=>(a.sort||0)-(b.sort||0));
 			  candidateAll.sort((a,b)=>(b.sort||0)-(a.sort||0));
@@ -3359,21 +4031,24 @@ function taskBoardEmpty(text){
 		  const pastTabLabel=`查看过往任务, ${pastShown.length} 条`;
 		  box.innerHTML=`<div class="task-board mode-${mode}${mode==='running'&&repairRunningShown.length?' has-repair':''}">
 		    <div class="tb-head">
-		      <div class="qsum" role="tablist" aria-label="任务板切换">
-			        <button class="qchip run ${mode==='running'?'on':''}" type="button" data-tb-mode="running" role="tab" aria-selected="${mode==='running'?'true':'false'}" tabindex="${mode==='running'?'0':'-1'}" title="${esc(runTabLabel)}" aria-label="${esc(runTabLabel)}">进行中 <b>${runCount}</b></button>
-			        <button class="qchip wait ${mode==='queue'?'on':''}" type="button" data-tb-mode="queue" role="tab" aria-selected="${mode==='queue'?'true':'false'}" tabindex="${mode==='queue'?'0':'-1'}" title="${esc(queueTabLabel)}" aria-label="${esc(queueTabLabel)}">队列 <b>${queueCount}</b></button>
-			        <button class="qchip past ${mode==='past'?'on':''}" type="button" data-tb-mode="past" role="tab" aria-selected="${mode==='past'?'true':'false'}" tabindex="${mode==='past'?'0':'-1'}" title="${esc(pastTabLabel)}" aria-label="${esc(pastTabLabel)}">过往 <b>${pastShown.length}</b></button>
-		      </div>
+			      <div class="qsum" role="tablist" aria-label="任务板切换">
+				        <button class="qchip run ${mode==='running'?'on':''}" type="button" data-tb-mode="running" role="tab" aria-selected="${mode==='running'?'true':'false'}" tabindex="${mode==='running'?'0':'-1'}" title="${esc(runTabLabel)}" aria-label="${esc(runTabLabel)}">进行中 ${countMarkup('taskboard.running',runCount)}</button>
+				        <button class="qchip wait ${mode==='queue'?'on':''}" type="button" data-tb-mode="queue" role="tab" aria-selected="${mode==='queue'?'true':'false'}" tabindex="${mode==='queue'?'0':'-1'}" title="${esc(queueTabLabel)}" aria-label="${esc(queueTabLabel)}">队列 ${countMarkup('taskboard.queue',queueCount)}</button>
+				        <button class="qchip past ${mode==='past'?'on':''}" type="button" data-tb-mode="past" role="tab" aria-selected="${mode==='past'?'true':'false'}" tabindex="${mode==='past'?'0':'-1'}" title="${esc(pastTabLabel)}" aria-label="${esc(pastTabLabel)}">过往 ${countMarkup('taskboard.past',pastShown.length)}</button>
+			      </div>
 					      <div class="qtools"><button data-q-bulk="cancel-waiting" type="button" title="取消所有排队和暂停任务" aria-label="取消所有排队和暂停任务" ${total.queued+total.paused?'':'disabled'}>取消排队</button><button class="tb-refresh" data-q-bulk="refresh">刷新</button></div>
 		    </div>
 		    ${bodyHtml}
 			  </div>`;
   const refreshBtn=box.querySelector('.tb-refresh[data-q-bulk="refresh"]');
   if(refreshBtn){refreshBtn.type='button';refreshBtn.title='刷新任务板';refreshBtn.setAttribute('aria-label','刷新任务板');}
-  bindQueueControls();
-  bindScrollMemory(box);
-  restoreTaskBoardScrollState(box,prevScroll);
-	}
+	  bindQueueControls();
+	  bindScrollMemory(box);
+	  animateCountUps(box);
+	  decorateDynamicMotion(box);
+	  refreshTaskBoardLatestProgressOverflow(box);
+	  restoreTaskBoardScrollState(box,prevScroll);
+			}
 async function queueApi(url,body){
   const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
   const data=await resp.json().catch(()=>({}));
@@ -3496,7 +4171,7 @@ async function pollBulletin(){
 	}
 	function llmCardClass(id){
 	  if(id==='glm-5.2') return 'glm';
-	  if(id==='claude-code'||id==='claude-opus-4-8') return 'codex';
+		  if(id==='claude-code'||id==='claude-fable-5'||id==='claude-opus-4-8') return 'codex';
 	  if(id==='codex') return 'codex';
 	  return '';
 	}
@@ -3665,10 +4340,11 @@ async function pollBulletin(){
 			      const label=`${emptyText} · ${updatedText}`;
 			      setLlmHint('暂无数据',label,'模型用量: '+label,'warn');
 			    }
-		  }
-		  bindScrollMemory(box);
-	  restoreTaskBoardScrollState(box,prevScroll);
-	}
+			  }
+			  bindScrollMemory(box);
+			  decorateDynamicMotion(box);
+		  restoreTaskBoardScrollState(box,prevScroll);
+		}
 	async function pollLlmUsage(){
 	  try{
 	    llmUsage=await (await fetch('/api/llm-usage/overview?days=7')).json();
@@ -3676,6 +4352,62 @@ async function pollBulletin(){
 	    llmUsage={ok:false,error:e.message||String(e)};
 	  }
 	  renderLlmUsage();
+	}
+	function setPeekHint(text,title,label,tone){
+	  const hint=$('#peekHint'); if(!hint) return;
+	  hint.textContent=text||'';
+	  hint.title=title||text||'';
+	  hint.setAttribute('aria-label',label||title||text||'');
+	  hint.setAttribute('role',tone==='err'?'alert':'status');
+	  hint.setAttribute('aria-live',tone==='err'?'assertive':'polite');
+	  hint.setAttribute('aria-atomic','true');
+	  if(tone) hint.dataset.feedback=tone; else delete hint.dataset.feedback;
+	}
+	function peekRunLabel(item){
+	  const run=item&&item.run||'root';
+	  return run==='.'||!run?'root':run;
+	}
+	function peekMtime(item){
+	  const ts=Date.parse(item&&item.mtime||'');
+	  return ts?new Date(ts).toLocaleTimeString('zh-CN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}):'--:--:--';
+	}
+	function renderPeekabooBaseline(){
+	  const box=$('#peekArtifacts');
+	  if(!box) return;
+	  const prevScroll=captureTaskBoardScrollState(box);
+	  if(!peekabooBaseline){
+	    box.innerHTML='<div class="empty" role="status" title="Peekaboo 产物读取中" aria-label="Peekaboo 产物读取中">读取中…<span class="loading-dot" aria-hidden="true"></span></div>';
+	    setPeekHint('读取中','Peekaboo 产物读取中','Peekaboo 产物读取中','info');
+	  }else if(!peekabooBaseline.ok){
+	    const errorText=`读取失败: ${peekabooBaseline.error||'unknown'}`;
+	    box.innerHTML=`<div class="empty err" role="alert" title="${esc('Peekaboo 产物不可用 · '+errorText)}" aria-label="${esc('Peekaboo 产物不可用 · '+errorText)}">${esc(errorText)}</div>`;
+	    setPeekHint('不可用',errorText,`Peekaboo 产物不可用 · ${errorText}`,'err');
+	  }else{
+	    const images=(peekabooBaseline.images||[]).slice(0,8);
+	    const logs=(peekabooBaseline.logs||[]).slice(0,8);
+	    const imageHtml=images.length?`<div class="peek-shot-grid" role="list" aria-label="Peekaboo 最近截图">${images.map(item=>{
+	      const label=`${item.name} · ${peekRunLabel(item)} · ${peekMtime(item)}`;
+	      return `<a class="peek-shot" role="listitem" href="${esc(item.url)}" target="_blank" rel="noopener" title="${esc(label)}" aria-label="${esc('打开 Peekaboo 截图: '+label)}"><img src="${esc(item.url)}" alt="" loading="lazy" decoding="async"><span>${esc(item.name)}</span></a>`;
+	    }).join('')}</div>`:'<div class="empty" role="status" title="暂无 Peekaboo 截图" aria-label="暂无 Peekaboo 截图">暂无截图</div>';
+	    const logHtml=logs.length?`<div class="peek-log-list" role="list" aria-label="Peekaboo 最近日志">${logs.map(item=>{
+	      const label=`${item.name} · ${peekRunLabel(item)} · ${peekMtime(item)}`;
+	      return `<a class="peek-log" role="listitem" href="${esc(item.url)}" target="_blank" rel="noopener" title="${esc(label)}" aria-label="${esc('打开 Peekaboo 日志: '+label)}"><b>${esc(item.name)}</b><em>${esc(peekRunLabel(item))}</em></a>`;
+	    }).join('')}</div>`:'';
+	    box.innerHTML=imageHtml+logHtml;
+	    const countText=`${images.length} 图 / ${logs.length} 日志`;
+	    setPeekHint(countText,`Peekaboo 产物: ${countText}`,`Peekaboo 产物: ${countText}`,images.length?'':'warn');
+		  }
+		  bindScrollMemory(box);
+		  decorateDynamicMotion(box);
+		  restoreTaskBoardScrollState(box,prevScroll);
+		}
+	async function pollPeekabooBaseline(){
+	  try{
+	    peekabooBaseline=await (await fetch('/api/peekaboo-baseline/artifacts')).json();
+	  }catch(e){
+	    peekabooBaseline={ok:false,error:e.message||String(e)};
+	  }
+	  renderPeekabooBaseline();
 	}
 function reorderQueued(agent,sourceId,targetId){
   if(!sourceId||!targetId||sourceId===targetId) return;
@@ -3894,16 +4626,34 @@ function bindQueueControls(){
 	  });
 	  ensureTaskBoardOutsideCollapseBound();
 	}
-async function pollQueue(){
+async function fetchQueueEntries(){
   try{
-    const [entries,boardData]=await Promise.all([
-      Promise.all(queueAgents.map(async agent=>{
+    const response=await fetch('/api/queues/overview');
+    if(!response.ok) throw new Error('queue overview '+response.status);
+    const data=await response.json();
+    if(!data||!data.ok||!data.queues) throw new Error('queue overview invalid');
+    return queueAgents.map(agent=>{
+      const state=data.queues[agent.id]||{};
+      rememberQueueItems(agent.id,state.running||[],'running');
+      rememberQueueItems(agent.id,state.queued||[],'queued');
+      rememberQueueItems(agent.id,state.paused||[],'paused');
+      return [agent.id,{queued:state.queued||[],running:state.running||[],paused:state.paused||[],done:state.done||0,failed:state.failed||0,canceled:state.canceled||0}];
+    });
+  }catch(_){
+    // 兼容旧服务:聚合端点不可用时仍回退既有 canonical queue API。
+    return Promise.all(queueAgents.map(async agent=>{
       const data=await (await fetch(`/api/queue/${encodeURIComponent(agent.id)}`)).json();
       rememberQueueItems(agent.id,data.running||[],'running');
       rememberQueueItems(agent.id,data.queued||[],'queued');
       rememberQueueItems(agent.id,data.paused||[],'paused');
       return [agent.id,{queued:data.queued||[],running:data.running||[],paused:data.paused||[],done:data.done||0,failed:data.failed||0,canceled:data.canceled||0}];
-		    })),
+    }));
+  }
+}
+async function pollQueue(){
+  try{
+    const [entries,boardData]=await Promise.all([
+      fetchQueueEntries(),
       fetch('/api/task-board/ceo').then(r=>r.json()).catch(()=>null)
     ]);
     ceoTaskBoard=boardData&&boardData.ok?boardData:null;
@@ -3935,7 +4685,7 @@ async function pollQueue(){
 			  const localGoal=outgoingImages.length?`${goal}\n[图片附件 ${outgoingImages.length} 张]`:goal;
 			  const sendBtn=$('#send');
 				  const sendLabel=sendBtn.getAttribute('aria-label')||'派发任务', sendTitle=sendBtn.title;
-				  busy=true; sendBtn.disabled=true; sendBtn.setAttribute('aria-busy','true'); sendBtn.setAttribute('aria-label','派单中,等待队列接收'); sendBtn.title='派单中,等待队列接收'; sendBtn.textContent='派单中…'; $('#task').value=''; autosizeTask();
+				  busy=true; sendBtn.disabled=true; sendBtn.setAttribute('aria-busy','true'); sendBtn.setAttribute('aria-label','派单中,等待队列接收'); sendBtn.title='派单中,等待队列接收'; sendBtn.textContent='派单中…';
 			  const localTaskId=setDesk(role,'working',localGoal);
 	  setTaskBoardFeedback('已派单,等待队列接收');
 	  try{
@@ -3943,37 +4693,57 @@ async function pollQueue(){
 	    const payload={
 	      role,flowId:role==='orchestrator'?'review-loop':'agent-once',goal,attachments:outgoingImages,autoApproveHuman:true,
 	      useOrchestrator:role==='orchestrator',
-	      bounds:'只处理本任务; Starlaid 一律排除; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
+	      bounds:'只处理本任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明',
 	      acceptance:'跑通 review-loop: 总管拆解、实现、评审、完成事件都写入 engine-events.jsonl; 如无需改文件请明确说明'
 	    };
 	    const resp=await fetch(`/api/queue/${encodeURIComponent(queueAgent)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task:payload})});
 	    const data=await resp.json();
 	    if(!resp.ok||!data.ok){ setDesk(role,'fail',localGoal,localTaskId); setTaskBoardFeedback(`${queueAgentLabel(queueAgent)} 入队失败: `+(data.error||resp.status)); return; }
 		    clearImageAttachments();
+		    $('#task').value=''; autosizeTask(); try{localStorage.removeItem('yt6-task-draft')}catch(_){}
 		    setTaskBoardFeedback(`已加入 ${queueAgentLabel(queueAgent)} 队列 #${data.entry.id}`);
 		    if(queueAgent==='secretary') triggerChairmanHandoff({queueId:data.entry.id,goal,forceView:true});
 		    await pollQueue();
 	    await pollEvents(false);
-	  }catch(e){ setDesk(role,'fail',localGoal,localTaskId); setTaskBoardFeedback('入队请求失败 '+e); }
+	  }catch(e){ setDesk(role,'fail',localGoal,localTaskId); const msg=(e&&e.name==='TypeError')?'网络连接失败,请确认控制台服务在运行':('入队请求失败: '+(e&&e.message||e)); setTaskBoardFeedback(msg); }
 				  finally{ busy=false; sendBtn.disabled=false; sendBtn.removeAttribute('aria-busy'); sendBtn.setAttribute('aria-label',sendLabel); sendBtn.title=sendTitle; sendBtn.textContent='派单'; }
 			}
 	$('#send').onclick=dispatch;
+	$('#peekRefresh').onclick=pollPeekabooBaseline;
 	$('#attachBtn').onclick=()=>$('#imagePick').click();
 	$('#imagePick').addEventListener('change',e=>addImageFiles(e.target.files||[]));
-	$('#task').addEventListener('input',autosizeTask);
+	$('#task').addEventListener('input',()=>{autosizeTask(); try{localStorage.setItem('yt6-task-draft',$('#task').value)}catch(_){}});
 	$('#task').addEventListener('paste',e=>{
 	  const items=[...(e.clipboardData&&e.clipboardData.items||[])];
 	  const files=items.filter(it=>it.kind==='file').map(it=>it.getAsFile()).filter(Boolean);
 	  if(files.length) addImageFiles(files);
 	});
 	$('#task').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();dispatch();} });
-setInterval(()=>pollEvents(false), 1500);
-setInterval(()=>{ updateTaskBoardDurations(document); updateTaskBoardProgressTimers(document); }, 1000);
-setInterval(pollVersion, 60000);
-setInterval(()=>pollLlmUsage(), 30000);
-setInterval(()=>pollQueue(), 1500);
-setInterval(()=>pollBulletin(), 1500);
-init();
+		try{ const _d=localStorage.getItem('yt6-task-draft'); if(_d&&!$('#task').value){ $('#task').value=_d; autosizeTask(); } }catch(_){}
+		const WORKSPACE_POLL_MS=2500;
+		const BULLETIN_POLL_MS=10000;
+		let workspacePollInFlight=false,workspaceReady=false;
+		function syncTaskProgressVisibility(){ document.documentElement.classList.toggle('task-progress-hidden',!!document.hidden); }
+		async function pollWorkspaceCore(){
+		  if(!workspaceReady||document.hidden||workspacePollInFlight) return;
+		  workspacePollInFlight=true;
+		  try{ await Promise.all([pollEvents(false),pollQueue()]); }
+		  finally{ workspacePollInFlight=false; }
+		}
+		function pollWhenVisible(fn){ if(workspaceReady&&!document.hidden) fn(); }
+		document.addEventListener('visibilitychange',()=>{
+		  syncTaskProgressVisibility();
+		  if(!document.hidden){ pollWorkspaceCore(); pollBulletin(); }
+		});
+		window.addEventListener('resize',()=>refreshTaskBoardLatestProgressOverflow($('#queue')));
+		syncTaskProgressVisibility();
+		setInterval(pollWorkspaceCore,WORKSPACE_POLL_MS);
+		setInterval(()=>{ if(!document.hidden){ updateTaskBoardDurations(document); updateTaskBoardProgressTimers(document); } },1000);
+		setInterval(()=>pollWhenVisible(pollVersion),60000);
+		setInterval(()=>pollWhenVisible(pollLlmUsage),60000);
+		setInterval(()=>pollWhenVisible(pollPeekabooBaseline),60000);
+		setInterval(()=>pollWhenVisible(pollBulletin),BULLETIN_POLL_MS);
+		init().finally(()=>{ workspaceReady=true; });
 </script>
 </body>
 </html>
