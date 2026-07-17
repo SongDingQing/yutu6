@@ -4662,6 +4662,10 @@ const handler = (req, res) => {
     return json(res, 200, { ok:true, state: LocateAnything.health() });
   if (req.method === 'GET' && u.pathname === '/control-room') return serveStatic(res, 'control-room.html');
   if (req.method === 'GET' && u.pathname === '/workspace') return serveStatic(res, 'workspace.html');
+  if (req.method === 'GET' && u.pathname === '/workspace-next') return serveStatic(res, 'app/index.html');
+  if (req.method === 'GET' && u.pathname === '/workspace-legacy') return serveStatic(res, 'workspace.html');
+  if (req.method === 'GET' && (u.pathname === '/app' || u.pathname === '/app/')) return serveStatic(res, 'app/index.html');
+  if (req.method === 'GET' && u.pathname.startsWith('/app/')) return serveStatic(res, u.pathname.slice(1));
   if (req.method === 'GET' && u.pathname === '/office-experiment') return serveStatic(res, 'office-experiment.html');
   if (req.method === 'GET' && u.pathname === '/api-gateway') return serveStatic(res, 'newapi.html');
   if (req.method === 'GET' && u.pathname === '/api/cr/overview') {

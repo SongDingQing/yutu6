@@ -52,3 +52,7 @@ security/skip-audit.log
 # 元宵审批账本(运行时决策数据,不入 git)
 projects/控制台/artifacts/yuanxiao-approvals/
 projects/控制台/artifacts/repair-reports/
+
+# 控制台 React 前端:依赖与 Vite 本地缓存不入库;public/app 是部署产物,需要跟踪
+projects/控制台/frontend/node_modules/
+projects/控制台/frontend/.vite/

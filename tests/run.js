@@ -44,6 +44,7 @@ const allTests = [
   'workspace-settings-ui.test.js',
   'workspace-task-status-truth.test.js',
   'workspace-render-architecture.test.js',
+  'react-workspace-shell.test.js',
   'project-routing.test.js',
   'cli-runner.test.js',
   'handoff-shadow.test.js',
