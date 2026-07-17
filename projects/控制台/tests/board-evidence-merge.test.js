@@ -390,6 +390,36 @@ async function main() {
       '## Stable board background',
       'this complete block must remain inline while production activation is disabled',
     ].join('\n');
+    const liveTraceRef = 'projects/控制台/traces/live-board_glm52.json:1';
+    const liveTracePath = path.join(projectRoot, 'traces', 'live-board_glm52.json');
+    fs.writeFileSync(liveTracePath, '{"runner":"controlled-test"}\n');
+    const liveReceiptId = 'rr-live-routing';
+    const liveReceiptCommand = 'node projects/控制台/tests/board-evidence-merge.test.js';
+    const livePreflight = BoardEvidenceMerge.buildMergeContract([
+      opinion('board_glm52', proposalRecords([{
+        text: 'trusted live severe routing reproduction',
+        claim_key: 'trusted-live-redline',
+        stance: 'assert',
+        redline_type: 'severe_routing',
+        evidence_refs: ['projects/控制台/evidence.md:2'],
+        reproduction: { receipt_id: liveReceiptId, command: liveReceiptCommand },
+      }]), {
+        source_task: 'production-disabled-unit',
+        source_trace: liveTraceRef,
+      }),
+    ], {
+      taskId: 'production-disabled-unit', round: 1, active: false, workspaceRoot: root,
+    });
+    const liveReceipt = trustedReceipt({
+      root,
+      receiptId: liveReceiptId,
+      taskId: 'production-disabled-unit',
+      item: byClaim(livePreflight, 'trusted-live-redline'),
+      role: 'board_glm52',
+      traceRef: liveTraceRef,
+      command: liveReceiptCommand,
+      resultRef: 'projects/控制台/evidence.md:2',
+    });
     const disabledReview = await BoardReview.runBoardReview({
       spec: { taskId: 'production-disabled-unit', projectId: '控制台', goal: disabledInstruction, originalGoal: '重构 board runner 路由。' },
       ctx: { workspaceRoot: root },
@@ -399,6 +429,8 @@ async function main() {
       artifactsRoot: path.join(projectRoot, 'disabled-artifacts'),
       memoryFile: path.join(projectRoot, 'disabled-decisions.md'),
       env: {},
+      boardReproductionReceipts: [liveReceipt],
+      boardReproductionReceiptsTrusted: true,
       cliRunner: {
         async runBoardNodeAsync(node, ctx) {
           disabledSeen.push(ctx.goal);
@@ -406,18 +438,28 @@ async function main() {
           fs.writeFileSync(resultPath, '{"runner":"controlled-test"}\n');
           return { evidence: { path: resultPath }, vars: { board_review: {
             risk_level: 'low', can_execute: true, hard_block: false, misjudgment_risk: false,
-            issues: node.agent_role === 'board_glm52' ? [{
-              text: 'self-reported severe routing reproduction must stay in arbitration',
-              claim_key: 'disabled-self-report-redline',
-              stance: 'assert',
-              redline_type: 'severe_routing',
-              evidence_refs: ['projects/控制台/evidence.md:2'],
-              reproduction: {
-                command: 'node projects/控制台/tests/never-executed-redline.js',
-                status: 'reproduced',
-                exit_code: 0,
+            issues: node.agent_role === 'board_glm52' ? [
+              {
+                text: 'self-reported severe routing reproduction must stay in arbitration',
+                claim_key: 'disabled-self-report-redline',
+                stance: 'assert',
+                redline_type: 'severe_routing',
+                evidence_refs: ['projects/控制台/evidence.md:2'],
+                reproduction: {
+                  command: 'node projects/控制台/tests/never-executed-redline.js',
+                  status: 'reproduced',
+                  exit_code: 0,
+                },
               },
-            }] : [],
+              {
+                text: 'trusted live severe routing reproduction',
+                claim_key: 'trusted-live-redline',
+                stance: 'assert',
+                redline_type: 'severe_routing',
+                evidence_refs: ['projects/控制台/evidence.md:2'],
+                reproduction: { receipt_id: liveReceiptId, command: liveReceiptCommand },
+              },
+            ] : [],
             suggestions: [], summary: `${node.agent_role} disabled gate ok`,
           } } };
         },
@@ -439,6 +481,12 @@ async function main() {
       'trusted_receipt_id_missing');
     assert.match(disabledSelfReport.source_trace,
       /^projects\/控制台\/traces\/live-board_glm52\.json:1$/);
+    const trustedLive = byClaim(disabledReview.rounds[0].evidence_merge_contract,
+      'trusted-live-redline');
+    assert.strictEqual(trustedLive.classification, 'hard_block');
+    assert.strictEqual(trustedLive.promotion_rule, 'MERGE-R4-REPRODUCIBLE-REDLINE');
+    assert.strictEqual(trustedLive.sources[0].reproduction_verification.reason,
+      'trusted_execution_receipt_verified');
     assert.strictEqual(disabledReview.rounds[0].evidence_merge_activation.active, false);
     assert(!disabledReview.revisedGoal.includes(BoardEvidenceMerge.CONTRACT_SCHEMA),
       'shadow merge evidence must not rewrite the existing production acceptance prompt');
