@@ -1,5 +1,5 @@
 import { Activity, CircleCheck, Clock3, Layers3 } from 'lucide-react';
-import { formatElapsed, shortId, taskTitle } from '../lib/format';
+import { formatElapsed, shortId, taskPresentation } from '../lib/format';
 import type { WorkspaceCoreSnapshot } from '../types';
 
 interface OperationalOverviewProps {
@@ -45,19 +45,26 @@ export function OperationalOverview({ core }: OperationalOverviewProps) {
         <div className="overview-block">
           <div className="subheading"><h2>当前流转</h2><span>{activeTasks.length}</span></div>
           <div className="flow-list">
-            {activeTasks.length ? activeTasks.map((task) => (
-              <article className="flow-row" key={task.id}>
-                <div className="flow-row-top">
-                  <strong>{taskTitle(task.brief || task.task, 110)}</strong>
-                  <code>#{shortId(task.rootQueueId || task.id)}</code>
-                </div>
-                <p>{task.statusText || task.progress?.text || '处理中'}</p>
-                <div className="flow-meta">
-                  <span>{task.downstream?.roleLabel || 'CEO'}</span>
-                  <span>{formatElapsed(task.started_at)}</span>
-                </div>
-              </article>
-            )) : <EmptyLine label="暂无运行中的主任务" />}
+            {activeTasks.length ? activeTasks.map((task) => {
+              const presentation = taskPresentation(task.brief || task.task, 72, 150);
+              return (
+                <article className="flow-row" key={task.id}>
+                  <div className="flow-row-kicker">
+                    <span>主任务</span>
+                    <code>#{shortId(task.rootQueueId || task.id)}</code>
+                  </div>
+                  <h3>{presentation.title}</h3>
+                  {presentation.purpose ? (
+                    <p className="flow-purpose"><span>目的</span>{presentation.purpose}</p>
+                  ) : null}
+                  <div className="flow-meta">
+                    <span className="flow-state">{task.statusText || task.progress?.text || '处理中'}</span>
+                    <span>{task.downstream?.roleLabel || 'CEO'}</span>
+                    <span>{formatElapsed(task.started_at)}</span>
+                  </div>
+                </article>
+              );
+            }) : <EmptyLine label="暂无运行中的主任务" />}
           </div>
         </div>
 

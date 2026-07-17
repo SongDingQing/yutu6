@@ -1,7 +1,7 @@
-import { Check, ChevronRight, Clock3, History, Pause, Play, Search, Trash2, XCircle } from 'lucide-react';
+import { Check, ChevronRight, Clock3, History, Pause, Play, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { cancelQueueItem, enableBulletin, removeBulletin } from '../lib/api';
-import { formatElapsed, queueEntryTime, shortId, taskText, taskTitle } from '../lib/format';
+import { formatElapsed, queueEntryTime, shortId, taskPresentation, taskText } from '../lib/format';
 import type {
   BulletinCard,
   CeoTask,
@@ -21,6 +21,7 @@ interface BoardRow {
   agent: string;
   agentLabel: string;
   title: string;
+  purpose?: string;
   fullText: string;
   status: string;
   statusText: string;
@@ -158,6 +159,7 @@ function TaskCard({ row, now, busyKey, onAction }: {
         {row.source ? <span className="source-badge">{row.source}</span> : null}
       </div>
       <h3>{row.title}</h3>
+      {row.purpose ? <p className="task-purpose"><span>目的</span>{row.purpose}</p> : null}
       <div className="task-status-row">
         <span className={`status-pill ${statusTone}`}>{row.statusText}</span>
         {row.project ? <span>{row.project}</span> : null}
@@ -234,14 +236,17 @@ function buildRows(core: WorkspaceCoreSnapshot, bulletin: BulletinCard[]) {
 
 function rootTaskRow(task: CeoTask): BoardRow {
   const status = task.status || 'queued';
+  const fullText = task.task || task.brief || '';
+  const presentation = taskPresentation(task.brief || task.task);
   return {
     key: `root:${task.id}`,
     kind: 'root',
     id: task.rootQueueId || task.action?.id || task.id,
     agent: task.action?.agent || task.rootQueueAgent || 'ceo',
     agentLabel: status === 'running' ? '主任务' : 'CEO 队列',
-    title: taskTitle(task.brief || task.task),
-    fullText: task.task || task.brief || '',
+    title: presentation.title,
+    purpose: presentation.purpose,
+    fullText,
     status,
     statusText: task.statusText || statusLabel(status),
     time: task.started_at || task.enqueued_at,
@@ -253,13 +258,15 @@ function rootTaskRow(task: CeoTask): BoardRow {
 
 function queueTaskRow(agent: string, label: string, entry: QueueEntry, status: string): BoardRow {
   const fullText = taskText(entry.task);
+  const presentation = taskPresentation(fullText);
   return {
     key: `queue:${agent}:${entry.id}:${status}`,
     kind: 'queue',
     id: entry.id,
     agent,
     agentLabel: label,
-    title: taskTitle(fullText),
+    title: presentation.title,
+    purpose: presentation.purpose,
     fullText,
     status,
     statusText: statusLabel(status),
@@ -271,13 +278,15 @@ function queueTaskRow(agent: string, label: string, entry: QueueEntry, status: s
 
 function bulletinRow(card: BulletinCard): BoardRow {
   const fullText = [card.title, card.desc].filter(Boolean).join('\n\n');
+  const presentation = taskPresentation(fullText);
   return {
     key: `bulletin:${card.id}`,
     kind: 'bulletin',
     id: card.id,
     agent: card.target || 'ceo',
     agentLabel: '待拍板',
-    title: card.title,
+    title: presentation.title,
+    purpose: presentation.purpose,
     fullText,
     status: 'queued',
     statusText: '候选',
@@ -292,13 +301,15 @@ function bulletinRow(card: BulletinCard): BoardRow {
 function historyRow(item: TaskHistoryItem): BoardRow {
   const status = item.status === 'done' || item.ok ? 'done' : 'failed';
   const fullText = item.task || '';
+  const presentation = taskPresentation(fullText || item.reason || item.error);
   return {
     key: `history:${item.key || `${item.agent}:${item.id}`}`,
     kind: 'history',
     id: item.id || item.taskId || item.key || '-',
     agent: item.agent || 'history',
     agentLabel: item.agent || '历史',
-    title: taskTitle(fullText || item.reason || item.error),
+    title: presentation.title,
+    purpose: presentation.purpose,
     fullText,
     status,
     statusText: status === 'done' ? '完成' : '失败',
