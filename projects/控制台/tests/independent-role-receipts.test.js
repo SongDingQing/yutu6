@@ -280,7 +280,7 @@ async function reliableChain(root) {
   const governanceReceipt = validReceipt(governanceRetrySpec, { completedAt: '2026-07-16T05:31:00.000Z' });
   const governanceText = jsonBlock(governanceReceipt);
   writeInteractionTrace(workspaceRoot, governanceRetrySpec, governanceText, {
-    runnerId: 'claude-fable-5',
+    runnerId: 'zhipu-glm',
     finishedAt: governanceReceipt.completedAt,
   });
   const govCommit = Receipts.commitRunReceipt(governanceRetrySpec, governanceText, opts);

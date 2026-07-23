@@ -1,0 +1,7 @@
+id: invalid-no-terminal
+nodes:
+  - { id: start, type: agent }
+  - { id: again, type: tool }
+edges:
+  - { from: start, to: again }
+  - { from: again, to: start }

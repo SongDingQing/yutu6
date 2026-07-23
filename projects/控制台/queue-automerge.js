@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const Q = require('../../shared/engine/queue');
 const QueueOrganizer = require('../../shared/engine/queue-organizer');
 const RepairCloseoutHandshake = require('./repair-closeout-handshake');
+const OnboardingHandoff = require('./onboarding-handoff');
 
 function nowIso() {
   return new Date().toISOString();
@@ -319,6 +320,25 @@ function autoMergeAfterEnqueue(root, agent, entry, opts = {}) {
 }
 
 function enqueue(root, agent, task, opts = {}) {
+  const onboardingAdmission = OnboardingHandoff.evaluateAdmission({
+    agent,
+    task,
+    stateDir: opts.onboardingStateDir || OnboardingHandoff.DEFAULT_STATE_DIR,
+    agentDir: opts.onboardingAgentDir || OnboardingHandoff.DEFAULT_AGENT_DIR,
+  });
+  if (!onboardingAdmission.allowed) {
+    emit(opts.eventlog, 'onboarding.production_task.blocked', {
+      queueAgent: agent,
+      taskKind: task && typeof task === 'object' ? task.kind || 'production' : 'production',
+      planId: onboardingAdmission.plan_id || null,
+      reason: onboardingAdmission.reason,
+      blockers: onboardingAdmission.blockers,
+    });
+    const error = new Error(`queue admission blocked for ${agent}: ${onboardingAdmission.reason}`);
+    error.code = 'ONBOARDING_PROBATIONARY';
+    error.admission = onboardingAdmission;
+    throw error;
+  }
   const enqueueOpts = Object.assign({}, opts, {
     id: opts.id || crypto.randomBytes(4).toString('hex'),
   });
@@ -331,16 +351,55 @@ function enqueue(root, agent, task, opts = {}) {
     task,
     queueId: enqueueOpts.id,
   }, () => Q.enqueue(root, agent, task, enqueueOpts));
+  entry.onboardingAdmission = onboardingAdmission;
   entry.autoMerge = autoMergeAfterEnqueue(root, agent, entry, opts);
+  return entry;
+}
+
+function claim(root, agent, opts = {}) {
+  const originalMatch = typeof opts.match === 'function' ? opts.match : null;
+  const claimOpts = Object.assign({}, opts, {
+    match(entry) {
+      if (originalMatch && !originalMatch(entry)) return false;
+      const onboardingAdmission = OnboardingHandoff.evaluateAdmission({
+        agent,
+        task: entry && entry.task,
+        stateDir: opts.onboardingStateDir || OnboardingHandoff.DEFAULT_STATE_DIR,
+        agentDir: opts.onboardingAgentDir || OnboardingHandoff.DEFAULT_AGENT_DIR,
+      });
+      if (onboardingAdmission.allowed) return true;
+      emit(opts.eventlog, 'onboarding.production_task.blocked', {
+        queueAgent: agent,
+        queueId: entry && entry.id || null,
+        taskKind: entry && entry.task && entry.task.kind || 'production',
+        planId: onboardingAdmission.plan_id || null,
+        reason: onboardingAdmission.reason,
+        blockers: onboardingAdmission.blockers,
+        phase: 'claim',
+      });
+      return false;
+    },
+  });
+  const entry = Q.claim(root, agent, claimOpts);
+  if (entry) {
+    entry.onboardingAdmission = OnboardingHandoff.evaluateAdmission({
+      agent,
+      task: entry.task,
+      stateDir: opts.onboardingStateDir || OnboardingHandoff.DEFAULT_STATE_DIR,
+      agentDir: opts.onboardingAgentDir || OnboardingHandoff.DEFAULT_AGENT_DIR,
+    });
+  }
   return entry;
 }
 
 module.exports = {
   enqueue,
+  claim,
   autoMergeAfterEnqueue,
   _test: {
     enabled,
     projectIdFor,
     touches,
+    onboardingAdmission: OnboardingHandoff.evaluateAdmission,
   },
 };

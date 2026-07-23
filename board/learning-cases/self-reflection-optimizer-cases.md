@@ -378,3 +378,12 @@
 - 改法:事件查询改成 offset 增量游标;已知 downstream ref 直查队列文件;相同 keepalive/all_blocked 状态每 60 秒留一条脉冲,状态变化仍立即记录。负向 review 路由、差量 context、WIP 上限和轻量工具 profile 分开进入待拍板/既有恢复通道。
 - 验证:`node tests/run.js --profile lean` 32/32 pass;CEO worker 替换后 CPU 稳定采样 3.5%-6.3%,RSS 约 74-76MB;未变等待状态由每 5 秒一条改为每约 60 秒一条。
 - 可复用原则:等待者应订阅变化,不应反复全量扫描来证明“没变”;续租心跳和人类审计要分频;负向 review 的业务结论应先保留,回执协议修复不应让整轮审查价值归零;返工传差量和 artifact ref,非视觉任务不默认常驻 GUI/MCP 工具。
+
+## 2026-07-20 · 治理建议应先进入休眠账本，不应默认变成主人决策和生产硬门
+- 来源:`projects/控制台/artifacts/quality-proposal-triage/20260720/report.md`。
+- 场景:质量运营连续抽查后累计 63 张待拍板卡，多数是同族 hook/process/test 的重复变体；逐张派给 CEO 会制造额外模型调用、复审和队列阻塞。
+- 现象:待拍板区被治理建议占满，但它们缺少独立事故、最小复现和对应回归测试，直接激活会增加误拦截、token 与等待时间。
+- 根因/判断:提案发现、主人决策、生产门禁三个阶段混在一起。没有事故的“预防性限制”被当成待执行任务，治理本身反而成为负载。
+- 改法:用确定性本地脚本将 63 张卡可逆归档并按 dormant/offline/安全底线分类；active blocking gate 强制绑定 `incident_refs + regression_tests`；质量运营 ingest 以后只把信息安全、权限和外部副作用送给主人，其余写休眠账本。
+- 验证:`node tests/quality-proposal-triage.test.js`;`node tests/quality-ops-audit.test.js`;`node tests/gate-policy.test.js`;`node tests/test-run-profiles.test.js`。
+- 可复用原则:提案默认不是任务，事故默认也不是全局门。先用最小复现建立一对一回归，再 shadow 观测，最后才允许 active；重型检查留在线下，安全底线保持常开。

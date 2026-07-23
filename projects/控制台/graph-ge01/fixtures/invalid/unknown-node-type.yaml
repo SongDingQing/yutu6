@@ -1,0 +1,6 @@
+id: invalid-unknown
+nodes:
+  - { id: start, type: mystery }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: done }

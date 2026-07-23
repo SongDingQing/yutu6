@@ -47,7 +47,7 @@
 - 激活后前 7 天每天 12:00 覆盖全部未审新增/变更链路(按批次拆分);第 8 天起改为不重复的加权随机抽查,优先此前少启用/少抽查的线路。
 - `review-ledger.json` 按 `chain_id + content_hash` 记抽查,同一未变化链路不重复占注意力;证据变化后可重新进入候选。
 - 挑错重点:需求交接遗漏、重复推理/重复上下文、无证据自报完成、职责越界、长期闲置线路、可固化 knowledge/skill/hook/script 的重复模式、可节省 token/延迟的确定性步骤。
-- 每个结论必须有路径/事件证据。可优化项通过 `quality-ops-audit.js ingest` 去重后写成 `source=质量运营,status=todo` 的公告板待办,只供主人拍板,不得自动启用或直接改生产系统。
+- 每个结论必须有路径/事件证据。`quality-ops-audit.js ingest` 会按轻量门禁策略去重分流:普通 hook/process/test 建议只进 proposal ledger，默认 `dormant_candidate` 或 `offline_candidate`，不进入任务热路径也不制造待拍板卡；只有密钥/凭据、认证授权、权限边界、删除上传、外部发布等高风险事项才写 `source=质量运营,status=todo` 的主人卡。任何 dormant 建议都必须等真实事故 + 最小回归后才可升 shadow/active。
 - 每周六 21:00 汇总本周抽查覆盖、冷门线路、缺陷、待拍板沉淀建议和未完成抽查,生成 PDF 到 `/Users/yutu6/Documents/玉兔质量运营报告/`。
 
 ## 输出

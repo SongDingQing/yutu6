@@ -65,10 +65,16 @@ git clone --branch main --single-branch git@github.com:SongDingQing/yutu6.git "$
 "$HOME/玉兔6工作区/deploy-macos.sh" --dry-run
 ```
 
-部署后启动控制台:
+部署后统一启动本机组件:
 
 ```bash
-cd "$HOME/玉兔6工作区" && bash projects/控制台/start.sh
+cd "$HOME/玉兔6工作区" && bash start-all.sh start
+```
+
+在本机模型、Hermes 和元宵配置完成后，安装统一登录启动:
+
+```bash
+bash projects/控制台/tools/install-unified-startup-launchd.sh
 ```
 
 常见失败处理:
@@ -86,3 +92,17 @@ cd "$HOME/玉兔6工作区" && bash projects/控制台/start.sh
 ## 迁移状态
 
 旧搬家包与 Claude Code 交接快照已归档出仓库；新机器统一使用根目录 `deploy-macos.sh` 从 GitHub 当前 `main` 部署。
+
+## GitHub 自动推送
+
+仓库的 `pre-commit` 与 `pre-push` 会先执行密钥扫描。通过扫描的本地提交可由
+`.githooks/post-commit` 自动推送到同名 GitHub 分支；钩子只负责推送，绝不会自动暂存脏工作树。
+
+```bash
+git config yutu6.autoPush true
+git config yutu6.autoPushRemote github
+```
+
+临时关闭自动推送使用 `git config yutu6.autoPush false`。网络中断或非快进冲突只会记录在
+`.git/yutu6-auto-push.log`，不会撤销本地提交。控制台任务通过 true-completion gate 后，现有版本
+发布器仍只提交回执中声明的 `changed_files`，随后由同一 GitHub 安全推送链路发布。

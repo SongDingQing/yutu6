@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const Q = require('../../shared/engine/queue');
+const QueueAutoMerge = require('./queue-automerge');
 
 const BUS_SCHEMA = 'yutu6.role-receipt-bus.v1';
 const STATE_SCHEMA = 'yutu6.role-receipt-bus-state.v2';
@@ -510,7 +511,7 @@ function enqueueAttempt(spec, requirement, state, opts) {
     const task = assignmentTask(spec, requirement, assignment, attempt);
     const enqueue = typeof opts.enqueue === 'function'
       ? opts.enqueue
-      : (agent, value, enqueueOpts) => Q.enqueue(opts.queueRoot, agent, value, enqueueOpts);
+      : (agent, value, enqueueOpts) => QueueAutoMerge.enqueue(opts.queueRoot, agent, value, enqueueOpts);
     enqueue(requirement.role, task, {
       id: queueId,
       priority: opts.priority == null ? 40 : opts.priority,

@@ -5,12 +5,14 @@
 ## 跑起来(在装了 codex 的那台 Mac 上)
 
 ```bash
-bash ~/玉兔6工作区/projects/控制台/start.sh
+bash ~/玉兔6工作区/start-all.sh start
 # 浏览器开 http://localhost:41218,右上角切 runner
 # 兼容旧验收书签:http://127.0.0.1:8799/workspace(同一服务实例,不是第二套引擎)
 ```
 
 > 必须在**装了 codex 的同一台机器**上启动 —— 服务端要 spawn Codex CLI。
+> `projects/控制台/start.sh` 仍保留为只启动控制台的排障入口；日常统一使用根目录
+> `start-all.sh`。登录自动启动由 `com.yutu6.startup` 管理。
 
 ## 先自测(不依赖 CLI)
 右上角选 **Mock(自测)** 发一句 → 能流式回显,就说明网页↔服务闭环通了。再切 Codex。

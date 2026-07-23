@@ -382,11 +382,17 @@ function safeTicketId(s) {
 }
 
 function slugText(s) {
-  return String(s || '')
-    .trim()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
+  const source = String(s || '').trim();
+  const readable = source
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 32) || 'ticket';
+    .slice(0, 19)
+    .replace(/-+$/g, '');
+  const hash = crypto.createHash('sha256').update(source).digest('hex').slice(0, 12);
+  return `${readable || 'ticket'}-${hash}`;
 }
 
 function repairTicketPath(id) {
@@ -505,6 +511,13 @@ function enqueueRepairMemoryReview(ticketId, ticketFile, result, stamp) {
     bounds: '只做长期记忆提炼;只写 memory/; 密钥/token/验证码不写入、不回显; 不改 knowledge/ 管道。',
     inputs: [relFile, 'memory/experience.md', 'memory/entities.md', 'memory/INDEX.md'],
     acceptance: '可泛化维修经验进入 memory/experience.md; 项目技术映射进入 memory/entities.md; 一次性信息不流水账; 无密钥泄露。',
+    // The repair ticket is already complete and acts as an immutable input
+    // snapshot. Holding the whole board read lock would unnecessarily block
+    // the next repair lead from closing a different ticket.
+    resourceDomains: {
+      read: [],
+      write: ['memory'],
+    },
     useOrchestrator: false,
     autoApproveHuman: true,
   };
@@ -1329,7 +1342,10 @@ function repairTicketAdd(args) {
   if (!title) throw new Error('repair-ticket-add requires --title');
   const stamp = new Date().toISOString();
   const local = stamp.replace(/[-:TZ.]/g, '').slice(0, 14);
-  const id = safeTicketId(args.id) || `repair-${local}-${slugText(title)}`;
+  const requestedId = String(args.id || '').trim();
+  const explicitId = safeTicketId(requestedId);
+  if (requestedId && !explicitId) throw new Error('bad repair ticket id');
+  const id = explicitId || `repair-${local}-${slugText(title)}`;
   const file = repairTicketPath(id);
   if (fs.existsSync(file)) throw new Error('repair ticket exists');
   const ticket = {

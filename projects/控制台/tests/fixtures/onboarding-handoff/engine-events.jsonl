@@ -1,0 +1,1 @@
+{"schema":"engine-event@1","type":"repair.completed","agent_id":"repair-lead","project_id":"控制台","responsibility_domain":"控制台 backend delivery","summary":"repair-lead completed and verified the incident rollback"}

@@ -1,10 +1,10 @@
 {
   "id": "board-kimi",
-  "name": "董事 Kimi K2.7 Code",
+  "name": "董事 Kimi K3",
   "schema_version": 1,
   "role": "board_kimi",
   "runner": "kimi-k2",
-  "status": "disabled_retired_from_board",
+  "status": "active",
   "tier": "strong",
   "context_mode": "explicit",
   "read_paths": [
@@ -32,7 +32,7 @@
     ]
   },
   "boundary_statement": {
-    "does": "从 Kimi K2.7 Code 视角审查代码实现、Agent 链路、长上下文需求遗漏和架构风险。",
+    "does": "从 Kimi K3 视角审查代码实现、Agent 链路、长上下文需求遗漏和架构风险。",
     "does_not": "不改文件、不派队列、不做实现、不处理密钥、登录或授权。"
   },
   "decoupling": "只做事前评审和挑刺,不直接改文件、不派队列。",

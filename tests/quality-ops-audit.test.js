@@ -110,7 +110,10 @@ function main() {
     audit_id: plan.audit_id,
     batch_id: batch.batch_id,
     chain_reviews: [{ chain_id: chains[0].chain_id, chain_summary: '秘书到执行完整', verdict: 'warning', evidence_refs: ['trace/result.redacted.md'], findings: ['重复上下文'] }],
-    proposals: [{ title: '把重复检查固化为脚本', desc: '三次重复', category: 'script', benefit: '降低 token', risk: '低', project: '控制台', evidence_refs: ['trace/result.redacted.md'] }],
+    proposals: [
+      { title: '把重复检查固化为脚本', desc: '三次重复', category: 'script', benefit: '降低 token', risk: '低', project: '控制台', evidence_refs: ['trace/result.redacted.md'] },
+      { title: '外部发布前确认授权', desc: '发布动作需要主人确认', category: 'hook', benefit: '避免误发布', risk: '涉及外部发布', project: '控制台', evidence_refs: ['trace/result.redacted.md'] },
+    ],
   };
   assert(Audit.validateFindings(batch, findings));
   const warningEvents = tracePair('observability-warning', 'common', 8);
@@ -205,6 +208,17 @@ function main() {
     assert.strictEqual(cards[0].source, '质量运营');
     assert.strictEqual(cards[0].status, 'todo');
     assert(!cards[0].enabled_at);
+    assert.strictEqual(cards[0].title, '外部发布前确认授权');
+    const proposalLedger = JSON.parse(fs.readFileSync(path.join(temp, 'quality-ops', 'proposal-ledger.json'), 'utf8'));
+    assert.strictEqual(proposalLedger.proposals.length, 2);
+    assert.strictEqual(
+      proposalLedger.proposals.find(item => item.title === '把重复检查固化为脚本').status,
+      'offline_candidate',
+    );
+    assert.strictEqual(
+      proposalLedger.proposals.find(item => item.title === '外部发布前确认授权').status,
+      'todo_owner_decision',
+    );
     const replay = spawnSync(process.execPath, [tool, 'ingest', '--batch-file', batchFile, '--findings-file', findingsFile], {
       cwd: path.resolve(__dirname, '..'), encoding: 'utf8',
       env: { ...process.env, CONSOLE_ARTIFACTS_DIR: temp },

@@ -19,6 +19,7 @@ const InteractionTrace = require('./interaction-trace');
 const LessonIndex = require('./lesson-index');
 const ContextBudget = require('./context-budget');
 const Failover = require('../routing/failover');
+const ZhipuCodingPlan = require('../model-fabric/zhipu-coding-plan');
 const DEFAULT_QUEUE_MODULE = path.resolve(__dirname, 'queue.js');
 
 const DEFAULT_NODE_TIMEOUT_SEC = 600;
@@ -195,7 +196,7 @@ function buildEnvelope(node, ctx, envOpts) {
     : (previousContext.mode === 'fallback' ? '上一步脱敏完整回退(供参考)' : '上一步结果(供参考)');
   const outputContract = [];
   const reviewOutputShape = machineAcceptance
-    ? `{"review":{"pass":false,"severity":"medium","issues":["observed_route=hard_block_expected_route=rework：每项为非空具体问题"],"notes":"...","verification":{"verdict":"false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}],"issue_evidence":[{"issue_index":0,"issue":"observed_route=hard_block_expected_route=rework：与 issues[0] 原文一致","acceptance_id":"机器合同内非视觉验收ID","evidence":"projects/控制台/.../review-binding.md:12","source_evidence":"review前 implementation 已声明的 implementation-failure-receipts.jsonl:行号","source_excerpt":"implementation-failure-receipt@1 JSON 单行原文"}]}}}`
+    ? `{"review":{"pass":false,"severity":"medium","issues":["observed_route=hard_block_expected_route=rework：每项为非空具体问题"],"notes":"...","verification":{"verdict":"false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}],"issue_evidence":[{"issue_index":0,"issue":"observed_route=hard_block_expected_route=rework：与 issues[0] 原文一致","acceptance_id":"机器合同内非视觉验收ID","evidence":"projects/控制台/.../supervisor-review-binding.jsonl:12","source_evidence":"review前 implementation 已声明的 implementation-failure-receipts.jsonl:行号","source_excerpt":"implementation-failure-receipt@1 JSON 单行原文"}]}}}`
     : `{"review":{"pass":true,"severity":"low","notes":"...","verification":{"verdict":"true|false|partial","checked":["核实了哪些"],"acceptance_table":[{"point":"逐字复制验收表要点","text":"机器合同不可变原文","acceptance_id":"机器合同原值","source_hash":"机器合同原值","scope":"机器合同原值","status":"完成|部分|未完成","evidence":"复核证据位置","notes":"..."}],"evidence":[{"kind":"file|diff|command|test|analysis","path":"...","command":"...","exit_code":0,"summary":"..."}]}}}`;
   if (node.id === 'orchestrator-plan') {
     outputContract.push(
@@ -238,7 +239,7 @@ function buildEnvelope(node, ctx, envOpts) {
       `pass 必须是布尔值; severity 用 low/medium/high。`,
       `如果任务验收里有结构化验收表,review.verification.acceptance_table 必须逐行复核 implementation.acceptance_table;任一行不是 完成、证据为空、证据不可核、证据对不上,必须 pass=false。`,
       machineAcceptance ? `本任务带 acceptance-contract@1；复核表必须逐行原样保留 text、acceptance_id、source_hash、scope，不得从自然语言重新匹配或改写机器合同。pass=false 时 issues[] 必须逐项非空，verification.issue_evidence[] 必须逐 issue 覆盖 issue_index、issue 原文、合同内非视觉 acceptance_id、绑定回执 evidence、独立 source_evidence 与 source_excerpt。` : null,
-      machineAcceptance ? `pass=false 时先在 projects/${ctx.projectId || '<projectId>'}/artifacts/ 下落一个 review 绑定回执文件，每个 issue 独占一行并同时写 issue 原文、acceptance_id、requiredRows point 和“核对结果=<该行status>”，再让 issue_evidence.evidence 引用该 path:line。该 evidence 只是 issue→验收行绑定回执；source_evidence 必须指向 review 前已由 implementation.changed_files/receipt/acceptance_table/logic_chain 声明的 implementation-failure-receipt@1 单行 JSON，且该行还须与 implementation.failure_receipts[] 中相同 evidence 的 implement-time 冻结副本逐字段一致，不得与绑定回执同文件。回执必须逐字段绑定同一 requiredRow 的 acceptance_id、source_hash、expected=text 原文，observed 必须是与 expected 不同且逐字出现在 issue 中的具体负向结果，verdict 必须为负向枚举。source_excerpt 必须逐字复制该 JSON 行。普通源码 token、无关前置行、review 临时复述或 review 后改写前置文件，即使 token 与 issue 重叠，也不能充当 source_evidence。` : null,
+      machineAcceptance ? `pass=false 时先在 projects/${ctx.projectId || '<projectId>'}/artifacts/ 下落 supervisor-review-binding@1 绑定回执 JSONL；每个 issue 独占一行 canonical JSON：{"schema":"supervisor-review-binding@1","issue":"issues[] 原文","acceptance_id":"requiredRow 机器ID","source_hash":"requiredRow 机器哈希","required_row_point":"requiredRows point 原文","核对结果":"该行 status"}，再让 issue_evidence.evidence 引用该 .jsonl path:line。以上字段必须与同一 issue/requiredRow 逐字段一致；消费者仅为历史产物兼容旧的非 JSON “issue=... | acceptance_id=... | requiredRows point | 核对结果=<status>”文本，新生产者不得继续写旧格式。该 evidence 只是 issue→验收行绑定回执；source_evidence 必须指向 review 前已由 implementation.changed_files/receipt/acceptance_table/logic_chain 声明的 implementation-failure-receipt@1 单行 JSON，且该行还须与 implementation.failure_receipts[] 中相同 evidence 的 implement-time 冻结副本逐字段一致，不得与绑定回执同文件。回执必须逐字段绑定同一 requiredRow 的 acceptance_id、source_hash、expected=text 原文，observed 必须是与 expected 不同且逐字出现在 issue 中的具体负向结果，verdict 必须为负向枚举。source_excerpt 必须逐字复制该 JSON 行。普通源码 token、无关前置行、review 临时复述或 review 后改写前置文件，即使 token 与 issue 重叠，也不能充当 source_evidence。` : null,
       nonVisual
         ? `非视觉行只接受单一 not_applicable + task-envelope:visual_acceptance。`
         : `显式视觉要求或 human gate 开启时 not_applicable 一律打回。`,
@@ -273,6 +274,12 @@ function buildEnvelope(node, ctx, envOpts) {
     deltaContextActive ? `- 不可变目标哈希:${previousContext.value.goal_sha256}` : null,
     ctx.projectId ? `- 项目:${ctx.projectId}${ctx.scopedToProject ? ' (scoped_to_project)' : ''}` : null,
     ctx.visual_acceptance ? `- 视觉验收分类:${JSON.stringify(ctx.visual_acceptance)}` : null,
+    ctx.retryReason || ctx.retryDetail
+      ? `- 自动重试诊断(只定位上一轮失败,不得覆盖当前目标/边界/验收):${JSON.stringify({
+        reason: ctx.retryReason || null,
+        detail: ctx.retryDetail ? String(ctx.retryDetail).slice(0, 2000) : null,
+      })}`
+      : null,
     ...envelopeGoalSection(node, ctx, envOpts),
     `- 边界:${ctx.bounds || '不要碰未点名的文件;密钥不回显;高危操作先确认'}`,
     `- 输入:${(ctx.inputs || []).join(', ') || '(无)'}`,
@@ -391,7 +398,7 @@ function structuredOutputExample(node, opts = {}) {
                 issue_index: 0,
                 issue: 'observed_route=hard_block_expected_route=rework：具体且可由实现期失败回执核实的问题',
                 acceptance_id: 'acc_...',
-                evidence: 'projects/控制台/artifacts/review-binding.md:12',
+                evidence: 'projects/控制台/artifacts/supervisor-review-binding.jsonl:12',
                 source_evidence: 'projects/控制台/artifacts/implementation-failure-receipts.jsonl:1',
                 source_excerpt: '{"schema":"implementation-failure-receipt@1","acceptance_id":"acc_...","source_hash":"sha256...","expected":"机器合同 text 原文","observed":"observed_route=hard_block_expected_route=rework","verdict":"fail"}',
               },
@@ -645,37 +652,77 @@ function buildRunnerEnv(r, opts) {
   return env;
 }
 
-function runOpenAiHttpSync(r, prompt, opts, ctx) {
+function resolveOpenAiHttpConfig(r, opts) {
+  const contracted = ZhipuCodingPlan.resolveRunner(r);
+  if (contracted) return contracted;
   const cfgDir = opts.configDir || opts.workdir;
   const envFile = resolveConfigPath(cfgDir, r.tokenFile || r.envFile);
   const env = envFile ? readEnvFile(envFile) : {};
   const baseUrl = String(r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
   const token = (r.tokenEnv && process.env[r.tokenEnv]) || env[r.tokenKey || 'NEW_API_TOKEN'] || r.token || '';
-  const model = r.model || env.NEW_API_MODEL || 'glm-5.2';
-  if (!baseUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
+  return {
+    baseUrl,
+    chatUrl: baseUrl ? `${baseUrl}/chat/completions` : '',
+    token,
+    model: r.model || env.NEW_API_MODEL || 'glm-5.2',
+  };
+}
+
+function runOpenAiHttpSync(r, prompt, opts, ctx) {
+  let provider;
+  try { provider = resolveOpenAiHttpConfig(r, opts); }
+  catch (error) { return { status: 1, stdout: '', stderr: error.message }; }
+  const { chatUrl, token, model } = provider;
+  if (!chatUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
   const userContent = buildOpenAiUserContent(prompt, ctx, opts);
   const script = `
 const payload = JSON.parse(require('fs').readFileSync(0, 'utf8'));
 (async () => {
-  const res = await fetch(payload.url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + payload.token },
-    body: JSON.stringify(payload.body)
-  });
-  const text = await res.text();
-  let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
-  if (!res.ok || body.error) {
-    const msg = (body.error && body.error.message) || body.message || body.raw || ('HTTP ' + res.status);
-    console.error(String(msg).slice(0, 1000));
+  for (let attempt = 1; attempt <= payload.maxAttempts; attempt++) {
+    const requestBody = JSON.stringify(payload.body);
+    const requestOptions = { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + payload.token }, body: requestBody };
+    const res = payload.transport === 'node_https'
+      ? await new Promise((resolve, reject) => {
+          const https = require('https'); const target = new URL(payload.url);
+          const req = https.request({ hostname: target.hostname, port: target.port || 443, path: target.pathname + target.search, method: 'POST', headers: { ...requestOptions.headers, 'content-length': Buffer.byteLength(requestBody) }, agent: false }, response => {
+            const chunks = []; response.on('data', chunk => chunks.push(chunk)); response.on('end', () => { const status = Number(response.statusCode || 0); const value = Buffer.concat(chunks).toString('utf8'); resolve({ ok: status >= 200 && status < 300, status, text: async () => value }); });
+          });
+          req.on('error', reject); req.end(requestBody);
+        })
+      : await fetch(payload.url, requestOptions);
+    const text = await res.text();
+    let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
+    if (res.ok && !body.error) {
+      const msg = (body.choices && body.choices[0] && body.choices[0].message) || {};
+      process.stdout.write(msg.content || msg.reasoning_content || '');
+      return;
+    }
+    const detail = body.error && typeof body.error === 'object' ? body.error : {};
+    const code = String(detail.code || body.code || '');
+    const msg = detail.message || body.message || body.raw || ('HTTP ' + res.status);
+    const errorClass = ['1308','1310'].includes(code) ? 'quota_exhausted'
+      : code === '1309' ? 'subscription_expired'
+      : code === '1311' ? 'model_not_in_plan'
+      : ['1305','1312'].includes(code) ? 'platform_overload'
+      : ['1302','1303'].includes(code) ? 'rate_limit'
+      : res.status === 401 || res.status === 403 ? 'auth'
+      : res.status === 429 ? 'rate_limit'
+      : res.status >= 500 ? 'upstream' : 'http';
+    const retryable = [408,429,500,502,503,504].includes(res.status) && !['1308','1309','1310','1311'].includes(code);
+    if (retryable && attempt < payload.maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, Math.min(3000, 750 * Math.pow(2, attempt - 1))));
+      continue;
+    }
+    console.error(('[provider_error class=' + errorClass + ' code=' + (code || 'none') + ' status=' + res.status + '] ' + String(msg)).slice(0, 1000));
     process.exit(1);
   }
-  const msg = (body.choices && body.choices[0] && body.choices[0].message) || {};
-  process.stdout.write(msg.content || msg.reasoning_content || '');
 })().catch(e => { console.error(e.message); process.exit(1); });
 `;
   const input = JSON.stringify({
-    url: `${baseUrl}/chat/completions`,
+    url: chatUrl,
     token,
+    maxAttempts: provider.contract === ZhipuCodingPlan.CONTRACT_ID ? 3 : 1,
+    transport: provider.contract === ZhipuCodingPlan.CONTRACT_ID ? 'node_https' : 'fetch',
     body: {
       model,
       messages: r.systemPrompt ? [{ role: 'system', content: r.systemPrompt }, { role: 'user', content: userContent }] : [{ role: 'user', content: userContent }],
@@ -747,38 +794,62 @@ function spawnBuffered(cmd, args, opts = {}) {
 }
 
 async function runOpenAiHttpAsync(r, prompt, opts, ctx) {
-  const cfgDir = opts.configDir || opts.workdir;
-  const envFile = resolveConfigPath(cfgDir, r.tokenFile || r.envFile);
-  const env = envFile ? readEnvFile(envFile) : {};
-  const baseUrl = String(r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
-  const token = (r.tokenEnv && process.env[r.tokenEnv]) || env[r.tokenKey || 'NEW_API_TOKEN'] || r.token || '';
-  const model = r.model || env.NEW_API_MODEL || 'glm-5.2';
-  if (!baseUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
+  let provider;
+  try { provider = resolveOpenAiHttpConfig(r, opts); }
+  catch (error) { return { status: 1, stdout: '', stderr: error.message }; }
+  const { chatUrl, token, model } = provider;
+  if (!chatUrl || !token) return { status: 1, stdout: '', stderr: 'openai_http 缺 baseUrl 或 token' };
   const userContent = buildOpenAiUserContent(prompt, ctx, opts);
   const script = `
 const payload = JSON.parse(require('fs').readFileSync(0, 'utf8'));
 (async () => {
-  const res = await fetch(payload.url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + payload.token },
-    body: JSON.stringify(payload.body)
-  });
-  const text = await res.text();
-  let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
-  if (!res.ok || body.error) {
-    const msg = (body.error && body.error.message) || body.message || body.raw || ('HTTP ' + res.status);
-    console.error(String(msg).slice(0, 1000));
+  for (let attempt = 1; attempt <= payload.maxAttempts; attempt++) {
+    const requestBody = JSON.stringify(payload.body);
+    const requestOptions = { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + payload.token }, body: requestBody };
+    const res = payload.transport === 'node_https'
+      ? await new Promise((resolve, reject) => {
+          const https = require('https'); const target = new URL(payload.url);
+          const req = https.request({ hostname: target.hostname, port: target.port || 443, path: target.pathname + target.search, method: 'POST', headers: { ...requestOptions.headers, 'content-length': Buffer.byteLength(requestBody) }, agent: false }, response => {
+            const chunks = []; response.on('data', chunk => chunks.push(chunk)); response.on('end', () => { const status = Number(response.statusCode || 0); const value = Buffer.concat(chunks).toString('utf8'); resolve({ ok: status >= 200 && status < 300, status, text: async () => value }); });
+          });
+          req.on('error', reject); req.end(requestBody);
+        })
+      : await fetch(payload.url, requestOptions);
+    const text = await res.text();
+    let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
+    if (res.ok && !body.error) {
+      const msg = (body.choices && body.choices[0] && body.choices[0].message) || {};
+      process.stdout.write(msg.content || msg.reasoning_content || '');
+      return;
+    }
+    const detail = body.error && typeof body.error === 'object' ? body.error : {};
+    const code = String(detail.code || body.code || '');
+    const msg = detail.message || body.message || body.raw || ('HTTP ' + res.status);
+    const errorClass = ['1308','1310'].includes(code) ? 'quota_exhausted'
+      : code === '1309' ? 'subscription_expired'
+      : code === '1311' ? 'model_not_in_plan'
+      : ['1305','1312'].includes(code) ? 'platform_overload'
+      : ['1302','1303'].includes(code) ? 'rate_limit'
+      : res.status === 401 || res.status === 403 ? 'auth'
+      : res.status === 429 ? 'rate_limit'
+      : res.status >= 500 ? 'upstream' : 'http';
+    const retryable = [408,429,500,502,503,504].includes(res.status) && !['1308','1309','1310','1311'].includes(code);
+    if (retryable && attempt < payload.maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, Math.min(3000, 750 * Math.pow(2, attempt - 1))));
+      continue;
+    }
+    console.error(('[provider_error class=' + errorClass + ' code=' + (code || 'none') + ' status=' + res.status + '] ' + String(msg)).slice(0, 1000));
     process.exit(1);
   }
-  const msg = (body.choices && body.choices[0] && body.choices[0].message) || {};
-  process.stdout.write(msg.content || msg.reasoning_content || '');
 })().catch(e => { console.error(e.message); process.exit(1); });
 `;
   return spawnBuffered(process.execPath, ['-e', script], {
     cwd: opts.workdir,
     input: JSON.stringify({
-      url: `${baseUrl}/chat/completions`,
+      url: chatUrl,
       token,
+      maxAttempts: provider.contract === ZhipuCodingPlan.CONTRACT_ID ? 3 : 1,
+      transport: provider.contract === ZhipuCodingPlan.CONTRACT_ID ? 'node_https' : 'fetch',
       body: {
         model,
         messages: r.systemPrompt ? [{ role: 'system', content: r.systemPrompt }, { role: 'user', content: userContent }] : [{ role: 'user', content: userContent }],
@@ -1584,4 +1655,4 @@ function makeCliRunner(opts) {
   return cliRunner;
 }
 
-module.exports = { makeCliRunner, buildEnvelope, extractJson, fetchKbContext, fetchLessonContext, resolveRunnerForNode, nodeNeedsWritableRunner, buildVisualReviewInputManifest, codexVisualInputArgs };
+module.exports = { makeCliRunner, buildEnvelope, extractJson, fetchKbContext, fetchLessonContext, resolveRunnerForNode, nodeNeedsWritableRunner, buildVisualReviewInputManifest, codexVisualInputArgs, resolveOpenAiHttpConfig };

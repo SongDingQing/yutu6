@@ -232,6 +232,7 @@ function wrapCommandRunners(runners, meta, config) {
     runner.env = Object.assign({}, runner.env || {}, {
       YUTU6_TIMEOUT_FENCE_ORIGINAL_EXECUTABLE: String(original[0]),
       YUTU6_TIMEOUT_FENCE_RECEIPT: meta.receiptPath,
+      YUTU6_TIMEOUT_FENCE_SETTLEMENT_NONCE: meta.settlementNonce,
       YUTU6_TIMEOUT_FENCE_TASK_ID: meta.taskId,
       YUTU6_TIMEOUT_FENCE_NODE_ID: meta.nodeId,
       YUTU6_TIMEOUT_FENCE_RUNNER_ID: id,
@@ -276,8 +277,12 @@ function redactedObservableOutput(runDir) {
 }
 
 function validatedSettlement(receipt, meta) {
+  const nonceValid = !!(receipt
+    && meta.settlementNonce
+    && receipt.settlement_nonce === meta.settlementNonce);
   const validIdentity = !!(receipt
     && receipt.schema === RECEIPT_SCHEMA
+    && nonceValid
     && receipt.task_id === meta.taskId
     && receipt.node_id === meta.nodeId
     && receipt.runner_id === meta.resolved.runnerId
@@ -288,11 +293,16 @@ function validatedSettlement(receipt, meta) {
   const survivorGroups = validIdentity && receipt.settle && Array.isArray(receipt.settle.survivor_process_groups)
     ? receipt.settle.survivor_process_groups
     : [];
+  const markerObservedPids = validIdentity && receipt.termination && Array.isArray(receipt.termination.marker_observed_pids)
+    ? receipt.termination.marker_observed_pids.map(Number).filter(Boolean)
+    : [];
+  const rootPid = validIdentity && receipt.termination ? Number(receipt.termination.root_pid) : 0;
   const markerObservationValid = !!(validIdentity
     && receipt.termination
     && receipt.termination.marker_tracking_required === true
     && receipt.termination.marker_observation_available === true
-    && Array.isArray(receipt.termination.marker_observed_pids));
+    && rootPid > 1
+    && markerObservedPids.includes(rootPid));
   const treeExited = !!(validIdentity
     && receipt.settle
     && receipt.settle.tree_exited === true
@@ -301,6 +311,7 @@ function validatedSettlement(receipt, meta) {
     && survivors.length === 0
     && survivorGroups.length === 0);
   return {
+    nonceValid,
     validIdentity,
     treeExited,
     survivors,
@@ -345,10 +356,12 @@ function prepareCandidate(node, ctx, attempt, candidate, index, opts, state) {
   const runDir = path.join(candidateRunsDir, `${node.id}-${attempt}`);
   fs.mkdirSync(runDir, { recursive: true });
   const receiptPath = path.join(runDir, 'process-settlement.json');
+  const settlementNonce = crypto.randomUUID();
   const declaration = uninterruptibleDeclaration(node, ctx, state.config);
   const timeoutMs = Math.max(1, Number(opts.nodeTimeoutSec || 600) * 1000);
   const wrappedRunners = wrapCommandRunners(opts.runners, {
     receiptPath,
+    settlementNonce,
     taskId: String(opts.taskId || ctx && ctx.taskId || ''),
     nodeId: String(node.id || ''),
     workdir: path.resolve(opts.workdir || process.cwd()),
@@ -385,6 +398,7 @@ function prepareCandidate(node, ctx, attempt, candidate, index, opts, state) {
     single,
     runDir,
     receiptPath,
+    settlementNonce,
     declaration,
     writable,
     taskId: String(opts.taskId || ctx && ctx.taskId || ''),
@@ -426,7 +440,11 @@ function acquireCandidateLease(prepared, opts, state) {
 
 function finalizeCandidate(prepared, result, lease, candidates, opts, state, threw) {
   const receipt = readJson(prepared.receiptPath);
-  const timedOut = failureKind(result) === 'timeout' || !!(receipt && receipt.timeout && receipt.timeout.timed_out);
+  const receiptMatchesCandidate = !!(receipt
+    && prepared.settlementNonce
+    && receipt.settlement_nonce === prepared.settlementNonce);
+  const timedOut = failureKind(result) === 'timeout'
+    || !!(receiptMatchesCandidate && receipt.timeout && receipt.timeout.timed_out);
   if (!timedOut) {
     if (threw && prepared.writable) {
       if (lease && lease.ok) blockTaskWriteLease(state.root, lease, 'candidate_exception_process_state_unknown', null);
@@ -447,6 +465,7 @@ function finalizeCandidate(prepared, result, lease, candidates, opts, state, thr
     candidate_index: prepared.index,
     write_access: prepared.writable,
     child_receipt: fs.existsSync(prepared.receiptPath) ? prepared.receiptPath : null,
+    receipt_nonce_valid: settlement.nonceValid,
     receipt_identity_valid: settlement.validIdentity,
     marker_observation_valid: settlement.markerObservationValid,
     tree_exited: settlement.treeExited,
@@ -471,6 +490,7 @@ function finalizeCandidate(prepared, result, lease, candidates, opts, state, thr
     runner: prepared.resolved.runnerId,
     candidate_index: prepared.index,
     tree_exited: settlement.treeExited,
+    receipt_nonce_valid: settlement.nonceValid,
     receipt_identity_valid: settlement.validIdentity,
     marker_observation_valid: settlement.markerObservationValid,
     survivor_count: settlement.survivors.length,

@@ -25,6 +25,29 @@ function testPolicyIsValidAndIncidentBacked() {
   assert.strictEqual(policy.gates['engine.loop_engineering_convergence'].mode, 'dormant');
   assert.strictEqual(policy.gates['engine.done_gate'].mode, 'active');
   assert.strictEqual(policy.gates['engine.direct_completion_conflict'].mode, 'shadow');
+  for (const [id, gate] of Object.entries(policy.gates)) {
+    if (gate.mode !== 'active' || gate.blocking !== true) continue;
+    assert(Array.isArray(gate.incident_refs) && gate.incident_refs.length, `${id} lacks incident_refs`);
+    assert(Array.isArray(gate.regression_tests) && gate.regression_tests.length, `${id} lacks regression_tests`);
+  }
+}
+
+function testActiveBlockingGateNeedsRegressionTest() {
+  const result = GatePolicy.validatePolicy({
+    schema: GatePolicy.SCHEMA,
+    default_mode: 'dormant',
+    gates: {
+      'fixture.unmapped': {
+        mode: 'active',
+        blocking: true,
+        reason: 'fixture',
+        incident_refs: ['tests/gate-policy.test.js'],
+        activation: 'fixture only',
+      },
+    },
+  }, { workspaceRoot: root });
+  assert.strictEqual(result.ok, false);
+  assert(result.errors.some(error => error.includes('requires regression_tests')));
 }
 
 function testBlockingHookNeedsIncidentProvenance() {
@@ -34,6 +57,16 @@ function testBlockingHookNeedsIncidentProvenance() {
     failureMode: 'block',
     handler() { return { ok: true }; },
   }), /lacks incidentRefs/);
+}
+
+function testBlockingHookNeedsRegressionProvenance() {
+  const registry = new HookRegistry({ requireBlockingProvenance: true });
+  assert.throws(() => registry.register('task.true_done', {
+    id: 'fixture.no_regression',
+    failureMode: 'block',
+    incidentRefs: ['tests/gate-policy.test.js'],
+    handler() { return { ok: true }; },
+  }), /lacks regressionTests/);
 }
 
 function testDormantHookDoesNotExecute() {
@@ -132,6 +165,10 @@ function testProductionPolicySleepsDuplicateHooks() {
   });
   const hooks = Object.fromEntries(registry.list('task.true_done').map(hook => [hook.id, hook]));
   assert.strictEqual(hooks[HardeningHooks.DONE_GATE_META_HOOK_ID].mode, 'active');
+  assert.deepStrictEqual(
+    hooks[HardeningHooks.DONE_GATE_META_HOOK_ID].regressionTests,
+    ['tests/hardening-hooks.test.js'],
+  );
   assert.strictEqual(hooks[HardeningHooks.PROTOCOL_GATE_HOOK_ID].mode, 'dormant');
   assert.strictEqual(hooks[HardeningHooks.HARD_REGRESSION_HOOK_ID].mode, 'dormant');
   assert.strictEqual(hooks[LoopEngineering.LOOP_TRUE_DONE_HOOK_ID].mode, 'dormant');
@@ -148,7 +185,9 @@ function testEngineRunnerUsesProductionPolicy() {
 }
 
 testPolicyIsValidAndIncidentBacked();
+testActiveBlockingGateNeedsRegressionTest();
 testBlockingHookNeedsIncidentProvenance();
+testBlockingHookNeedsRegressionProvenance();
 testDormantHookDoesNotExecute();
 testDormantHookIsQuietByDefault();
 testShadowFailureIsObservedWithoutBlocking();

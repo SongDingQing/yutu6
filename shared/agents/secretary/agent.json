@@ -3,7 +3,7 @@
   "name": "秘书 Secretary",
   "schema_version": 1,
   "role": "secretary",
-  "runner": "claude",
+  "runner": "codex",
   "tier": "strong",
   "context_mode": "last_only",
   "front_door": true,

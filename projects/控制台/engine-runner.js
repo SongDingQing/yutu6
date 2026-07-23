@@ -27,7 +27,7 @@ const Handoff = require('../../shared/engine/handoff');
 const ProtocolGate = require('../../shared/engine/protocol-gate');
 const DoneGate = require('../../shared/engine/done-gate');
 const AcceptanceContract = require('../../shared/engine/acceptance-contract');
-const LoopEngineering = require('../../shared/engine/loop-engineering');
+const LoopEngineering = require('./semantic-loop-engineering');
 const RunnerFailover = require('../../shared/routing/failover');
 const { loadAgents } = require('../../shared/engine/agents');
 const Q = require('../../shared/engine/queue');
@@ -66,6 +66,7 @@ const PROJECTS_DIR = process.env.CONSOLE_PROJECTS_DIR
   : path.join(WORKDIR, 'projects');
 const DEFAULT_NODE_TIMEOUT_SEC = 900;
 const SUPERVISOR_REVIEW_NODE_TIMEOUT_SEC = 1800;
+const REPAIR_LEAD_NODE_TIMEOUT_SEC = 1800;
 const ACTION_VERIFY_ENABLED = process.env.CONSOLE_ACTION_VERIFY !== '0';
 const ACTION_VERIFY_HEAL_ENABLED = process.env.CONSOLE_ACTION_VERIFY_HEAL !== '0';
 const ACTION_VERIFY_SCREENSHOT_TIMEOUT_MS = Math.max(
@@ -96,7 +97,7 @@ function eventIndicatesQueueProgress(type) {
   return String(type || '').startsWith('node.') || QUEUE_PROGRESS_EVENT_TYPES.has(type);
 }
 
-function makeHookRegistry(eventlog) {
+function makeHookRegistry(eventlog, opts = {}) {
   const policy = GatePolicy.loadPolicy(WORKDIR);
   const registry = new HookRegistry({
     eventlog,
@@ -106,7 +107,10 @@ function makeHookRegistry(eventlog) {
   HardeningHooks.registerHardeningHooks(registry, {
     workspaceRoot: WORKDIR,
   });
-  LoopEngineering.registerLoopEngineeringHooks(registry);
+  LoopEngineering.registerLoopEngineeringHooks(registry, {
+    semanticAtomsEnabled: opts.semanticAtomsEnabled === true,
+    workspaceRoot: opts.workspaceRoot || WORKDIR,
+  });
   VersionProgressHook.registerVersionProgressHook(registry, {
     root: WORKDIR,
     workspaceRoot: WORKDIR,
@@ -496,6 +500,9 @@ function explicitNodeTimeoutSec(spec) {
 function defaultNodeTimeoutSec(spec, flowId) {
   const explicit = explicitNodeTimeoutSec(spec);
   if (explicit) return explicit;
+  if (String(spec && spec.queueAgent || '') === 'repair-lead') {
+    return REPAIR_LEAD_NODE_TIMEOUT_SEC;
+  }
   if (flowId === 'review-loop' && /^supervisor-/.test(String(spec && spec.queueAgent || ''))) {
     return SUPERVISOR_REVIEW_NODE_TIMEOUT_SEC;
   }
@@ -544,6 +551,10 @@ function hydrateRetryMetadata(spec, queueEntry = null) {
   if (source.nodeRetry == null) source.nodeRetry = Number(entry.nodeRetry || 0);
   if (source.engineRetry == null) source.engineRetry = Number(entry.engineRetry || 0);
   if (source.retryReason == null) source.retryReason = entry.retry_reason || null;
+  if (source.retryDetail == null) {
+    const detail = String(entry.last_engine_error || '').trim();
+    source.retryDetail = detail ? detail.slice(0, 2000) : null;
+  }
   return source;
 }
 
@@ -606,8 +617,9 @@ function promptSelectionForSpec(spec = {}) {
   const roles = new Set();
   let includeBoard = false;
   if (flowId === 'review-loop') {
-    roles.add('worker_code');
-    roles.add('supervisor');
+    const reviewRoles = projectReviewRoles(cfg, spec);
+    roles.add(reviewRoles.implementRole);
+    roles.add(reviewRoles.reviewRole);
   } else if (flowId === 'agent-once') {
     if (spec.role) roles.add(String(spec.role));
   } else if (flowId === 'project-route') {
@@ -694,6 +706,41 @@ function roleExecMetaFromConfig(config) {
     if (route && route.execution && typeof route.execution === 'object') out[role] = route.execution;
   }
   return out;
+}
+
+function projectDepartment(config, projectId) {
+  const departments = config && config.projectDepartments || {};
+  const raw = String(projectId || '').trim();
+  if (!raw) return null;
+  if (departments[raw]) return departments[raw];
+  const lower = raw.toLowerCase();
+  const key = Object.keys(departments).find(id => id.toLowerCase() === lower);
+  return key ? departments[key] : null;
+}
+
+function projectReviewRoles(config, spec = {}) {
+  const department = projectDepartment(config, spec.projectId);
+  return {
+    implementRole: String(department && department.programmerRole || 'worker_code'),
+    reviewRole: String(department && department.supervisorRole || 'supervisor'),
+  };
+}
+
+function applyProjectDepartmentRoles(flow, config, spec = {}) {
+  if (!flow || String(flow.id || '') !== 'review-loop') return flow;
+  const roles = projectReviewRoles(config, spec);
+  if (roles.implementRole === 'worker_code' && roles.reviewRole === 'supervisor') return flow;
+  return Object.assign({}, flow, {
+    nodes: (flow.nodes || []).map(node => {
+      if (node.id === 'implement' || node.agent_role === 'worker_code') {
+        return Object.assign({}, node, { agent_role: roles.implementRole });
+      }
+      if (node.id === 'review' || node.agent_role === 'supervisor') {
+        return Object.assign({}, node, { agent_role: roles.reviewRole });
+      }
+      return Object.assign({}, node);
+    }),
+  });
 }
 
 function boardCandidateEventLog(eventlog, candidateIndex) {
@@ -1215,6 +1262,20 @@ function automaticLightweightSource(spec) {
 
 function loopEngineeringEnabledForSpec(spec) {
   return ExecutionProfile.loopEngineeringDecision(spec, process.env).enabled;
+}
+
+function semanticAcceptanceAtomsDecision(loopEnabled) {
+  const feature = cfg.semanticAcceptanceAtoms || {};
+  const approval = feature.promotionApproval || {};
+  if (!loopEnabled) return { enabled: false, reason: 'loop_engineering_disabled' };
+  if (process.env.CONSOLE_SEMANTIC_ACCEPTANCE_ATOMS === '0') {
+    return { enabled: false, reason: 'environment_kill_switch' };
+  }
+  if (feature.enabled !== true) return { enabled: false, reason: 'feature_disabled' };
+  if (approval.supervisorReviewed !== true || approval.ownerApproved !== true || approval.status !== 'approved') {
+    return { enabled: false, reason: 'promotion_approval_pending' };
+  }
+  return { enabled: true, reason: 'approved_project_feature' };
 }
 
 function rootTaskFields(spec, taskId) {
@@ -2060,9 +2121,11 @@ async function main() {
   }
 
   const flowFile = path.join(WORKDIR, 'shared/routing/flows', `${flowId}.yaml`);
-  const flow = flowId === 'agent-once' ? singleAgentFlow(spec.role) : loadFlow(flowFile);
+  const loadedFlow = flowId === 'agent-once' ? singleAgentFlow(spec.role) : loadFlow(flowFile);
+  const flow = applyProjectDepartmentRoles(loadedFlow, cfg, spec);
 	  const loopDecision = ExecutionProfile.loopEngineeringDecision(spec, process.env);
 	  const loopEngineeringEnabled = loopDecision.enabled;
+	  const semanticAtomsDecision = semanticAcceptanceAtomsDecision(loopEngineeringEnabled);
 	  if (!loopEngineeringEnabled) {
 	    eventlog.emit('loop.skipped', {
 	      task: taskId,
@@ -2071,6 +2134,14 @@ async function main() {
 	      projectId: spec.projectId || null,
 	    });
 	  }
+	  if (loopEngineeringEnabled && !semanticAtomsDecision.enabled) {
+	    eventlog.emit('loop.semantic_atoms.skipped', {
+	      task: taskId,
+	      reason: semanticAtomsDecision.reason,
+	      projectId: spec.projectId || null,
+	    });
+	  }
+	  if (semanticAtomsDecision.enabled) LoopEngineering.attachReviewPrompt(ctx);
 	  let lessonGraphSourceState = null;
 	  try {
 	    lessonGraphSourceState = LessonGraphAdapter.captureCanaryState({
@@ -2102,12 +2173,16 @@ async function main() {
 	    verifyManualCompletionOverride: makeDirectCompletionOverrideVerifier(spec),
 	    loopEngineering: LoopEngineering.createLoopEngineering({
 	      enabled: loopEngineeringEnabled,
+	      semanticAtomsEnabled: semanticAtomsDecision.enabled,
 	      workspaceRoot: WORKDIR,
 	      artifactsRoot: ARTIFACTS_ROOT,
       skillsRoot: path.join(WORKDIR, '.agents/skills'),
       taskId,
     }),
-    hooks: makeHookRegistry(eventlog),
+	    hooks: makeHookRegistry(eventlog, {
+	      semanticAtomsEnabled: semanticAtomsDecision.enabled,
+	      workspaceRoot: WORKDIR,
+	    }),
     checkpoint: makeQueueCheckpoint(spec, eventlog),
 	  });
 
@@ -2244,6 +2319,9 @@ module.exports = {
     boardImportanceForSimpleTask,
     stripSecretaryContextPackText,
     roleMapFromConfig,
+    projectDepartment,
+    projectReviewRoles,
+    applyProjectDepartmentRoles,
     boardCandidateEventLog,
     attachBoardFailoverRunner,
     routeRunnerForRole,
@@ -2251,6 +2329,7 @@ module.exports = {
     defaultNodeTimeoutSec,
     automaticLightweightSource,
     loopEngineeringEnabledForSpec,
+	    semanticAcceptanceAtomsDecision,
 	    hydrateRetryMetadata,
 	    runningQueueIdentity,
 	    makeDirectCompletionOverrideVerifier,

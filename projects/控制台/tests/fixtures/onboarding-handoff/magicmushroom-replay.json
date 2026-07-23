@@ -1,0 +1,150 @@
+{
+  "schema": "magicmushroom-onboarding-replay-fixture@1",
+  "now": "2026-07-20T08:00:00.000Z",
+  "received_at": "2026-07-20T08:20:00.000Z",
+  "approved_at": "2026-07-20T08:30:00.000Z",
+  "ttl_ms": 3600000,
+  "spec": {
+    "id": "magicmushroom-programmer-probationary-smoke",
+    "name": "MagicMushroom Programmer Probationary Smoke",
+    "role": "magicmushroom_programmer_probationary_smoke",
+    "ownership": "MagicMushroom",
+    "project_id": "MagicMushroom",
+    "responsibility_domain": "MagicMushroom gameplay code",
+    "capability": "Implement scoped MagicMushroom gameplay changes with regression evidence.",
+    "does_not": "Does not publish builds, expand permissions, or change unrelated projects.",
+    "runner": "zhipu-glm",
+    "read_paths": [
+      "projects/MagicMushroom/status.md",
+      "projects/MagicMushroom/capabilities.md"
+    ],
+    "writes": [
+      "shared/agents/magicmushroom-programmer-probationary-smoke/"
+    ],
+    "tools": ["rg", "node"],
+    "handoff_evidence_refs": [
+      "projects/控制台/tests/fixtures/onboarding-handoff/magicmushroom-replay.json"
+    ],
+    "handoff_package": {
+      "project_background": [
+        "MagicMushroom uses a project supervisor for project-specific content and acceptance.",
+        "The programmer receives narrowly scoped gameplay implementation tasks."
+      ],
+      "code_data_index": {
+        "project_root": "projects/MagicMushroom/",
+        "key_paths": [
+          "projects/MagicMushroom/status.md",
+          "projects/MagicMushroom/capabilities.md"
+        ],
+        "interfaces": ["project task envelope", "interaction trace receipt"]
+      },
+      "current_status": {
+        "phase": "onboarding replay",
+        "last_milestone": "existing supervisor/programmer responsibilities captured",
+        "blockers": ["probationary receipt and supervisor approval pending"]
+      },
+      "incidents_and_rollback": {
+        "incidents": [
+          {
+            "summary": "Replay fixture verifies that role names alone never select a provider.",
+            "evidence_refs": [
+              "projects/控制台/tests/fixtures/onboarding-handoff/magicmushroom-replay.json"
+            ]
+          }
+        ],
+        "rollback_points": [
+          "remove the temporary onboarding state and queue tree; no real agent files are created"
+        ]
+      },
+      "common_tasks": ["implement one scoped gameplay change", "run the project smoke command"],
+      "tools_and_permissions": {
+        "tools": ["rg", "node"],
+        "read_paths": ["projects/MagicMushroom/status.md", "projects/MagicMushroom/capabilities.md"],
+        "write_paths": ["shared/agents/magicmushroom-programmer-probationary-smoke/"]
+      },
+      "prohibited_actions": [
+        "do not publish builds",
+        "do not expand file permissions",
+        "do not read secrets"
+      ],
+      "acceptance": [
+        "return a context digest and understood items",
+        "pass the first deterministic smoke",
+        "obtain supervisor-MagicMushroom approval"
+      ],
+      "evidence_refs": [
+        "projects/控制台/tests/fixtures/onboarding-handoff/magicmushroom-replay.json"
+      ]
+    }
+  },
+  "candidates": [
+    {
+      "id": "magicmushroom-supervisor",
+      "role": "magicmushroom_supervisor",
+      "evidence": [
+        {
+          "type": "project_status",
+          "ref": "projects/MagicMushroom/status.md",
+          "project_id": "MagicMushroom",
+          "domain": "MagicMushroom gameplay code",
+          "direct": true,
+          "verified": true,
+          "occurred_at": "2026-07-18T09:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "magicmushroom-programmer",
+      "role": "magicmushroom_programmer",
+      "evidence": [
+        {
+          "type": "task",
+          "ref": "projects/控制台/artifacts/engine-tasks/cr-1784568939856-73922255.json",
+          "project_id": "MagicMushroom",
+          "domain": "MagicMushroom gameplay code",
+          "direct": true,
+          "verified": true,
+          "occurred_at": "2026-07-19T09:00:00.000Z"
+        },
+        {
+          "type": "interaction_trace",
+          "ref": "projects/控制台/artifacts/engine-runs/cr-1784568939856-73922255/implement-1/interaction-trace.json",
+          "project_id": "MagicMushroom",
+          "domain": "MagicMushroom gameplay code",
+          "direct": true,
+          "verified": true,
+          "occurred_at": "2026-07-19T09:30:00.000Z"
+        }
+      ]
+    }
+  ],
+  "receipt": {
+    "schema": "onboarding-handoff-receipt@1",
+    "plan_id": "filled-by-smoke",
+    "agent_id": "filled-by-smoke",
+    "context_digest": "MagicMushroom responsibilities, project evidence, permission boundary, rollback and smoke route understood.",
+    "understood": [
+      "project supervisor is the final approver",
+      "ordinary production work stays blocked before approval",
+      "permissions cannot expand during onboarding"
+    ],
+    "questions": [],
+    "capability_gaps": [],
+    "first_smoke": {
+      "command": "node projects/控制台/tools/hr-agent-onboarding.js handoff-smoke",
+      "status": "pass",
+      "evidence_refs": [
+        "projects/控制台/tests/fixtures/onboarding-handoff/magicmushroom-replay.json"
+      ]
+    }
+  },
+  "production_task": {
+    "kind": "production",
+    "projectId": "MagicMushroom",
+    "goal": "deterministic post-onboarding production admission probe"
+  },
+  "expected": {
+    "selected_agent": "magicmushroom-programmer",
+    "final_approver": "supervisor-MagicMushroom"
+  }
+}

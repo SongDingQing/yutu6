@@ -12,7 +12,6 @@ const DEFAULT_ROUTING_FILE = path.resolve(__dirname, 'model-routing.yaml');
 // prefer token 的 "provider.sub" → config.json runnerId。
 // 来源:model-routing.yaml providers 段(via/env)。无对应本地 runner 的置 null(降级时跳过)。
 const PROVIDER_RUNNER = {
-  'subscription.claude': 'claude', // 2026-07-03 复活:秘书/维修主管由 Claude Code 接管(06-30 的 401 已恢复)
   'subscription.codex': 'codex',
   'api.zhipu': 'zhipu-glm',
   'api.deepseek': 'new-api',

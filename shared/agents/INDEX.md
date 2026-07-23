@@ -7,17 +7,19 @@
 ## 系统级 agent
 | agent | 角色(model-routing) | runner | 上下文 | 看得到(need-to-know) | 职责 |
 |---|---|---|---|---|---|
-| `secretary` 秘书 | secretary | claude | last_only | 老板原始指令 + 项目 brief/status 摘要 | 默认入口;指令补全、判断 projectId、非维修任务转交 CEO 队列(2026-07-03 起 Claude Code 接管) |
+| `secretary` 秘书 | secretary | codex | last_only | 老板原始指令 + 项目 brief/status 摘要 | 默认入口;由 GPT-5.6-Sol 补全指令、判断 projectId、非维修任务转交 CEO 队列 |
 | `orchestrator` **CEO**(原总管) | orchestrator | codex | accumulate | board/ + 各项目 brief/status + 控制台队列摘要 | 接秘书信封后拆方向→项目、摘趋势上报;队列长时用现有工具整理 queued/paused |
 | `supervisor` 主管 | supervisor | codex | explicit | 自己项目全部 + 共享 reference/能力库 | 拆任务→员工、审产物、上报 |
 | `worker-code` 后端程序员 | worker_code | codex | explicit | 当前任务授权的项目/共享代码与测试 + 工程交接索引 | review-loop implement 落盘实现;不做复审/发布/特权维修 |
+| `magicmushroom-supervisor` MagicMushroom 主管 | magicmushroom_supervisor | codex | explicit | `projects/MagicMushroom/` + MagicMushroom Unity 仓库只读 | 专属拆解、Unity 6 技术判断、硬复审和状态维护 |
+| `magicmushroom-programmer` MagicMushroom Unity 程序员 | magicmushroom_programmer | codex | explicit | `projects/MagicMushroom/` + `/Users/yutu6/UnityProject/MagicMushroom` | 专属 Unity 6 实现、测试和证据;不跨项目 |
 | `worker-narrow` 外包/轻量执行 | worker_narrow | zhipu-glm | last_only | 明确输入的日志/文档片段 | 低风险摘要、清单、草案;不默认写源码 |
 | `reasoning-architect` 架构/推理 **[已归档-弹性编制]** | reasoning_architect | codex | explicit | 相关源码、事件证据、测试与 reference | 复杂架构/风险/方案仲裁;不接普通实现。2026-07-03 历史零任务软归档(config.roleRouting 带 archived 标记,路由仍可用);复活=移除 config 中 archived 字段 |
 | `quality-ops` 质量运营 | quality_ops | zhipu-glm | explicit | 事件日志/ledger + 能力库 | 找高重复确定性动作→硬化(§16) |
 | `governance` 监管 | governance | codex | explicit | 误区库 + attempt 计数 | 反复失败/重大漏洞→复盘→规则(§17) |
 | `board-deepseek` 董事 | board_deepseek | new-api | explicit | 架构/性能/并发指令 + CEO 计划 | DeepSeek 事前评审 |
 | `board-glm52` 董事 | board_glm52 | zhipu-glm | explicit | 架构/性能/并发指令 + CEO 计划 | GLM-5.2 事前评审 |
-| `board-claude` 董事 | board_claude | claude-fable-5 | explicit | 架构/性能/并发指令 + CEO 计划 | Claude Fable 5 事前评审 |
+| `board-kimi` 董事 | board_kimi | kimi-k2 | explicit | 架构/性能/并发指令 + CEO 计划 | Kimi K3 事前评审,侧重代码/Agent 链路与长上下文遗漏 |
 | `board-opus48` 董事 | board_opus48 | codex | explicit | 架构/性能/并发指令 + CEO 计划 | 唯一 Codex/GPT-5.6-Sol 董事,接管历史最终槽并做单轮最终硬阻断裁决 |
 | `ui-optimizer` UI 自我优化师 | ui_optimizer | codex(+peekaboo) | explicit | WebUI 页面 + 截图 | Peekaboo 看页→Codex 挑错(流畅性/易读性)→交 codex 修,每 3 分钟一轮 |
 | `frontend-designer` 前端程序员 | frontend_designer | zhipu-glm | explicit | 控制台 `workspace.html` + 前端交接文档 | 控制台专属页面/UI 定位与小步改造方案;系统办公室工位;必要时交 worker_code 落盘 |
@@ -56,7 +58,7 @@
 2026-06-22 边界审视已把先前只有 `config.roleRouting` 的主要运行时角色补成独立 agent 合约:
 
 - `worker_code`、`worker_narrow`、`reasoning_architect`、`insight-scout`、`gui_desktop_control`、`repair-lead`、`repair` 已有 `agent.json` + `prompt.md`。
-- `board_*` 董事会角色仍是正式 agent;活跃董事为 DeepSeek / GLM-5.2 / Claude Fable 5 / Codex(GPT-5.6-Sol) 四席。Kimi 董事席已暂停,`board_gpt55` 只保留旧别名兼容,不再作为独立活跃董事。`projects/控制台/config.json:boardReviewControl.enabled=true/maxRounds=1` 表示已恢复为架构/性能/并发事前单轮评审。
+- `board_*` 董事会角色仍是正式 agent;活跃董事为 DeepSeek / GLM-5.2 / Kimi K3 / Codex(GPT-5.6-Sol) 四席。Claude 不在活跃路由中,`board_gpt55` 只保留旧别名兼容,不再作为独立活跃董事。`projects/控制台/config.json:boardReviewControl.enabled=true/maxRounds=1` 表示已恢复为架构/性能/并发事前单轮评审。
 - `dev_worker` 自优化开发、`hermes` 通知/桥接目前仍是 UI/runner/外部服务角色,非完整 agent 定义;后续如要队列化,必须走 HR 规格卡。
 
 ## 与其它模块的接口

@@ -1,0 +1,6 @@
+id: invalid-condition
+nodes:
+  - { id: start, type: agent }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: done, when: "{{ system('forbidden') }}" }

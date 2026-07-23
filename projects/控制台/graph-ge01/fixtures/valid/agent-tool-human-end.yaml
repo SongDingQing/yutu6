@@ -1,0 +1,16 @@
+id: valid-node-vocabulary
+guards:
+  max_loops: 2
+  wall_timeout_sec: 60
+nodes:
+  - { id: start, type: agent, agent_role: worker_code }
+  - { id: deterministic-check, type: tool, timeout_ms: 1000 }
+  - { id: owner-decision, type: human_gate }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: deterministic-check }
+  - { from: deterministic-check, to: owner-decision, when: "{{ check.pass == true }}" }
+  - { from: owner-decision, to: done, when: "{{ human.decision == 'approve' }}" }
+on_no_edge: fail_closed
+acceptance:
+  require_evidence: true

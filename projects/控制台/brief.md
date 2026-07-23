@@ -16413,3 +16413,171 @@ _最后更新:2026-07-01_
 
 ### CEO 计划摘要
 {"orchestrator":{"projectId":"控制台","summary":"把 loop-engineering 的 standards 与 review 评分升级为基于原始验收、风险门和停止条件的语义验收原子，防止格式完整被误判为业务通过；保留歧义审计，当前仅待拍板，不自动启用。","acceptance":[{"acceptance_id":"acc_8bca424e9ebfc0a8b5f1c236","source_hash":"8bca424e9ebfc0a8b5f1c23602598e6fd6bb701b892ffb72bf6a7bf9d18c638b","scope":"project/控制台","text":"生成 standards 时过滤“模板、md、表头、分隔线”等格式碎片。"},{"acceptance_id":"acc_89641cf2b63f2a2246b312a8","source_hash":"89641cf2b63f2a2246b312a8beebe56ca93bc962118b33debb1f052e0a06411c","scope":"project/控制台","text":"生成 standards 时直接使用 orchestrator/owner 的逐项 acceptance。"},{"acceptance_id":"acc_5c4ac2d51431b0662d9e4235","source_hash":"5c4ac2d51431b0662d9e4235bec06fd9680ae2828afc120bf731fe3dcc50ddba","scope":"project/控制台","text":"生成 standards 时直接使用 orchestrator/owner 的风险门。"},{"acceptance_id":"acc_b1e9528038814e61e07e8b00","source_hash":"b1e9528038814e61e07e8b00317d303093cbcca2413aa41ba890930e7af7c305","scope":"project/控制台","text":"生成 standards 时直接使用 orchestrator/owner 的停止条件。"},{"acceptance_id":"acc_746eaa27ec7075ffe7f2a780","source_hash":"746eaa27ec7075ffe7f2a7806ba37bf5208a4157934927595d4fcb6473e0bc58","scope":"project/控制台","text":"语义原子提取需保存原文。"},{"acceptance_id":"acc_eeb48bee6124fbc0be216841","source_hash":"eeb48bee6124fbc0be216841154a42642fd4faef196d1ae2ec81d2e66471d608","scope":"project/控制台","text":"语义原子提取需保存 hash。"},{"acceptance_id":"acc_082beaef8271318430d4f237","source_hash":"082beaef8271318430d4f237e3a79b82efd605becff3993685ea5d514089946d","scope":"project/控制台","text":"语义原子提取需保存拆分映射。"},{"acceptance_id":"acc_cfa2dd668d220be9d216de4e","source_hash":"cfa2dd668d220be9d216de4e15122fab732f4d0f6659a8720cffe35a5cf5abbd","scope":"project/控制台","text":"reviewer 可对存在歧义的语义原子标 warning。"},{"acceptance_id":"acc_cc526b07bd8b6048c7760d82","source_hash":"cc526b07bd8b6048c7760d82e911fc6e0ee425845286352ed454d75dbc0c5961","scope":"project/控制台","text":"自动摘要不得替换语义验收原句。"},{"acceptance_id":"acc_ae11e07db58e7f57267b8c0a","source_hash":"ae11e07db58e7f57267b8c0a62b915aa2a403c7b1f0da0eadf8aa47d410002d8","scope":"project/控制台","text":"review 必须对每个语义验收原子给出证据。"},{"acceptance_id":"acc_cdc16bd286f3b0a4dc75cc00","source_hash":"cdc16bd286f3b0a4dc75cc00cde8484a7d6749c7a86d142325e87b7903d0e216","scope":"project/控制台","text":"review 必须对每个语义验收原子给出 verdict。"},{"acceptance_id":"acc_79b2d14eb11e12e97372fedd","source_hash":"79b2d14eb11e12e97372fedd985a094c9202905866ee923c383a0fdb87d4be2b","scope":"project/控制台","text":"score=1 不得仅由表格机械完整推出。"},{"acceptance_id":"acc_1e928119b084e803875202e0","source_hash":"1e928119b084e803875202e06cce86da2d0a834a47436362956433a2cfef336b","scope":"project/控制台","text":"baseline 门未通过时 score 不得为 1。"},{"acceptance_id":"acc_afcd629f222c64b40a3379c0","source_hash":"afcd629f222c64b40a3379c0a7e319d33ac382064acae5f017bd17e625136769","scope":"project/控制台","text":"样本冻结门未通过时 score 不得为 1。"},{"acceptance_id":"acc_653cc2ee16981a64d96f528d","source_hash":"653cc2ee16981a64d96f528d8f9c4b3d49d0483c31ea342da6edb2d95867cf36","scope":"project/控制台","text":"独立性门未通过时 score 不得为 1。"},
+
+## CEO 派单 2026-07-17T04:49:59.127Z
+- projectId:控制台
+- taskId:cr-1784263203469-a0f181af
+- queue:ceo / a0f181af
+- 目标:评估并拍板 proposal_only 洞察卡在主人手动启用后是否跳过重复董事会评议。先给出 feature flag、事件审计、负例和回滚方案，未拍板不得启用。
+董事会第 1 轮整合修订:
+- 风险/偏差: DeepSeek 董事: 缺少 feature flag 的命名空间和默认值定义。当前指令要求'先给出 feature flag'，但未明确该 flag 应属于哪个模块（如 insights/proposal_only），也未指定默认值（应为 false/disabled）。若默认值缺失或命名冲突，可能导致生产环境意外启用跳过评议逻辑。
+- 风险/偏差: DeepSeek 董事: 事件审计缺乏关键字段定义。指令要求'事件审计'，但未指定审计事件应包含哪些字段（如 actor、action、resource、timestamp、reason、result）。若审计日志缺少 owner_id 或 action_type，将无法追溯谁在何时启用了跳过评议，违反可审计性要求。
+- 风险/偏差: DeepSeek 董事: 负例测试范围不完整。指令要求'负例'，但未明确负例场景：例如非 owner 用户尝试启用跳过、已启用状态下重复启用、启用后立即禁用等边界情况。缺少这些负例可能导致权限绕过或状态不一致。
+- 风险/偏差: DeepSeek 董事: 回滚方案缺少数据一致性检查。指令要求'回滚方案'，但未指定回滚时如何处理已产生的跳过评议记录。若回滚后这些记录仍存在，可能导致后续评议逻辑混乱（如认为已跳过但实际未跳过）。
+- 风险/偏差: GLM-5.2 董事: 允许主人手动启用后跳过重复董事会评议的前提是 'proposal_only' 必须严格限制为纯静态只读展示。若洞察卡内包含动态脚本执行、数据请求或敏感权限调用，跳过评议将引发严重的安全盲区与越权风险。
+- 风险/偏差: GLM-5.2 董事: 事件审计方案不能仅记录“主人手动启用”的动作，必须固化被跳过评议的洞察卡内容指纹（如 schema hash 或 content hash）。否则在卡片内容后续发生静态篡改时，审计日志将无法对齐具体的变更内容，导致审计失效。
+- 风险/偏差: Claude Fable 5 董事: 授权代理太弱:ownerApprovedBulletinEnable 接受 --manual/--confirm/--owner-approved 等任意 CLI 布尔即视为主人手动启用;若跳过董事会评议直接挂在该判定上,任何能调用 secretary-tools 的 agent 传一个布尔就同时获得主人批准+董事会豁免双重效果,评议豁免必须绑定更强的来源证明(web 启用事件或持久化拍板回执),…
+- 风险/偏差: Claude Fable 5 董事: 跳过条件缺内容绑定:shouldRunBoardReview 的 already-reviewed 分支只看 spec.boardReview 布尔,不校验先前评审对应的 spec 指纹;洞察卡从 proposal 到启用之间 payload.goal 若被修改,旧评审结论会被复用到新内容上。跳过必须要求 priorReviewRef + spec_fingerprint 匹配,不匹配则照常评审。
+- 修订建议: DeepSeek 董事: 建议在 feature flag 定义中明确命名空间为 'insights.proposal_only.skip_board_review'，默认值设为 false，并在配置文档中注明生效范围（全局/用户级）。
+- 修订建议: DeepSeek 董事: 建议审计事件至少包含：owner_id、action（enable/disable）、resource（insight_id）、timestamp、reason（用户输入原因）、result（success/failure）。
+- 修订建议: DeepSeek 董事: 建议补充负例测试：非 owner 用户操作返回 403、重复启用返回 409、启用后立即禁用验证状态切换、并发启用请求仅第一个成功。
+- 修订建议: DeepSeek 董事: 建议回滚方案包含：1) 将 feature flag 重置为 false；2) 清除所有因该 flag 产生的跳过评议记录；3) 对受影响的 insight 重新触发一次完整评议（可异步）。
+- 修订建议: GLM-5.2 董事: 建议 feature flag 的设计采用基于“卡片ID”或“卡片类型”的细粒度管控，避免全局跳过引发大面积绕过审查的风险。同时，回滚方案必须提供一个全局的 kill switch，确保在出现问题时能够一键恢复强制董事会评议。
+- 修订建议: GLM-5.2 董事: 建议明确不可跳过评议的“负例”清单：例如当洞察卡的依赖底层服务版本更新、涉及外部网络请求、或调取用户敏感隐私数据时，无论是否手动启用，均必须强制触发重复董事会评议。
+- 修订建议: Claude Fable 5 董事: 复用既有 already-reviewed 通道:bulletinEnable 在 owner-approved 时向 payload 写 boardReview:{ownerApproved:true,source:'bulletin-enable',bulletinId,priorReviewRef,specFingerprint},shouldRunBoardReview 已原生支持,不新增…
+- 修订建议: Claude Fable 5 董事: feature flag 放 boardReviewControl 下(如 skipOnOwnerEnabledInsight,默认 false);readBoardReviewControl 每次调用读盘,改 config 即生效、回滚免重启;字段缺失或解析失败一律 fail-closed 照常评审。回滚方案=flag 置 false + decisions.md 记一笔,已跳过的历史任务靠审计…
+- 边界:只处理本公告板任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。
+- 验收:结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)
+验收表协议: structured-acceptance@2
+模板: templates/structured-acceptance-table.md
+| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |
+|---|---|---|---|
+| 任务验收: 任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。 | 未完成 |  |  |
+| 视觉/UI证据: not_applicable | not_applicable | task-envelope:visual_acceptance | source=task_type; no positive visual requirement after explicit/human-gate/path/task-type evaluation |
+
+### CEO 计划摘要
+{"orchestrator":{"projectId":"控制台","summary":"暂不批准启用跳过能力。范围仅限主人手动启用 proposal_only 洞察卡后的重复董事会评议去重；主管须先提交默认关闭的 feature flag、事件审计、负例和回滚口径，再交主人拍板，其他董事会评议行为保持不变。","acceptance":[{"acceptance_id":"acc_3d33668809e82ad85ef9fd4b","source_hash":"3d33668809e82ad85ef9fd4b6732a38c3250a94f603dd575b7de9f92699f78d6","scope":"project/控制台","text":"proposal_only 洞察卡跳过重复董事会评议的能力在主人拍板前保持未启用。"},{"acceptance_id":"acc_7723231b9375315558604b77","source_hash":"7723231b9375315558604b777f53c1f54f273d5d0bd73f1a47046af2ea9146c0","scope":"project/控制台","text":"形成主人手动启用 proposal_only 洞察卡后是否跳过重复董事会评议的明确拍板项。"},{"acceptance_id":"acc_3f6da71c711885135fecb3f7","source_hash":"3f6da71c711885135fecb3f7854c5ee2b84e280468fdabe8166854d9b4875036","scope":"project/控制台","text":"拍板材料包含默认关闭的 feature flag 及其适用范围和启用条件。"},{"acceptance_id":"acc_7de6869cfbece326accd3382","source_hash":"7de6869cfbece326accd3382f1589a42acf861a48e9c70c88174153b4e9b660a","scope":"project/控制台","text":"拍板材料包含主人手动启用、跳过判定、未跳过原因和回滚结果的事件审计口径。"},{"acceptance_id":"acc_ec676aa6f362476789c3ae55","source_hash":"ec676aa6f362476789c3ae55b4385394de2ea41225044e316fc73178f3dd45dc","scope":"project/控制台","text":"拍板材料包含不得跳过董事会评议的负例及对应预期行为。"},{"acceptance_id":"acc_2c69503fb23f0878e6e09713","source_hash":"2c69503fb23f0878e6e0971323fd94c0de3bc922d5b720b2b48e20324c19c277","scope":"project/控制台","text":"拍板材料包含恢复现有董事会评议行为的回滚条件和预期结果。"},{"acceptance_id":"acc_8e9d7daa8a5c466550e759e8","source_hash":"8e9d7daa8a5c466550e759e81505f19fe8b82447e626ef188b34138e9e1fd5e1","scope":"project/控制台","text":"任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。"}]}}
+董事会事前评议:已通过; 轮次 1/1; 记录见 memory/decisions.md。
+
+## CEO 派单 2026-07-17T05:28:42.973Z
+- projectId:控制台
+- taskId:cr-1784265578614-d020203e
+- queue:ceo / d020203e
+- 目标:设计 proposal_only 的轻量执行 flow：一次生成、一次硬复核、真实证据不降级；给出分类协议、升级条件、feature flag、回归测试和回滚，未拍板不得切换。
+董事会第 1 轮整合修订:
+- 风险/偏差: DeepSeek 董事: 缺少分类协议的具体定义：指令要求给出分类协议，但当前方案未定义proposal_only的准入/排除标准（例如什么算proposal_only、什么必须升级为full_execution）。无分类协议会导致执行边界模糊，后续可能误将高风险任务按轻量flow执行。
+- 风险/偏差: DeepSeek 董事: 升级条件未量化：指令要求给出升级条件，但当前方案未定义从proposal_only升级到full_execution的具体阈值或触发条件（如证据置信度<0.7、复核发现矛盾、跨模块影响等）。无量化条件会导致升级决策主观化。
+- 风险/偏差: DeepSeek 董事: feature flag缺少默认状态和切换机制：指令要求给出feature flag，但未说明flag的默认值（应默认关闭）、存储位置（环境变量/配置中心）、切换方式（手动/自动）、以及flag生效范围（全量/灰度）。无这些细节，flag可能形同虚设或误开。
+- 风险/偏差: DeepSeek 董事: 回归测试范围未界定：指令要求回归测试，但未说明测试范围（仅proposal_only相关模块/全量回归）、测试通过标准、以及是否包含非功能测试（性能/并发）。无范围界定，回归测试可能遗漏关键路径或过度覆盖。
+- 风险/偏差: DeepSeek 董事: 回滚计划缺少触发条件和验证步骤：指令要求回滚，但未定义什么情况下触发回滚（如错误率>5%/用户投诉）、回滚后如何验证恢复、以及回滚是否影响已生成证据。无这些细节，回滚可能混乱或无法确认成功。
+- 风险/偏差: GLM-5.2 董事: 设计需明确“真实证据不降级”的架构执行机制。参考原则:降级阻断与显式权限原则。如果只停留在口头要求而无强制校验点，实施时极易在异常或超时情况下默认退化为 mock 数据或弱证据，导致 proposal 评估失效。
+- 风险/偏差: GLM-5.2 董事: “一次生成、一次硬复核”在并发场景下存在状态竞态与队列阻塞风险。参考原则:并发与锁控制原则。若轻量 flow 未设计幂等键或状态机锁，同一任务的并发触发可能导致重复生成或复核逻辑错乱；同时硬复核若缺乏超时熔断机制，可能拖垮执行队列。
+- 风险/偏差: Claude Fable 5 董事: 分类误判是本设计最大风险：分类协议若把实际会改运行文件/队列的任务错分为 proposal_only 走轻量 flow，一次生成+一次复核的监管量不足以兜底。设计稿必须包含分类后校验（如 changed_files 越界即强制升级回完整 flow 并写审计事件），且升级条件必须是运行时可判定的硬条件（路径命中、指纹变化、敏感词表），不能靠执行 agent 自觉。
+- 修订建议: DeepSeek 董事: 定义分类协议：明确proposal_only的准入条件（如仅文本生成、无外部调用、无状态变更）和排除条件（如涉及数据库写操作、用户身份变更、支付流程）。建议用决策树或规则表形式。
+- 修订建议: DeepSeek 董事: 量化升级条件：定义至少3个可量化触发条件，例如：(1) 硬复核置信度<0.8；(2) 证据链存在矛盾；(3) 影响范围跨2个以上模块。每个条件附带具体阈值和测量方法。
+- 修订建议: DeepSeek 董事: 完善feature flag规范：指定flag名称为proposal_only_flow_enabled，默认值为false，存储于环境变量，切换需经过配置变更审批，生效范围为全量（灰度需额外定义）。
+- 修订建议: DeepSeek 董事: 界定回归测试范围：至少包含：(1) proposal_only流程的单元测试覆盖所有分支；(2) 与proposal_only交互的上下游模块集成测试；(3) 并发场景下（10并发）的稳定性测试。通过标准为100%通过且无性能退化。
+- 修订建议: DeepSeek 董事: 补充回滚计划：定义触发条件（如错误率>3%持续5分钟）、回滚操作步骤（切换feature flag为false + 清理临时证据）、验证方法（监控错误率回落至基线+抽样检查用户反馈）。
+- 修订建议: GLM-5.2 董事: 建议 feature flag 的设计采用细粒度（如按租户/用户组）的灰度控制策略，而非简单的全局布尔值，确保在触发回滚时能够精准控制爆炸半径。
+- 修订建议: GLM-5.2 董事: 建议在“分类协议”和“升级条件”中明确硬复核失败的具体量化指标（如重试次数、超时阈值、证据缺失错误码），避免模糊条件导致流程无法自动闭环或无限等待人工干预。
+- 修订建议: Claude Fable 5 董事: feature flag 沿用既有默认关闭模式（如 secretary-tools.js 的 proposal_only_feature_disabled 握手：配置缺失等价 false、运行码不消费直至拍板），回滚即 flag=false 立即停止新轻量流转、保留追加式审计事件、对已走轻量 flow 的当前指纹任务执行完整补评——与前序拍板材料的回滚口径对齐。
+- 边界:只处理本公告板任务; 密钥不回显; 登录/授权交主人手动; 不确定就停下说明。
+- 验收:结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)
+验收表协议: structured-acceptance@2
+模板: templates/structured-acceptance-table.md
+| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |
+|---|---|---|---|
+| 任务验收: 任务有事件日志可追踪; 产物路径清楚; 不需要视觉时无需截图。 | 未完成 |  |  |
+| 视觉/UI证据: not_applicable | not_applicable | task-envelope:visual_acceptance | source=task_type; no positive visual requirement after explicit/human-gate/path/task-type evaluation |
+
+### CEO 计划摘要
+{"orchestrator":{"projectId":"控制台","summary":"归属控制台；仅形成 proposal_only 轻量执行 flow 的待拍板设计验收边界，不实施、不启用、不改运行状态。方案须覆盖确定性分类、一次生成与一次硬复核、真实证据不降级、自动升级、默认关闭灰度、并发控制、回归测试和可验证回滚。","acceptance":[{"acceptance_id":"acc_e4cc91c2d64b7d5e4cadf34b","source_hash":"e4cc91c2d64b7d5e4cadf34b1b4fe4cfad27b9be8643a628fd267c84c40b08cf","scope":"project/控制台","text":"本任务只交付 proposal_only 轻量执行 flow 的设计提案，不修改代码、配置、文件、队列或运行状态"},{"acceptance_id":"acc_50173da1a5eb53487153b166","source_hash":"50173da1a5eb53487153b166e5e94bf8b43f3065dd2401f29f72a082933e36cb","scope":"project/控制台","text":"未取得主人有效拍板回执前，轻量 flow 保持关闭且运行码不得切换到该 flow"},{"acceptance_id":"acc_76d42ae7064d84d5d6130ee1","source_hash":"76d42ae7064d84d5d6130ee1e05ec41f8c16e052ae3dd735a67bf63201f32a3c","scope":"project/控制台","text":"分类协议仅允许纯文本或静态只读分析、无业务外部副作用、无持久状态变更的任务进入 proposal_only"},{"acceptance_id":"acc_def1565101dae694b0f0e27e","source_hash":"def1565101dae694b0f0e27ef6463ee8462223ebed4f34dc27ab3dcbfc27e696","scope":"project/控制台","text":"涉及数据库写入、身份或权限、支付、密钥、发布、重启或运行资源变更的任务必须排除出 proposal_only"},{"acceptance_id":"acc_896937194f62f09856db3825","source_hash":"896937194f62f09856db382514c56439988fd2381fc8a4424030b4126cb2ce65","scope":"project/控制台","text":"运行时发现 changed_files 数量大于零时必须升级为 full_execution 并记录原因码"},{"acceptance_id":"acc_4076245749e5f272bde4fddf","source_hash":"4076245749e5f272bde4fddf019a3c3c350301150631c9682f5d01d0561d901a","scope":"project/控制台","text":"运行时发现任务规格指纹与分类时指纹不一致时必须升级为 full_execution"},{"acceptance_id":"acc_55c5853117f51e6610d59630","source_hash":"55c5853117f51e6610d59630779d097f7719ff33abf0697268c59e17a64725dc","scope":"project/控制台","text":"运行时命中受保护路径或敏感操作规则时必须升级为 full_execution"},{"acceptance_id":"acc_c6c9d634c66fcd3931a5c317","source_hash":"c6c9d634c66fcd3931a5c317ec83638e535a6eb3a40cc2bf71abbf302269f5b5","scope":"project/控制台","text":"影响范围达到两个或以上模块时必须升级为 full_execution"},{"acceptance_id":"acc_628bc137685de36410a1efa9","source_hash":"628bc137685de36410a1efa9d2798dcfcf5d41dbe454370c1fd64cabd346740d","scope":"project/控制台","text":"硬复核结构化置信度低于 0.80 时必须升级为 full_execution"},{"acceptance_id":"acc_806799ed668e5e2fddb3a746","source_hash":"806799ed668e5e2fddb3a7463fae83fc47ecbae544f11a210d94c9e42d445eb5","scope":"project/控制台","text":"任一必需证据缺失、矛盾或不可验证时必须携带明确原因码升级为 full_execution"},{"acceptance_id":"acc_f0cb338dd6bdcdb7b1b1332a","source_hash":"f0cb338dd6bdcdb7b1b1332a7dd3d87f667bc4e456eb423309ea3b2b7248038f","scope":"project/控制台","text":"硬复核最大等待时间为 30 秒且轻量 flow 内重试次数为零，超时、错误或非通过结果必须升级为 full_execution"},{"acceptance_id":"acc_8dea856a402a1db7bf76e463","source_hash":"8dea856a402a1db7bf76e4637195ef4d0d8d4e115c7762ca82c1154e189db9af","scope":"project/控制台","text":"证据校验门必须拒绝 mock、占位、推测或弱化证据，异常时不得自动降级证据标准"},{"acceptance_id":"acc_4205b8c47a79add22dca4a98","source_hash":"4205b8c47a79add22dca4a98bfa29d6b85173a21fd079e959b4e8e1ac8c59228","scope":"project/控制台","text":"同一任务与规格指纹在轻量 flow 中只能完成一次生成"},{"acceptance_id":"acc_d32f93089136fa0174921b0b","source_hash":"d32f93089136fa0174921b0be427d1965eb074aba4b6bc4df1916f15017194f7","scop
+
+## CEO 派单 2026-07-20T17:57:23.178Z
+- projectId:控制台
+- taskId:cr-1784566087546-d9ac4b6f
+- queue:ceo / d9ac4b6f
+- 目标:设计并落地“新智能体入职必须先完成交接任务”的严谨机制，复用现有 HR onboarding、interaction trace、队列和 done gate，不另起重型框架。职责决策：HR 负责入职流程与四要素/权限检查；CEO 负责跨项目或归属不明的交接路线；项目主管负责项目专属智能体的交接内容与验收；若维修主管对该职责域有经过工单/事件证据验证的直接处理经验，可作为知识交接人；否则从现有智能体的任务、interaction trace、项目 status/knowledge 中选择有真实经验者，不按角色名猜测。系统应自动创建 onboarding handoff task，新 agent 在交接通过前状态为 probationary/不可接普通生产任务。交接包至少包含职责边界、项目背景、代码/数据索引、当前状态、历史事故与回滚点、常见任务、工具/权限、不能做的事和验收；新 agent 必须回执 context_digest、已理解内容、疑问、能力缺口和首个 smoke 结果。主管/CEO/HR 按归属审批后才激活。事件链要求 onboarding.handoff.planned/assigned/received/approved/rejected，可从谁交接给谁、依据什么经验、读了哪些证据完整回溯；超时保持 probationary 并提醒，不得 fail-open。MagicMushroom 现有主管和程序员作为首个回放样本，维修主管历史经验选择必须用 repair ticket/engine event 证据证明。
+董事会第 1 轮整合修订:
+- 风险/偏差: DeepSeek 董事: 交接包内容与验收标准存在模糊地带：指令要求交接包包含‘代码/数据索引’、‘当前状态’、‘历史事故与回滚点’等，但未定义这些内容的‘最小可接受粒度’。例如，‘代码/数据索引’是指文件路径列表、API端点列表，还是包含关键数据表结构？‘当前状态’是指项目阶段、待办事项列表，还是具体的系统运行指标？这种模糊性可能导致交接包质量参差不齐，新agent无法获得足够信息完成‘首个smoke结果’，从而延长probatio…
+- 风险/偏差: DeepSeek 董事: 并发交接与资源竞争风险：指令未提及当多个新agent同时入职并触发交接任务时，对现有HR onboarding、interaction trace、队列和done gate的并发压力。特别是‘从现有智能体的任务、interaction trace、项目status/knowledge中选择有真实经验者’这一操作，若多个交接任务同时查询同一智能体的trace，可能导致trace读取竞争或状态不一致。此外，若交接…
+- 风险/偏差: DeepSeek 董事: 超时提醒机制缺乏具体实现路径：指令要求‘超时保持probationary并提醒，不得fail-open’，但未说明提醒机制如何实现。是复用现有队列的提醒功能，还是需要新增一个定时检查任务？如果复用现有队列，需要明确队列的提醒策略是否支持‘仅提醒，不自动推进状态’。如果新增定时任务，则违反了‘不另起重型框架’的原则，且可能引入新的常驻进程风险。
+- 风险/偏差: DeepSeek 董事: MagicMushroom样本的适用性验证不足：指令指定‘MagicMushroom现有主管和程序员作为首个回放样本’，但未说明该样本是否覆盖了所有交接场景（如跨项目交接、维修主管经验验证）。如果MagicMushroom项目结构简单或交接流程不典型，以此样本推导出的机制可能无法处理更复杂的交接情况（如涉及多个项目、多个知识交接人）。建议在测试计划中明确MagicMushroom样本的覆盖范围，并补充至少一个…
+- 风险/偏差: GLM-5.2 董事: 超时提醒的执行体未定义：任务要求'超时保持 probationary 并提醒'但'不增加常驻进程'，需确认 done gate/queue 是否支持 TTL watcher 或周期巡检，否则该约束不可落地
+- 风险/偏差: GLM-5.2 董事: 事件链缺少 rejected 后的状态分支：重新 planned / 改派 / 终止入职，以及重试上限均未定义，可能造成交接任务挂起或重复创建
+- 风险/偏差: GLM-5.2 董事: 交接人选择是自动评分还是人工指派的决策点未定义：'从 interaction trace 选择有真实经验者'缺评分函数/阈值或决策人，落地时会出现归口空白
+- 风险/偏差: GLM-5.2 董事: 交接包'历史事故与回滚点'数据源未定义：项目若无结构化事故台账，需明确从 trace 抽取或主管填写规则，否则该栏会形式合规但内容为空
+- 修订建议: DeepSeek 董事: 为交接包内容定义最小可接受粒度。例如，在交接任务模板中增加字段级别的说明或示例，明确‘代码/数据索引’至少包含项目根目录、关键配置文件路径、主要数据表或API列表；‘当前状态’至少包含项目阶段、最近一次里程碑完成情况、已知阻塞项。
+- 修订建议: DeepSeek 董事: 在交接任务创建和审批环节引入乐观锁或分布式锁机制，防止并发读取/写入同一智能体trace或项目状态。具体可复用现有队列的幂等性设计或引入轻量级锁（如基于项目ID的互斥锁），确保同一时刻只有一个交接任务能修改关键资源。
+- 修订建议: DeepSeek 董事: 明确超时提醒的实现方案。建议复用现有队列的‘延迟任务’或‘定时提醒’功能，将超时提醒作为一个独立的、非阻塞的队列任务，仅负责发送通知，不改变probationary状态。需确认现有队列是否支持此模式，若不支持，则需在设计中明确一个不增加常驻进程的替代方案（如基于事件触发的检查）。
+- 修订建议: DeepSeek 董事: 在测试计划中明确MagicMushroom样本的覆盖范围，并补充至少一个边界场景（如跨项目交接、维修主管经验验证）的测试用例。如果MagicMushroom样本不足以覆盖所有场景，应考虑增加第二个样本项目。
+- 修订建议: GLM-5.2 董事: 在事件链补全 rejected→{re-planned|re-assigned|terminated} 分支，并定义最大重试次数（建议 2 次），避免交接任务挂起
+- 修订建议: GLM-5.2 董事: 明确超时提醒触发器：优先复用 CEO 队列的周期巡检（如每 N 跳检查 probationary 状态），避免新增常驻进程
+- 修订建议: GLM-5.2 董事: 交接人选择建议默认人工指派（CEO/主管决策）+ interaction trace 评分作为辅助证据，避免纯自动评分引入误选
+- 修订建议: GLM-5.2 董事: 建议审批路由规则：项目内智能体由项目主管终审，跨项目/归属不明由 CEO 终审，HR 仅做四要素/权限前置检查（非终审），避免 AND 锁
+- 边界:仅改玉兔6智能体入职/交接相关配置、工具、测试和文档；复用现有 queue、interaction trace、done gate；不增加常驻进程，不让交接流程读取密钥；不自动扩大新 agent 文件权限；不提交、不 push。
+- 验收:结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)
+验收表协议: structured-acceptance@2
+模板: templates/structured-acceptance-table.md
+| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |
+|---|---|---|---|
+| 任务验收: 形成机器可读 handoff plan/receipt schema 与明确选择算法； | 未完成 |  |  |
+| 任务验收: hr-agent-onboarding 或相邻最小模块真实接入，创建新 agent 时自动产出交接任务； | 未完成 |  |  |
+| 任务验收: probationary agent 在 approved 前不能接普通生产任务，缺交接/缺回执/无证据选择交接人均 fail-closed； | 未完成 |  |  |
+| 任务验收: HR/CEO/项目主管/维修主管的职责和优先级无歧义，交接人选择有 trace 证据； | 未完成 |  |  |
+| 任务验收: MagicMushroom 团队做一次可重复 smoke； | 未完成 |  |  |
+| 任务验收: tests 覆盖项目主管交接、维修主管有证据交接、无经验回退 CEO、超时不激活、审批后激活； | 未完成 |  |  |
+| 任务验收: node tests/run.js 或相关 lean profile 通过并给回滚说明。 | 未完成 |  |  |
+| 视觉/UI证据: not_applicable | not_applicable | task-envelope:visual_acceptance | source=task_type; no positive visual requirement after explicit/human-gate/path/task-type evaluation |
+
+### CEO 计划摘要
+{"orchestrator":{"projectId":"控制台","summary":"任务稿 SHA-256 已核对一致。复用现有 HR onboarding、interaction trace、队列和 done gate，建立新智能体强制交接门禁：HR 负责入职、四要素和权限检查；CEO 仅负责跨项目或归属不明时的交接路线、范围摘要与验收原子；项目主管负责项目专属交接内容及验收；维修主管只有在工单或事件证据证明具备直接经验时才可担任交接人，否则依据既有任务、trace、项目 status/knowledge 选择真实经验者。批准前保持 probationary，超时不得放开；不读取密钥、不扩大文件权限、不新增常驻进程。","acceptance":[{"acceptance_id":"acc_bf57432467e1dfb24c963eec","source_hash":"bf57432467e1dfb24c963eece7be7648a6151fc16ee954172d6df44f06ebb937","scope":"project/控制台","text":"任务验收: 形成机器可读 handoff plan/receipt schema 与明确选择算法；"},{"acceptance_id":"acc_85cb59c3c9439862328ad9a4","source_hash":"85cb59c3c9439862328ad9a47f0c4e8045bce3f95e65350c4e9e0bf28285a6b0","scope":"project/控制台","text":"任务验收: hr-agent-onboarding 或相邻最小模块真实接入，创建新 agent 时自动产出交接任务；"},{"acceptance_id":"acc_74e10f95054ceb95e4148f07","source_hash":"74e10f95054ceb95e4148f0794f24392cf2c5e162de676b2c7cb264f75fa34f9","scope":"project/控制台","text":"任务验收: probationary agent 在 approved 前不能接普通生产任务，缺交接/缺回执/无证据选择交接人均 fail-closed；"},{"acceptance_id":"acc_ceb3c7c4b20cc3ba52eb6fb5","source_hash":"ceb3c7c4b20cc3ba52eb6fb5fa9e836db575cad989186c63961e15318f4c6410","scope":"project/控制台","text":"任务验收: HR/CEO/项目主管/维修主管的职责和优先级无歧义，交接人选择有 trace 证据；"},{"acceptance_id":"acc_ac49fef4034b95606fd4df26","source_hash":"ac49fef4034b95606fd4df2627e23ae7ad554fdb2acb30cea439e37367156eec","scope":"project/控制台","text":"任务验收: MagicMushroom 团队做一次可重复 smoke；"},{"acceptance_id":"acc_80c49347e7693525ef051b5e","source_hash":"80c49347e7693525ef051b5e80c64059afbefffdccf8c53f27b875efc7fac1ac","scope":"project/控制台","text":"任务验收: tests 覆盖项目主管交接、维修主管有证据交接、无经验回退 CEO、超时不激活、审批后激活；"},{"acceptance_id":"acc_944d8682fbee54284d8efa81","source_hash":"944d8682fbee54284d8efa81b0b1b4b71cae012e7591d4aad7dc93c576716515","scope":"project/控制台","text":"任务验收: node tests/run.js 或相关 lean profile 通过并给回滚说明。"}]}}
+董事会事前评议:已通过; 轮次 1/1; 记录见 memory/decisions.md。
+
+## CEO 派单 2026-07-22T09:08:41.509Z
+- projectId:控制台
+- taskId:cr-1784711239584-yuanxiao-feishu-card-parity-v1
+- queue:ceo / yuanxiao-feishu-card-parity-v1
+- 目标:执行 projects/控制台/tasks/元宵-飞书能力对齐与原生卡片闭环.md。由 CEO 先审定路线，再交元宵项目主管组织移动端开发、桥接后端和质量复审；必须基于真实代码完成能力矩阵、原生一键决策卡、进度/失败/问题处理报告卡、维修 HTML 报告联动、幂等回调、离线恢复、兼容降级、测试和本地 APK 构建。不得只交设计稿或自述完成。
+- 边界:仅处理元宵与玉兔6消息桥接相关文件；不回显密钥/token/cookie；不破现有 API；不删除旧降级通道；push、外部发布、线上覆盖必须等主人确认。
+- 验收:结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)
+验收表协议: structured-acceptance@2
+模板: templates/structured-acceptance-table.md
+| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |
+|---|---|---|---|
+| 设计对照 memory/decisions.md:681 **2026-07-05 current 修订只补 proposal 治理约束,仍不得当运行规范执行**:本轮以 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-current-1783242659963-20260705.md` 作为 2026-06-29 草案的 current 补丁,明确 `proposal_only/policy_only/not_runtime_contract/runtime_consumed=false`,v0 manifest 基线引用 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md:48`;补齐 legacy 兼容性矩阵/迁移路径、`errors.code` 小枚举、`concurrency_domains` 命名粒度、写类 `taskId+rootQueueId+queueId+idempotency_key` 稳定重试与 done fencing 准入。任务证据保留 `taskId=cr-1783242659963-8fc955fb`,`rootQueueId=d1b5be32`,`queueId=8fc955fb`;任何字段进入 `.js` 消费前仍必须按 NR11/NR13 另配消费点和回归测试。 | 未完成 |  |  |
+| 设计对照 board/decisions.md:11 [x] 2026-07-03 **架构审视 C 类 5 项拍板(老板:"都按你推荐的方式来")** —— ①交接文件夹寄生 engine-runs/<任务>/(不建新树,pair 关系进 meta 字段);②指针化只在 prompt 层,队列判定层保全文(保住假完成拦截);③watchdog 降权首期只对 worker-heartbeat-stale 降为重拉单 worker,running-* 保留整机重启观察一期;④智谱额度熔断+指数退避,候选池全空=排队等恢复+升级告警,绝不静默;⑤特权维修员写路径白名单首版=工作区内 projects/控制台+shared+board+tests+templates,越界首期告警+事件(观察一期后升硬门),gate 侧以 git status 比对不信自报。执行顺序:④⑤③ 先行(小),①② 按报告阶段 1-3 分周落地。 | 未完成 |  |  |
+| 设计对照 memory/decisions.md:600 **断言仍红的「残余测试债」结案 = 假闭环,不计为已闭环**(2026-06-28,NR16,承接 [[NR13 治理决策必须有执行消费者]] 与 [[沉淀≠落地]]):起因——`mechanisms-smoke` 连续第 5 窗口红(06-24→06-28,`checkAutoOptimizer` 期望 disabled 得 enqueued),NR10/NR13 两度要求强制开工单却连续被架空;本窗发现唯一沾边工单 `board/repair-tickets/auto-20260623051327-…`:61 为 `status: done`,却把该失败断言记为「残余测试债/与本次无关」关单了事——断言至今仍红却已结案,比无工单更隐蔽(只看工单是否存在的检查会被这张 done 票骗过)。决策:任何 smoke/测试断言失败**不得**靠标注「残余债/不相关」就 `status: done`;daily 硬化复核检测到某断言**当前仍红**时,**必须把『仅有以残余债/不相关之名 done 的旧票』视同无有效工单(判红)**,强制新专项工单(读全量断言→定位→归因→复跑绿后方可结案)。验证:仍红断言的关联工单若全为 done 且无「复跑绿」证据→判红要求新票;mechanisms-smoke 专项断言「断言红 + 仅 auto-20260623051327(done,残余债)= 无有效工单」。原因:工单 status 声明「已解决」但运行时断言事实仍红=声明与事实不符,是 declared-but-not-honored 在结案标准侧的实例,也堵住「翻出/新建 done 票充数」的 NR13 旁路。监管只提级标注,不代为开单、不代修。 | 未完成 |  |  |
+| 设计对照 memory/decisions.md:680 **控制台 Skills 插件化接口标准先部分采纳为 v0 manifest 提案,未批前不得当运行规范执行**:现状 `secretary-tools.js`、`tools/`、`engine-runner.js` 分别代表同步 CLI/写队列管理动作、长任务工具脚本、异步有状态流程 worker,不能用单一同步契约抹平。提案要求每个可自动路由的 Skill manifest 至少声明 `manifest_version`、`contract_version`、`execution_mode(sync\|async\|stream)`、`state_model`、`input_schema`、`output_schema`、`redline_operations`、`idempotent`/`idempotency_key`、`timeout_ms`、`concurrency_domains`、统一错误 `{code,message,retryable,details}` 与 `legacy_policy`。红线枚举基线包括 `file_read/file_write/queue_mutation/process_spawn/network_request/secret_env_access/notification_send/gui_control/external_model_call/env_mutation/install_dependency/git_operation/destructive_delete/cross_project_write`,其中密钥不回显、登录/OAuth/扫码/2FA 交主人手动。样例映射已覆盖 `secretary-tools.js queue-organize`、`tools/serial-smoke-test.js`、`engine-runner review-loop`;建议以 CEO/主管批准日为 T,T+7 补 3 个试点 manifest,T+14 写类/高红线能力补齐,T+30 只读 legacy 补齐或从 hot 层隐藏。完整草案见 `projects/控制台/artifacts/architecture/skill-interface-contract-governance-20260629.md`。注意:按 NR11/NR13,任何字段进入运行时消费前必须另交 .js 消费点与回归测试,本条本身只是一条待批治理提案。 | 未完成 |  |  |
+| 设计对照 memory/decisions.md:1063 **架构审视 C 类 5 项按推荐方式执行**(2026-07-03,由 2026-07-04 监管复盘沉淀):交接文件夹寄生 `engine-runs/<任务>/`,pair 关系进 meta;指针化只在 prompt 层,队列判定层保全文;watchdog 降权首期只对 worker-heartbeat-stale 降为重拉单 worker,running-* 保留整机重启观察;智谱额度熔断+指数退避,候选池全空则排队等恢复并升级告警;特权维修员写路径白名单首版限定工作区内 `projects/控制台`、`shared`、`board`、`tests`、`templates`,越界先告警并记录事件,gate 侧以 git status 比对不信自报。 | 未完成 |  |  |
+| 设计对照 memory/decisions.md:1459 任务:读取 board/repair-tickets/auto-20260716150914-5bcb2faef11b92cd.md。按维修主管初查执行严重问题的最小机制修复：仅检查并修改 shared/engine/done-gate.js 与对应 tests/done-gate.test.js（如 hardening … | 未完成 |  |  |
+| 任务验收: 以 projects/控制台/tasks/元宵-飞书能力对齐与原生卡片闭环.md 的 7 条验收为准；每项须有实际文件、测试或真机/本地冒烟证据，主管硬复核后才可 done。 | 未完成 |  |  |
+| 视觉/UI证据: peekaboo截图路径 + Codex对照设计挑错报告 | 未完成 |  |  |
+
+### CEO 计划摘要
+{"orchestrator":{"projectId":"控制台","summary":"路线审定：归属控制台项目，由元宵项目主管组织移动端开发、玉兔6消息桥接后端和独立质量复审；范围仅限元宵及消息桥接相关文件，保留现有 API 与旧降级通道，完成真实代码、测试、本地 APK 和视觉证据闭环；push、外部发布及线上覆盖等待主人确认。","acceptance":[{"acceptance_id":"acc_8343860d415db97dc1f38e98","source_hash":"8343860d415db97dc1f38e98beffc8a7435a0755da3e15ff600a2713d61bb382","scope":"project/控制台","text":"能力矩阵逐项对照元宵与飞书现有能力，并为每项结论提供真实代码或可运行验证证据。"},{"acceptance_id":"acc_d07c40f7a38180d4f1fc5a86","source_hash":"d07c40f7a38180d4f1fc5a863474e717977d55b64cb4b51f5a6361a645f17e6d","scope":"project/控制台","text":"元宵移动端与玉兔6消息桥接存在可运行的真实代码改动，不以设计稿或完成自述代替实现。"},{"acceptance_id":"acc_b4ef786de1c9d64d92a6c1cb","source_hash":"b4ef786de1c9d64d92a6c1cb3d02b182b8f9ca68a6cefea3898446d1d9ada340","scope":"project/控制台","text":"元宵 App 能渲染原生一键决策卡。"},{"acceptance_id":"acc_9d9d19fb0c22c20ef66a1bec","source_hash":"9d9d19fb0c22c20ef66a1bec4f6ec3a19733fb65175e6789daba0820e6a2b681","scope":"project/控制台","text":"原生决策卡的一键操作能回传并更新对应任务的权威决策状态。"},{"acceptance_id":"acc_344722a80e92cbe3852b42ab","source_hash":"344722a80e92cbe3852b42abfbbe7cd854979fb9bdd8e62babbf98bd836e9e39","scope":"project/控制台","text":"元宵 App 能按权威任务状态渲染原生进度报告卡。"},{"acceptance_id":"acc_5ec5d5a5261fad4e378ab343","source_hash":"5ec5d5a5261fad4e378ab343a66b163b6e9f1a1a16b840d85d7a69eb5d3879a1","scope":"project/控制台","text":"元宵 App 能按权威失败状态渲染原生失败报告卡。"},{"acceptance_id":"acc_ac11cb5258c5df410025d442","source_hash":"ac11cb5258c5df410025d44216d2a0d3d4fde86f6b234d1a170bd4e7ed6d34f3","scope":"project/控制台","text":"元宵 App 能渲染包含当前处理责任方和处理状态的原生问题处理报告卡。"},{"acceptance_id":"acc_7e545bd226dcb6fc0b3caabb","source_hash":"7e545bd226dcb6fc0b3caabbd4f8dcb75a0f69f79a9ec24e9bbc098f92c7f4af","scope":"project/控制台","text":"相关报告卡能够打开与当前维修任务匹配的维修 HTML 报告。"},{"acceptance_id":"acc_f30dc2441a6c1a1ebe6cba76","source_hash":"f30dc2441a6c1a1ebe6cba76a460f105899ad484fc97484a1dd0ce988926e843","scope":"project/控制台","text":"同一决策回调被重复提交时只产生一次权威状态变更。"},{"acceptance_id":"acc_cbff0556b1dc875db3fe8664","source_hash":"cbff0556b1dc875db3fe8664d73ea1684742c249b3d59df0c57e0a5fa3c0ea5e","scope":"project/控制台","text":"网络中断或应用重启后，未完成的回调能够恢复并最终仅提交一次。"},{"acceptance_id":"acc_ad2f8c34f1dad4d7378ed1a1","source_hash":"ad2f8c34f1dad4d7378ed1a13662de506b2680517c25919f63f5eeb8ae410e74","scope":"project/控制台","text":"应用离线后重新启动能够恢复最近一次已确认的卡片与任务状态。"},{"acceptance_id":"acc_7c4364e81c14a4bca8d5a186","source_hash":"7c4364e81c14a4bca8d5a186fc941616826316027605366fd642c058c1b88c85","scope":"project/控制台","text":"原生卡片不受支持或桥接能力不可用时能够自动降级到兼容通道。"},{"acceptance_id":"acc_360064476cc7756f4873ac31","source_hash":"360064476cc7756f4873ac31cd926941b022f69d2e31ebfb598190daa7eef330","scope":"project/控制台","text":"现有旧降级通道保持可调用且未被删除。"},{"acceptance_id":"acc_2225b0e3ee956d0a7ee93f1b","source_hash":"2225b0e3ee956d0a7ee93f1b3a3825cf72c73c0348c8416b68cc2f3279e97b2d","scope":"project/控制台","text":"现有玉兔6消息桥接 API 的兼容性回归测试通过。"},{"acceptance_id":"acc_163a7373dc690a8210f54a07","source_hash":"163a7373dc690a8210f54a072b49134ddc856e42c796b9a0374ac9bdf9724fe1","scope":"project/控制台",
+
+## CEO 派单 2026-07-22T10:25:13.124Z
+- projectId:控制台
+- taskId:cr-1784715587042-graph-engineering-ge01-shadow-compiler
+- queue:ceo / graph-engineering-ge01-shadow-compiler
+- 目标:执行 projects/控制台/tasks/GE-01-Graph-Manifest与影子编译器.md。以 docs/设计/玉兔6-Graph-Engineering-演进架构.md 为唯一演进基线，由 CEO 交控制台主管组织后端程序员与质量/架构复审；只完成 yutu-graph@1 最小合同、零依赖 validator/compiler、review-loop 编译、真实 project-route 离线/影子投影、等价性与性能测试。不得直接进入 GE-02，不得改变生产执行语义。
+董事会第 1 轮整合修订:
+- 风险/偏差: DeepSeek 董事: 任务指令要求‘零依赖 validator/compiler’，但演进基线文档中未明确定义‘零依赖’的边界——是否排除标准库、是否允许 Go 标准库的 regexp/encoding/json 等。若解释为‘无第三方依赖’，则当前方案可行；若解释为‘无任何外部包（含标准库）’，则 validator 和 compiler 无法实现。需在任务开始前明确此边界，否则后续验收可能产生争议。
+- 风险/偏差: DeepSeek 董事: ‘review-loop 编译’要求编译器在收到评审反馈后能增量重编，但任务未定义 review-loop 的触发机制和状态机。若 review-loop 依赖外部 agent 或人工 gate，则当前‘零依赖’和‘离线/影子投影’约束下无法实现闭环。需明确 review-loop 是纯内存循环还是依赖文件系统轮询。
+- 风险/偏差: DeepSeek 董事: ‘等价性与性能测试’未指定基线版本和性能阈值。若没有明确的性能退化容忍度（如 p50/p99 延迟增加不超过 5%），测试结果可能被主观判定为‘通过’或‘失败’，导致后续 GE-02 阶段无法复现基线。
+- 风险/偏差: DeepSeek 董事: ‘真实 project-route 离线/影子投影’要求影子数据与生产路由隔离，但未定义影子数据的生命周期和清理策略。若影子投影产生持久化文件或状态，可能污染后续测试或生产环境。
+- 风险/偏差: GLM-5.2 董事: 等价性测试的参考基准（实时生产输出 vs 固定 golden fixture）未在任务摘要中锁定，若基准为实时生产输出，生产语义漂移会让等价性结论不可复现
+- 风险/偏差: GLM-5.2 董事: 影子投影对真实 project-route 的写隔离未显式声明，任务边界只说不改生产执行语义，但未要求影子路径写屏障或只读快照断言
+- 风险/偏差: GLM-5.2 董事: review-loop 编译的终止性与资源上界（迭代上限/超时/内存预算）未声明，异常 manifest 可能导致非终止或资源膨胀
+- 风险/偏差: GLM-5.2 董事: 影子模式性能测试结论不可外推到生产吞吐，若验收结论被用于 GE-02 决策会产生误导性架构记忆
+- 修订建议: DeepSeek 董事: 在任务开始前，由 CEO 或架构师在演进基线文档中明确‘零依赖’的具体范围（例如：允许 Go 标准库，禁止第三方 module），并记录在任务说明中。
+- 修订建议: DeepSeek 董事: 定义 review-loop 的最小可行触发方式：建议采用文件系统 inotify 或简单轮询（每 500ms 扫描输入目录），并在任务文档中注明‘不依赖外部 agent 或人工 gate’。
+- 修订建议: DeepSeek 董事: 在测试计划中明确性能基线：使用当前生产环境的 graph 编译耗时作为基准，设定 p50 退化不超过 5%、p99 不超过 10% 的阈值，并记录在测试报告中。
+- 修订建议: DeepSeek 董事: 为影子投影数据指定临时目录（如 /tmp/yutu-shadow-*），并在编译完成后自动清理；若需保留日志，应输出到独立目录并标记时间戳。
+- 修订建议: GLM-5.2 董事: 执行前在任务文件中明确等价性基准为固定 golden fixture 或带版本戳的生产快照，并记录基准指纹以便复现
+- 修订建议: GLM-5.2 董事: 在影子投影路径加入写屏障断言：所有写出落点必须在隔离命名空间，并在验收中加一条只读校验
+- 修订建议: GLM-5.2 董事: 为 review-loop 编译设定迭代上限与超时，并在异常 manifest 上加终止性测试用例
+- 修订建议: GLM-5.2 董事: 性能测试结论显式标注为影子基准，禁止外推到生产吞吐，并在状态记录中沉淀此限制
+- 边界:只处理 Graph Engineering GE-01 影子阶段；不引外部运行时或 Node 依赖；不改生产队列/调度/runner/done gate/human gate/UI；不新增全局 gate；不回显密钥；不 push、不发布。
+- 验收:结构化验收表(执行 agent 必须逐行填; done gate 只认表,留空/无证据/证据对不上=打回)
+验收表协议: structured-acceptance@2
+模板: templates/structured-acceptance-table.md
+| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |
+|---|---|---|---|
+| 任务验收: 严格按 projects/控制台/tasks/GE-01-Graph-Manifest与影子编译器.md 的 7 条验收 | 未完成 |  |  |
+| 任务验收: 真实文件、测试退出码、shadow artifact、性能数据和回退方法齐全后，主管硬复核才可 done。 | 未完成 |  |  |
+| 视觉/UI证据: not_applicable | not_applicable | task-envelope:visual_acceptance | source=task_type; no positive visual requirement after explicit/human-gate/path/task-type evaluation |
+
+### CEO 计划摘要
+{"orchestrator":{"projectId":"控制台","summary":"归属控制台项目。范围仅限以《玉兔6-Graph-Engineering-演进架构》为唯一基线完成 GE-01 影子阶段，由控制台主管组织后端实现及质量/架构复审；不进入 GE-02，不改变任何生产执行语义。","acceptance":[{"acceptance_id":"acc_1f21e7a20647e7b3f40e4d2f","source_hash":"1f21e7a20647e7b3f40e4d2fc37dd76d2d83b9f92c4cc137d311bdce586f5072","scope":"project/控制台","text":"yutu-graph@1 最小合同已固定版本并可独立复现。"},{"acceptance_id":"acc_0e65ee24631c379ddce7fb15","source_hash":"0e65ee24631c379ddce7fb150bc2d91c20ba9b3b89891aa8f2d085ad471afab7","scope":"project/控制台","text":"零依赖边界已明确为允许语言标准库、禁止第三方模块及外部运行时或 Node 依赖。"},{"acceptance_id":"acc_1bad7dbc3cad0b780c345af2","source_hash":"1bad7dbc3cad0b780c345af2ff0c7df4e9c3a1c5603d933db2a24ffa3b418716","scope":"project/控制台","text":"validator 对合同内合法 fixture 验证通过。"},{"acceptance_id":"acc_df90e9a3e7f99e3e833c7cb1","source_hash":"df90e9a3e7f99e3e833c7cb1dd9b00c602fb2549148bee4ec9a6fbae4c5521b2","scope":"project/控制台","text":"validator 对合同内非法 fixture 给出确定性拒绝结果。"},{"acceptance_id":"acc_8122796622239075564cbefb","source_hash":"8122796622239075564cbefb467a467c7f97d6d602bb1c4c1d0fca89cb360dd5","scope":"project/控制台","text":"compiler 对同一合法输入生成确定且可复现的编译结果。"},{"acceptance_id":"acc_893bbf256d37dbb54b05c8a1","source_hash":"893bbf256d37dbb54b05c8a1baf7f5fe8cc33f4c7c48c5188f7f415cee34da02","scope":"project/控制台","text":"validator 与 compiler 均满足已锁定的零依赖边界。"},{"acceptance_id":"acc_cdb19b04da9959ef079ff0f8","source_hash":"cdb19b04da9959ef079ff0f8af79a72f098168bb8108899d2a63d76289827e4a","scope":"project/控制台","text":"review-loop 已定义可复现的本地离线触发合同。"},{"acceptance_id":"acc_124b3d905c2161103c06d2ee","source_hash":"124b3d905c2161103c06d2eeff91ab1d1f562aec05c8cd9730cb2b48c1def9bd","scope":"project/控制台","text":"review-loop 编译不依赖外部 agent 或人工 gate。"},{"acceptance_id":"acc_ea04652e45edc109dc87efe7","source_hash":"ea04652e45edc109dc87efe7dad2cf875d92b5d7cccea56f23c986213b87bda0","scope":"project/控制台","text":"review-loop 对评审变更能够生成确定性的重编译结果。"},{"acceptance_id":"acc_c051e8d76b922b2bcaf49a60","source_hash":"c051e8d76b922b2bcaf49a60267ced8290675df7d34bbc8f890b37b730d3cc26","scope":"project/控制台","text":"review-loop 已实施明确的最大迭代次数限制。"},{"acceptance_id":"acc_87d7930b6ee130721a911a3b","source_hash":"87d7930b6ee130721a911a3ba2571eaaf211449fe4ef4995f00a9e39f5e07842","scope":"project/控制台","text":"review-loop 已实施明确的超时限制。"},{"acceptance_id":"acc_3a63aba3098fed88f0279d2c","source_hash":"3a63aba3098fed88f0279d2c4817ae836bc67474af36520ebc52cbe3734185aa","scope":"project/控制台","text":"review-loop 已声明并验证内存资源上界。"},{"acceptance_id":"acc_fa354bb2df20a14ffa6dd99b","source_hash":"fa354bb2df20a14ffa6dd99b45a6dc7d986054cc6e08298f48f98c1daf25d64c","scope":"project/控制台","text":"异常 manifest 能在既定资源上界内终止并返回确定性失败结果。"},{"acceptance_id":"acc_1a9edb2e53d69ea1d0f91901","source_hash":"1a9edb2e53d69ea1d0f919011b474516bb556240388bda34dc1ac0d04e2ed993","scope":"project/控制台","text":"真实 project-route 的离线与影子投影基于带版本戳的只读快照完成。"},{"acceptance_id":"acc_46bfca294ac27a3c76251cdf","source_hash":"46bfca294ac27a3c76251cdf6396f1d0e2fa5966422852317fd11b310a9b2087

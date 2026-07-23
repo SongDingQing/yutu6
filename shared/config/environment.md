@@ -2,7 +2,7 @@
 
 > 跨机路径 / 端口 / 运行器 / 密钥位置 / 备份去处的**唯一权威**。非密——**密钥真值不在此、不进 git**,这里只记"在哪、归谁、什么用途"。
 > 机器可读子集见同目录 `machine.json`;SSH/Git 远程细节见 `ssh-and-remotes.md`。
-> 更新:2026-06-18。
+> 更新:2026-07-20。
 
 ## 1. 机器身份
 | 代号 | 用户名 | 家目录 | 角色 |
@@ -27,14 +27,17 @@
 ## 3. 端口 / 服务
 | 服务 | 端口/标识 | 说明 |
 |---|---|---|
-| 本地 Web 控制台 | `41218`(127.0.0.1 + ::1) | `projects/控制台/`;launchd `com.yutu6.console` |
-| Hermes gateway | (未起) | 接飞书后启;LaunchAgent 未装 |
+| 统一启动协调器 | `com.yutu6.startup` | 登录即运行 + 每 600 秒补启动；入口 `start-all.sh` |
+| 本地 Web 控制台 | `41218` + 兼容入口 `8799` | `projects/控制台/`;launchd `com.yutu6.console` |
+| 模型池 | `127.0.0.1:3000` | OrbStack + `yutu6-new-api` / `yutu6-zhipu-coding-proxy` |
+| Hermes gateway | `127.0.0.1:8642` | launchd `ai.hermes.gateway`;飞书 + 本地 API 已接通 |
+| Hermes 语音监听 | `com.yutu.hermes.voicewake` | 本地麦克风唤醒；统一启动器纳管 |
+| 元宵同步 | `decision-pull` / `tasks-push` | launchd 每 90 秒 / 300 秒运行 |
 
 ## 4. 运行器 / CLI(前门与执行)
 | runner | 命令 | 角色 | 状态 |
 |---|---|---|---|
-| Codex | `codex` | **前门总管 + 本地工程执行**;日常对接、补齐指令稿、核心写码与维修均由 Codex 接管 | v0.140.0 已登录 |
-| Claude Code | `claude` | 已停用兼容项;不作为自动路由、前门或主管路径 | 订阅可能过期,不得依赖 |
+| Codex | `codex --model gpt-5.6-sol` | **前门秘书 + CEO/主管 + 本地工程执行 + 维修部门** | v0.144.1 已登录 |
 | Hermes | `hermes` | 语音入口;LLM=**MiniMax-M3**;**飞书已接通**(websocket 长连接) | gateway running(launchd ai.hermes.gateway);私聊闭环已验证 |
 | **Peekaboo** | `peekaboo agent` | **GUI/桌面控制 runner**(手和眼):截屏 + 读 a11y 树 + click/type/scroll/menu/window;CLI + MCP | 已 brew 装;待授 Screen Recording + Accessibility 权限 |
 | 本地模型 | (另一台电脑端点) | embedding / 本地 LLM;**不在 mini 上装 Ollama** | 待该机就绪 |

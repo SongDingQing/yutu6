@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-06-19",
+  "updated_at": "2026-07-20",
   "note": "玉兔6 新机能力注册表。源自旧机 ~/.codex/modules/registry.json + multi-agent agent-manifest.json,repath 到新机并加迁移状态。",
   "policy_2026_06_18": "项目技能与项目模块不再批量拷;改为【按需拉】(pull_on_demand)——做到对应项目时再从旧机/备份取该项目相关技能。全局只维护本模块索引、环境配置与补齐指令稿。",
   "old_machine_root": "/Users/yutu/.codex/modules",
@@ -76,7 +76,7 @@
       "id": "instruction-expansion-router",
       "status": "rebuilt_in_workspace",
       "path": "shared/capability_registry/modules/instruction-expansion-router",
-      "summary": "前门指令补齐路由器(新机重建);把口语/简略/截图/跨项目指令补成完整 task 信封。只绑前门秘书 Claude Code CLI(2026-07-03 接管,原 Codex),内部 agent 不挂。",
+      "summary": "前门指令补齐路由器(新机重建);把口语/简略/截图/跨项目指令补成完整 task 信封。只绑前门秘书 Codex/GPT-5.6-Sol,内部 agent 不挂。",
       "keywords": [
         "指令补齐",
         "instruction expansion",
@@ -88,7 +88,8 @@
         "router",
         "总管",
         "task 信封",
-        "Claude Code"
+        "Codex",
+        "GPT-5.6-Sol"
       ]
     },
     {
@@ -107,6 +108,59 @@
         "owner decision",
         "auto execute",
         "critique ledger"
+      ]
+    },
+    {
+      "id": "yutu6-unified-startup",
+      "status": "present_in_workspace",
+      "path": "shared/capability_registry/modules/yutu6-unified-startup",
+      "summary": "玉兔6控制台、模型池、Hermes、元宵同步和低成本维护的统一登录启动与健康核对。",
+      "keywords": [
+        "统一启动",
+        "开机启动",
+        "设备重启",
+        "launchd",
+        "LaunchAgent",
+        "OrbStack",
+        "new-api",
+        "Hermes",
+        "控制台"
+      ]
+    },
+    {
+      "id": "agent-platform-orchestration",
+      "status": "present_in_workspace",
+      "path": "shared/capability_registry/modules/agent-platform-orchestration",
+      "summary": "玉兔6原生模型池与 Nexent 等外部智能体平台的统一目录、按需启动、健康检查和 A2A 调用能力。",
+      "keywords": [
+        "Nexent",
+        "A2A",
+        "Agent Card",
+        "智能体平台",
+        "模型池",
+        "外部智能体",
+        "ModelEngine-Group",
+        "OpenAI compatible",
+        "平台启动",
+        "agent orchestration"
+      ]
+    },
+    {
+      "id": "yutu6-model-fabric",
+      "status": "active_canary",
+      "path": "shared/capability_registry/modules/yutu6-model-fabric",
+      "summary": "玉兔6统一模型与智能体中枢：OpenAI 兼容入口、模型路由、健康熔断、脱敏计量、Agent/能力目录与 A2A 发布。",
+      "keywords": [
+        "模型池",
+        "模型网关",
+        "Model Fabric",
+        "智能体中枢",
+        "OpenAI compatible",
+        "A2A",
+        "Agent Card",
+        "故障转移",
+        "new-api replacement",
+        "Nexent"
       ]
     },
     {

@@ -33,13 +33,13 @@ async function main() {
     fs.writeFileSync(configFile, JSON.stringify({ boardReviewControl: { enabled: true, maxRounds: 1, reason: 'test-enabled' } }, null, 2));
     assert.strictEqual(BoardReview.MAX_ROUNDS, 1);
     assert.strictEqual(BoardReview._test.boardReviewMaxRounds(), 1);
-    assert.deepStrictEqual(BoardReview.DIRECTORS.map(d => d.id), ['board_deepseek', 'board_glm52', 'board_claude', 'board_opus48']);
+    assert.deepStrictEqual(BoardReview.DIRECTORS.map(d => d.id), ['board_deepseek', 'board_glm52', 'board_kimi', 'board_opus48']);
     assert(BoardReview.DIRECTORS.find(d => d.id === 'board_deepseek' && d.runner === 'deepseek-board-direct'), 'DeepSeek 董事须使用不依赖 Docker 的专用直连');
     assert(BoardReview.DIRECTORS.find(d => d.id === 'board_glm52' && d.runner === 'zhipu-board-direct'), 'GLM 董事须使用 Coding Plan 专用直连');
-	    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_claude' && d.runner === 'claude-fable-5' && d.model.includes('Claude Fable 5') && !d.final), 'Claude Fable 5 董事须在席且不占最终裁决位');
-    assert.strictEqual(BoardReview.DIRECTORS.filter(d => d.runner === 'codex').length, 1, '董事会不能同时有两个 Codex/GPT-5.5 席位');
-    assert(!BoardReview.DIRECTORS.some(d => d.id === 'board_kimi'), 'Kimi 董事已暂停,不得进入活跃董事会');
-    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_opus48' && d.final), 'Codex/GPT-5.5 必须保留最终裁决席位');
+    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_kimi' && d.runner === 'kimi-k2'), 'Kimi K3 董事须使用 Coding Plan 专用直连');
+    assert(!BoardReview.DIRECTORS.some(d => d.id === 'board_claude' || /^claude/.test(d.runner)), '过期 Claude 董事不得进入活跃董事会');
+    assert.strictEqual(BoardReview.DIRECTORS.filter(d => d.runner === 'codex').length, 1, '董事会只能有一个 Codex/GPT-5.6-Sol 席位');
+    assert(BoardReview.DIRECTORS.find(d => d.id === 'board_opus48' && d.final), 'Codex/GPT-5.6-Sol 必须保留最终裁决席位');
     const productionConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../projects/控制台/config.json'), 'utf8'));
     const canonicalVault = '/Users/yutu6/.config/yutu6-secrets/secrets.env';
     assert.strictEqual(
@@ -52,6 +52,10 @@ async function main() {
       canonicalVault,
       'GLM 董事必须直接读取统一保险库，不能依赖项目运行副本',
     );
+    assert.strictEqual(productionConfig.runners['kimi-k2'].model, 'k3', 'Kimi 董事必须使用当前 K3 模型');
+    assert.strictEqual(productionConfig.runners['kimi-k2'].baseUrl, 'https://api.kimi.com/coding/v1', 'Kimi 董事必须使用 Coding Plan 专属端点');
+    assert.strictEqual(productionConfig.runners['kimi-k2'].tokenKey, 'KIMI_API_KEY', 'Kimi 董事必须读取 KIMI_API_KEY');
+    assert.strictEqual(productionConfig.runners['kimi-k2'].temperature, 1, 'Kimi K3 当前接口要求 temperature=1');
     // 2026-07-03 架构审视 A-5:董事会修订压缩前必须剥离秘书背景包,保住老板任务正文。
     const packOldFormat = '秘书补全稿:\n\n[秘书后台背景包]\n' + '背景行\n'.repeat(800) + '\n目标:修复任务板启用按钮\n项目:控制台';
     const strippedOld = BoardReview._test.stripSecretaryContextPack(packOldFormat);
@@ -74,10 +78,9 @@ async function main() {
     const majorityIntegration = BoardReview._test.integrateRound('goal', [
       absentOpinion,
       Object.assign({}, absentOpinion, { director: 'absent-2' }),
-      Object.assign({}, absentOpinion, { director: 'absent-3' }),
       { absent: false, failed: false, risk_level: 'low', can_execute: true, issues: [], suggestions: [] },
     ], 1, 1);
-    assert.strictEqual(majorityIntegration.absenceMajority, true, '3/4 缺席必须触发法定席位门禁');
+    assert.strictEqual(majorityIntegration.absenceMajority, true, '2/3 缺席必须触发法定席位门禁');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('Invalid Authentication').kind, 'auth');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('预扣费额度失败, 用户剩余额度不足').kind, 'quota');
     assert.strictEqual(BoardReview._test.classifyRunnerHealthFailure('该模型当前访问量过大，请您稍后再试').kind, 'busy');
@@ -159,7 +162,7 @@ async function main() {
 
     // ── 拍板 Q11 分级评审:tier 判定单元测试 ──
     assert.strictEqual(BoardReview._test.boardTieredEnabled(), true, '分级评审默认开');
-    const NON_FINAL_IDS = ['board_deepseek', 'board_glm52', 'board_claude'];
+    const NON_FINAL_IDS = ['board_deepseek', 'board_glm52', 'board_kimi'];
     const tierQueue = BoardReview._test.reviewTierFor({
       spec: {},
       assessment: BoardReview.assessTask('改队列引擎的 claim/lease 机制'),
@@ -180,7 +183,7 @@ async function main() {
     assert.strictEqual(tierLight.tier, 'light', '普通架构任务走轻量席');
     assert.strictEqual(tierLight.directors.length, 2, '轻量=轮值+终审 2 席');
     assert(tierLight.directors.some(d => d.id === 'board_opus48' && d.final), '终审席必须保留');
-    assert(NON_FINAL_IDS.includes(tierLight.directors.find(d => !d.final).id), '轮值席必须来自非终审三席');
+    assert(NON_FINAL_IDS.includes(tierLight.directors.find(d => !d.final).id), '轮值席必须来自非终审席');
     // 同一任务 id 轮值确定性
     const rotA = BoardReview._test.rotatingDirectorFor('tier-light');
     const rotB = BoardReview._test.rotatingDirectorFor('tier-light');
@@ -216,7 +219,7 @@ async function main() {
         originalGoal: '落地董事会设计方案。',
       },
       projectId: '控制台',
-      planText: 'CEO brief: 建4个活跃董事agent并接入秘书钩子。',
+      planText: 'CEO brief: 建3个活跃董事agent并接入秘书钩子。',
       assessment,
       artifactsRoot,
       memoryFile,
@@ -244,7 +247,7 @@ async function main() {
     assert.strictEqual(approved.maxRounds, 1);
     assert.strictEqual(approved.tier, 'full', '引擎/队列/路由高危任务分级=full');
     assert.strictEqual(approveCalls.length, 4, '高危任务(engine/queue/routing)必须 4 席全体出动');
-    assert(!approveCalls.some(call => call.role === 'board_kimi'));
+    assert(approveCalls.some(call => call.role === 'board_kimi'));
     assert(approveCalls.some(call => call.role === 'board_opus48'));
     assert(fs.readFileSync(memoryFile, 'utf8').includes('董事会评议'));
     const okEvents = readEvents(okEventsFile);
@@ -252,7 +255,7 @@ async function main() {
     assert(okEvents.some(ev => ev.type === 'board.review.approved' && ev.maxRounds === 1));
     const okRequired = okEvents.find(ev => ev.type === 'board.review.required');
     assert.strictEqual(okRequired.tier, 'full', 'required 事件必须带 tier');
-    assert.deepStrictEqual(okRequired.directors, ['board_deepseek', 'board_glm52', 'board_claude', 'board_opus48'], 'required 事件必须带派席名单');
+    assert.deepStrictEqual(okRequired.directors, ['board_deepseek', 'board_glm52', 'board_kimi', 'board_opus48'], 'required 事件必须带派席名单');
     assert(okEvents.some(ev => ev.type === 'board.review.round.start' && ev.tier === 'full' && ev.directorCount === 4));
     assert(okEvents.some(ev => ev.type === 'board.review.approved' && ev.tier === 'full' && Array.isArray(ev.directors) && ev.directors.length === 4));
 
@@ -452,7 +455,7 @@ async function main() {
         originalGoal: '董事会并行评审测试。',
       },
       projectId: '控制台',
-      planText: 'CEO brief: 验证三董事并行。',
+      planText: 'CEO brief: 验证四董事并行。',
       assessment: BoardReview.assessTask('重构队列引擎并修复并发竞态。'),
       artifactsRoot,
       memoryFile,
@@ -622,13 +625,13 @@ async function main() {
     assert.strictEqual(lightCalls.length, 2, '普通架构任务只派 2 席(轮值+终审)');
     assert(lightCalls.some(call => call.role === 'board_opus48'), '终审席必须在场');
     const lightRotatingRole = lightCalls.find(call => call.role !== 'board_opus48').role;
-    assert(['board_deepseek', 'board_glm52', 'board_claude'].includes(lightRotatingRole), '轮值席必须来自非终审三席');
+    assert(['board_deepseek', 'board_glm52', 'board_kimi'].includes(lightRotatingRole), '轮值席必须来自非终审席');
     assert.strictEqual(lightRotatingRole, BoardReview._test.rotatingDirectorFor('board-light').id, '轮值席按任务 id 哈希确定');
     assert.deepStrictEqual(light.directors, [lightRotatingRole, 'board_opus48'], '结果必须带派席名单');
     const lightSettlement = JSON.parse(fs.readFileSync(BoardReview._test.settlementFileFor(artifactsRoot, 'board-light', 1), 'utf8'));
     assert.strictEqual(lightSettlement.expectedDirectors, 2, 'settle 期望席数必须按实际派席=2');
     assert.strictEqual(lightSettlement.submittedCount, 2);
-    assert.strictEqual(lightSettlement.status, 'all_submitted', '2 席交齐即结算,不得等 4 席死锁');
+    assert.strictEqual(lightSettlement.status, 'all_submitted', '2 席交齐即结算,不得等待未派席位死锁');
     const lightEvents = readEvents(lightEventsFile);
     const lightRequired = lightEvents.find(ev => ev.type === 'board.review.required');
     assert.strictEqual(lightRequired.tier, 'light');

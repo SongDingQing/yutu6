@@ -1,0 +1,21 @@
+{
+  "id": "yutu6-unified-startup",
+  "version": "1.0.0",
+  "status": "active",
+  "summary": "玉兔6控制台、模型池、Hermes、元宵同步和低成本维护的统一登录启动与健康核对。",
+  "keywords": [
+    "统一启动",
+    "开机启动",
+    "设备重启",
+    "launchd",
+    "LaunchAgent",
+    "OrbStack",
+    "new-api",
+    "Hermes",
+    "控制台"
+  ],
+  "read_order": [
+    "INDEX.md",
+    "operations.md"
+  ]
+}

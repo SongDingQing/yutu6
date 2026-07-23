@@ -1,51 +1,45 @@
-import { AppHeader } from './components/AppHeader';
-import { OperationalOverview } from './components/OperationalOverview';
-import { TaskBoard } from './components/TaskBoard';
-import { TaskComposer } from './components/TaskComposer';
-import { useWorkspaceData } from './hooks/useWorkspaceData';
+import { lazy } from 'react';
+import { ModuleBoundary } from './app/ModuleBoundary';
+import { WorkspaceShell } from './app/WorkspaceShell';
+import { WorkspaceHome } from './features/workspace/WorkspaceHome';
+
+const WorkspaceViews = lazy(() => import('./features/views/WorkspaceViews'));
+const ControlRoomView = lazy(() => import('./features/control-room/ControlRoomView'));
+const GatewayView = lazy(() => import('./features/gateway/GatewayView'));
+const SettingsRoute = lazy(() => import('./features/settings/SettingsRoute'));
+
+const HEAVY_VIEWS = new Set(['office', 'building', 'desks', 'flow', 'usage', 'settings']);
 
 export default function App() {
-  const {
-    core,
-    bulletin,
-    error,
-    refreshing,
-    lastUpdated,
-    refreshAll,
-    refreshCore,
-    refreshBulletin,
-  } = useWorkspaceData();
+  const pathView = window.location.pathname === '/control-room'
+    ? 'control-room'
+    : window.location.pathname === '/api-gateway'
+      ? 'gateway'
+      : '';
+  const requestedView = new URLSearchParams(window.location.search).get('view') || '';
+  const view = pathView || (HEAVY_VIEWS.has(requestedView) ? requestedView : '');
 
   return (
-    <div className="workspace-app">
-      <AppHeader
-        version={core?.version.version}
-        updatedAt={lastUpdated}
-        refreshing={refreshing}
-        onRefresh={() => void refreshAll()}
-      />
-      {error ? <div className="error-banner" role="alert">{error}</div> : null}
-      {core ? (
-        <main className="workspace-main">
-          <OperationalOverview core={core} />
-          <TaskBoard
-            core={core}
-            bulletin={bulletin}
-            onRefresh={refreshCore}
-            onRefreshBulletin={refreshBulletin}
-          />
-        </main>
-      ) : <LoadingWorkspace />}
-      <TaskComposer roles={core?.runners.roles || {}} onSent={() => refreshCore(true)} />
-    </div>
-  );
-}
-
-function LoadingWorkspace() {
-  return (
-    <main className="loading-shell" aria-label="正在载入工作区">
-      <div className="loading-pane"><div className="loading-line" /><div className="loading-line" /><div className="loading-line" /></div>
-      <div className="loading-pane"><div className="loading-line" /><div className="loading-line" /></div>
-    </main>
+    <WorkspaceShell activeView={view}>
+      {(workspace) => view === 'control-room' ? (
+        <ModuleBoundary name="控制室">
+          <ControlRoomView workspace={workspace} />
+        </ModuleBoundary>
+      ) : view === 'gateway' ? (
+        <ModuleBoundary name="模型池">
+          <GatewayView workspace={workspace} />
+        </ModuleBoundary>
+      ) : view === 'settings' ? (
+        <ModuleBoundary name="设置中心">
+          <SettingsRoute />
+        </ModuleBoundary>
+      ) : view ? (
+        <ModuleBoundary name={`${view} 视图`}>
+          <WorkspaceViews view={view} workspace={workspace} />
+        </ModuleBoundary>
+      ) : (
+        <WorkspaceHome workspace={workspace} />
+      )}
+    </WorkspaceShell>
   );
 }

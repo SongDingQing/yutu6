@@ -1,0 +1,8 @@
+{
+  "schema": "engine-task-evidence@1",
+  "task_id": "fixture-onboarding-control-task",
+  "project_id": "控制台",
+  "assigned_agents": ["supervisor-控制台", "worker_code", "repair-lead"],
+  "goal": "控制台 backend delivery with recorded completion evidence",
+  "status": "done"
+}

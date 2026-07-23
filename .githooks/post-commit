@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -u
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+SCRIPT="$ROOT/security/git-auto-push.sh"
+[ -x "$SCRIPT" ] || exit 0
+"$SCRIPT"

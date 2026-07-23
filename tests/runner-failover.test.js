@@ -18,9 +18,9 @@ const QuotaDegrade = require('../projects/控制台/quota-degrade');
 function testTokenMap() {
   assert.strictEqual(Failover.preferTokenToRunnerId('subscription.codex'), 'codex');
   assert.strictEqual(Failover.preferTokenToRunnerId('api.zhipu.glm-5.2'), 'zhipu-glm');
-  assert.strictEqual(Failover.preferTokenToRunnerId('subscription.claude.sonnet'), 'claude', 'Claude subscription routes to claude runner (2026-07-03 复活)');
+  assert.strictEqual(Failover.preferTokenToRunnerId('subscription.claude.sonnet'), null, 'expired Claude subscription must not resolve to a runner');
   assert.strictEqual(Failover.preferTokenToRunnerId('api.deepseek.deepseek-chat'), 'new-api');
-  assert.strictEqual(Failover.preferTokenToRunnerId('api.kimi.kimi-k2.7-code'), 'kimi-k2');
+  assert.strictEqual(Failover.preferTokenToRunnerId('api.kimi.k3'), 'kimi-k2');
   assert.strictEqual(Failover.preferTokenToRunnerId('api.openai.gpt-5'), null, 'openai 无独立 runner → null');
   assert.strictEqual(Failover.preferTokenToRunnerId('local.ollama.qwen2.5'), null, 'ollama 无 runner → null');
   assert.strictEqual(Failover.preferTokenToRunnerId('garbage'), null);

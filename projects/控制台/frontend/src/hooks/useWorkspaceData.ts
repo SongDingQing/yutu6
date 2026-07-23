@@ -1,79 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchBulletin, fetchWorkspaceCore } from '../lib/api';
-import type { BulletinCard, WorkspaceCoreSnapshot } from '../types';
+import { useEffect, useSyncExternalStore } from 'react';
+import { workspaceStore } from '../store/workspaceStore';
+
+const refreshAll = () => workspaceStore.refresh(true);
+const refreshCore = () => workspaceStore.refresh();
+const refreshBulletin = () => workspaceStore.refreshBulletin();
 
 export function useWorkspaceData() {
-  const [core, setCore] = useState<WorkspaceCoreSnapshot | null>(null);
-  const [bulletin, setBulletin] = useState<BulletinCard[]>([]);
-  const [error, setError] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const coreInFlight = useRef(false);
-  const bulletinInFlight = useRef(false);
+  const state = useSyncExternalStore(
+    workspaceStore.subscribe,
+    workspaceStore.getSnapshot,
+    workspaceStore.getSnapshot,
+  );
 
-  const refreshCore = useCallback(async (showBusy = false) => {
-    if (coreInFlight.current) return;
-    coreInFlight.current = true;
-    if (showBusy) setRefreshing(true);
-    try {
-      const next = await fetchWorkspaceCore();
-      setCore(next);
-      setError('');
-      setLastUpdated(new Date());
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : '工作区数据不可用');
-    } finally {
-      coreInFlight.current = false;
-      if (showBusy) setRefreshing(false);
-    }
-  }, []);
+  useEffect(() => workspaceStore.start(), []);
 
-  const refreshBulletin = useCallback(async () => {
-    if (bulletinInFlight.current) return;
-    bulletinInFlight.current = true;
-    try {
-      const next = await fetchBulletin();
-      setBulletin(next.cards || []);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : '待办公告板不可用');
-    } finally {
-      bulletinInFlight.current = false;
-    }
-  }, []);
-
-  const refreshAll = useCallback(async () => {
-    await Promise.all([refreshCore(true), refreshBulletin()]);
-  }, [refreshBulletin, refreshCore]);
-
-  useEffect(() => {
-    void refreshCore(true);
-    void refreshBulletin();
-    const coreTimer = window.setInterval(() => {
-      if (!document.hidden) void refreshCore(false);
-    }, 2500);
-    const bulletinTimer = window.setInterval(() => {
-      if (!document.hidden) void refreshBulletin();
-    }, 10000);
-    const onVisibility = () => {
-      if (!document.hidden) {
-        void refreshCore(false);
-        void refreshBulletin();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      window.clearInterval(coreTimer);
-      window.clearInterval(bulletinTimer);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [refreshBulletin, refreshCore]);
+  const issueText = state.core
+    ? Object.values(state.core.issues).map(issue => issue?.message || '').filter(Boolean)
+    : [];
+  const error = [...issueText, state.error, state.warning].filter(Boolean).join('；');
 
   return {
-    core,
-    bulletin,
+    core: state.core,
+    bulletin: state.bulletin,
     error,
-    refreshing,
-    lastUpdated,
+    refreshing: state.connection === 'connecting' || state.connection === 'resyncing',
+    connection: state.connection,
+    lastUpdated: state.lastUpdated,
     refreshAll,
     refreshCore,
     refreshBulletin,

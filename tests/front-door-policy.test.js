@@ -18,7 +18,8 @@ function main() {
   assert.strictEqual(policy.defaultIntakeRole, 'secretary', 'default intake role must be secretary');
   assert.deepStrictEqual(policy.normalTaskRoute.slice(0, 3), ['chairman', 'secretary', 'ceo'], 'normal tasks must route chairman -> secretary -> ceo');
   assert(policy.repairTaskRoute.includes('repair-lead'), 'repair tasks must route to repair-lead');
-  assert.strictEqual(config.roleRouting.secretary.runner, 'claude', 'secretary front door runs on Claude Code (2026-07-03 owner decision)');
+  assert.strictEqual(config.roleRouting.secretary.runner, 'codex', 'secretary front door must run on GPT-5.6-Sol Codex');
+  assert(config.runners.codex.cmd.includes('gpt-5.6-sol'), 'front-door Codex runner must pin GPT-5.6-Sol');
   assert.strictEqual(config.roleRouting.orchestrator.runner, 'codex', 'CEO/orchestrator must remain executable through codex');
 
   const secretaryPrompt = read(path.join(root, 'shared/agents/secretary/prompt.md'));

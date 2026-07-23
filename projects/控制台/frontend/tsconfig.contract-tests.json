@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "declaration": false,
+    "isolatedModules": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": false,
+    "outDir": ".contract-test-dist",
+    "rootDir": ".",
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": [
+    "src/types.ts",
+    "src/contracts/**/*.ts",
+    "src/lib/api.ts",
+    "src/lib/attachments.ts",
+    "src/lib/format.ts",
+    "src/lib/virtualWindow.ts",
+    "src/features/office/model.ts",
+    "src/features/flow/layout.ts",
+    "src/store/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}

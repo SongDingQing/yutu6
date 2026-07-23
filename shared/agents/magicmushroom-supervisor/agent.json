@@ -1,0 +1,55 @@
+{
+  "id": "magicmushroom-supervisor",
+  "name": "MagicMushroom 项目主管",
+  "schema_version": 1,
+  "role": "magicmushroom_supervisor",
+  "runner": "codex",
+  "tier": "strong",
+  "context_mode": "explicit",
+  "queueAgent": false,
+  "persistent_worker": false,
+  "system_external": false,
+  "department": "MagicMushroom",
+  "project_scope": "MagicMushroom",
+  "reports_to": "orchestrator",
+  "supervises": [
+    "magicmushroom_programmer"
+  ],
+  "repository_path": "/Users/yutu6/UnityProject/MagicMushroom",
+  "read_paths": [
+    "projects/MagicMushroom/",
+    "shared/agents/supervisor/prompt.md",
+    "shared/reference/",
+    "shared/capability_registry/"
+  ],
+  "external_read_paths": [
+    "/Users/yutu6/UnityProject/MagicMushroom/"
+  ],
+  "writes": [
+    "projects/MagicMushroom/"
+  ],
+  "triggers": [
+    "supervisor-MagicMushroom 队列收到项目 brief",
+    "MagicMushroom 程序员提交实现结果",
+    "主人要求评估 MagicMushroom 需求或风险"
+  ],
+  "io": {
+    "inputs": [
+      "projects/MagicMushroom/brief.md",
+      "当前任务信封",
+      "程序员 implementation 结果和测试证据"
+    ],
+    "outputs": [
+      "项目任务拆分",
+      "逐项证据复审",
+      "projects/MagicMushroom/status.md"
+    ]
+  },
+  "boundary_statement": {
+    "does": "只负责 MagicMushroom 的目标澄清、Unity 6 技术判断、任务拆分、程序员派工、证据复审和状态维护。",
+    "does_not": "不直接替程序员写业务代码，不修改 Simulaid 或玉兔6核心，不发布版本，不处理密钥、登录或授权。"
+  },
+  "decoupling": "只读取 MagicMushroom 项目区、授权的外部仓库和共享能力；跨项目问题退回 CEO。",
+  "validation": "必须按通用 supervisor 复审契约逐项核实 changed files、测试和验收证据；声明与现实不一致不得通过。",
+  "prompt": "prompt.md"
+}

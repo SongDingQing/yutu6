@@ -1,0 +1,6 @@
+id: invalid-subgraph
+nodes:
+  - { id: nested, type: subgraph }
+  - { id: done, type: end }
+edges:
+  - { from: nested, to: done }

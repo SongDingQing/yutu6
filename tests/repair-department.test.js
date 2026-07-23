@@ -2,6 +2,7 @@
 'use strict';
 
 const assert = require('assert');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -19,7 +20,78 @@ function main() {
     process.env.CONSOLE_EVENTS_FILE = path.join(artifactsDir, 'engine-events.jsonl');
 
     const Tools = require('../projects/控制台/secretary-tools');
-    fs.mkdirSync(path.join(root, 'board', 'repair-tickets'), { recursive: true });
+    const repairDir = path.join(root, 'board', 'repair-tickets');
+    fs.mkdirSync(repairDir, { recursive: true });
+
+    const autoCases = [
+      {
+        label: 'english',
+        title: 'Readable English repair title',
+        slugPattern: /^readable-english-re-[0-9a-f]{12}$/,
+      },
+      {
+        label: 'chinese',
+        title: '中文维修工单',
+        slugPattern: /^ticket-[0-9a-f]{12}$/,
+      },
+      {
+        label: 'mixed',
+        title: 'repair-lead→repair 特权 runner 单飞互锁',
+        slugPattern: /^repair-lead-repair-[0-9a-f]{12}$/,
+      },
+      {
+        label: 'symbols',
+        title: '→★!!!',
+        slugPattern: /^ticket-[0-9a-f]{12}$/,
+      },
+    ];
+    const autoIds = new Map();
+    for (const testCase of autoCases) {
+      const added = Tools.repairTicketAdd({
+        title: testCase.title,
+        problem: `${testCase.label} automatic id regression`,
+        bulletin: 'false',
+      });
+      const match = added.ticket.id.match(/^repair-\d{14}-(.+)$/);
+      assert(match, `${testCase.label} automatic id must include the timestamp prefix`);
+      assert(testCase.slugPattern.test(match[1]), `${testCase.label} automatic slug must be readable, stable ASCII`);
+      const expectedHash = crypto.createHash('sha256').update(testCase.title).digest('hex').slice(0, 12);
+      assert(match[1].endsWith(`-${expectedHash}`), `${testCase.label} automatic slug hash must be stable for its title`);
+      assert(/^[A-Za-z0-9._-]+$/.test(added.ticket.id), `${testCase.label} automatic id must satisfy safeTicketId`);
+      const absoluteFile = path.resolve(root, added.ticket.file);
+      const relativeFile = path.relative(repairDir, absoluteFile);
+      assert(relativeFile && !relativeFile.startsWith('..') && !path.isAbsolute(relativeFile), `${testCase.label} ticket must stay under repair-tickets`);
+      assert(fs.existsSync(absoluteFile), `${testCase.label} ticket file must be created`);
+      autoIds.set(testCase.label, added.ticket.id);
+    }
+    assert.notStrictEqual(autoIds.get('chinese'), autoIds.get('symbols'), 'lossy titles must retain distinct stable hashes');
+
+    assert.throws(
+      () => Tools.repairTicketAdd({ title: '   ', bulletin: 'false' }),
+      /repair-ticket-add requires --title/,
+      'blank titles must remain invalid',
+    );
+
+    const explicitId = 'Keep.Case_123-ID';
+    const explicit = Tools.repairTicketAdd({
+      id: explicitId,
+      title: 'Explicit safe id',
+      bulletin: 'false',
+    });
+    assert.strictEqual(explicit.ticket.id, explicitId, 'valid explicit ids must be preserved');
+    assert.throws(
+      () => Tools.repairTicketAdd({ id: explicitId, title: 'Duplicate explicit id', bulletin: 'false' }),
+      /repair ticket exists/,
+      'duplicate ids must remain rejected',
+    );
+
+    const escapedFile = path.join(root, 'board', 'escape.md');
+    assert.throws(
+      () => Tools.repairTicketAdd({ id: '../escape', title: 'Traversal attempt', bulletin: 'false' }),
+      /bad repair ticket id/,
+      'unsafe explicit ids must be rejected instead of silently falling back',
+    );
+    assert.strictEqual(fs.existsSync(escapedFile), false, 'unsafe ids must never create a file outside repair-tickets');
 
     const created = Tools.repairTicketAdd({
       id: 'dept-smoke',

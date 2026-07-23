@@ -5,6 +5,20 @@
   "workdir": "../..",
   "includeHistory": true,
   "historyMax": 6,
+  "semanticAcceptanceAtoms": {
+    "schema": "console-semantic-acceptance-atoms@1",
+    "enabled": false,
+    "extractorVersion": "contract-identity-v1",
+    "promotionApproval": {
+      "status": "pending",
+      "supervisorReviewed": false,
+      "ownerApproved": false,
+      "approvedBy": null,
+      "approvedAt": null
+    },
+    "rollback": "keep enabled=false or set CONSOLE_SEMANTIC_ACCEPTANCE_ATOMS=0; the existing shared loop-engineering scorer remains unchanged",
+    "promotionGate": "project config enablement, supervisor review and explicit owner approval are all required; environment is kill-switch only"
+  },
   "runnerTimeoutFailoverFence": {
     "schema": "console-runner-timeout-failover-fence@1",
     "enabled": false,
@@ -132,8 +146,8 @@
   },
   "roleRouting": {
     "secretary": {
-      "label": "秘书",
-      "runner": "claude"
+      "label": "秘书 / GPT-5.6-Sol",
+      "runner": "codex"
     },
     "orchestrator": {
       "label": "CEO(总指挥)",
@@ -142,6 +156,22 @@
     "supervisor": {
       "label": "主管 Supervisor",
       "runner": "codex"
+    },
+    "magicmushroom_supervisor": {
+      "label": "MagicMushroom 主管 / GPT-5.6-Sol",
+      "runner": "codex",
+      "projectId": "MagicMushroom",
+      "queueAgent": false
+    },
+    "magicmushroom_programmer": {
+      "label": "MagicMushroom Unity 程序员 / GPT-5.6-Sol",
+      "runner": "codex",
+      "projectId": "MagicMushroom",
+      "queueAgent": true,
+      "execution": {
+        "delivery": "tool_capable",
+        "requiresWritableRunnerForImplement": true
+      }
     },
     "reasoning_architect": {
       "label": "架构/推理 (Codex)",
@@ -264,9 +294,9 @@
         "requiresWritableRunnerForImplement": false
       }
     },
-    "board_claude": {
-      "label": "董事 · Claude Fable 5",
-      "runner": "claude-fable-5",
+    "board_kimi": {
+      "label": "董事 · Kimi K3",
+      "runner": "kimi-k2",
       "execution": {
         "delivery": "text_only",
         "requiresWritableRunnerForImplement": false
@@ -275,6 +305,18 @@
     "board_opus48": {
       "label": "董事 · Codex/GPT-5.6-Sol",
       "runner": "codex"
+    }
+  },
+  "projectDepartments": {
+    "MagicMushroom": {
+      "schema": "yutu6-project-department@1",
+      "repositoryPath": "/Users/yutu6/UnityProject/MagicMushroom",
+      "unityVersion": "6000.3.16f1",
+      "supervisorQueue": "supervisor-MagicMushroom",
+      "supervisorRole": "magicmushroom_supervisor",
+      "supervisorLabel": "MagicMushroom 项目主管",
+      "programmerRole": "magicmushroom_programmer",
+      "programmerLabel": "MagicMushroom Unity 程序员"
     }
   },
   "versionManagement": {
@@ -532,89 +574,13 @@
     ]
   },
   "runners": {
-    "claude": {
-      "label": "Claude Code(秘书·前门)",
-      "cmd": [
-        "/Users/yutu6/.local/bin/claude",
-        "-p",
-        "--dangerously-skip-permissions"
-      ],
-      "promptVia": "arg",
-      "execution": {
-        "canWriteFiles": true,
-        "canRunCommands": true
-      },
-      "note": "2026-07-03 老板拍板:秘书(前门)由 Claude Code 接管(原 codex)。本机凭据不回显。"
-    },
-    "claude-code": {
-      "label": "Claude Code(维修主管·特权)",
-      "cmd": [
-        "/Users/yutu6/.local/bin/claude",
-        "-p",
-        "--dangerously-skip-permissions"
-      ],
-      "promptVia": "arg",
-      "execution": {
-        "canWriteFiles": true,
-        "canRunCommands": true,
-        "privileged": true,
-        "engineSlotBypass": true,
-        "allowedWritePaths": [
-          "projects/控制台/",
-          "shared/",
-          "board/",
-          "tests/",
-          "templates/",
-          "VERSION.json",
-          "交接给claude-code/",
-          ".claude/"
-        ]
-      },
-      "note": "2026-07-03 老板拍板:维修主管由 Claude Code 接回(原 codex-privileged 期间系 2026-06-30 Claude CLI 401 临时移交,认证已恢复)。高危/不可逆仍先给主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
-    },
-    "claude-fable-5": {
-      "label": "Claude Fable 5(董事会)",
-      "cmd": [
-        "/Users/yutu6/.local/bin/claude",
-        "-p",
-        "--model",
-        "claude-fable-5",
-        "--permission-mode",
-        "plan",
-        "--allowedTools",
-        "Read,Grep,Glob",
-        "--no-session-persistence"
-      ],
-      "promptVia": "arg",
-      "execution": {
-        "canWriteFiles": false,
-        "canRunCommands": false
-      },
-      "note": "2026-07-14 老板拍板:Claude 董事使用 Fable 5。只做董事会事前评议,仅开放只读工具,不承接实现任务。"
-    },
-    "claude-opus-4-8": {
-      "label": "Claude Opus-4.8(董事会)",
-      "cmd": [
-        "/Users/yutu6/.local/bin/claude",
-        "-p",
-        "--model",
-        "claude-opus-4-8",
-        "--fallback-model",
-        "opus",
-        "--dangerously-skip-permissions"
-      ],
-      "promptVia": "arg",
-      "execution": {
-        "canWriteFiles": true,
-        "canRunCommands": true
-      },
-      "note": "历史兼容 runner:Claude 董事已于 2026-07-14 切换到 claude-fable-5,本 runner 不再自动路由。"
-    },
     "codex": {
-      "label": "Codex",
+      "label": "Codex / GPT-5.6-Sol",
       "cmd": [
         "codex",
         "exec",
+        "--model",
+        "gpt-5.6-sol",
         "--sandbox",
         "danger-full-access",
         "--skip-git-repo-check"
@@ -624,13 +590,15 @@
         "canWriteFiles": true,
         "canRunCommands": true
       },
-      "note": "非交互。最终答案走 stdout,过程日志走 stderr(前端按 log 显示)。worker/launchd 环境下 workspace-write 可能触发 Codex 0.140 的 app-server/PATH alias Operation not permitted;统一改用 danger-full-access,边界由队列/提示词/工单红线控制。要只读不改时可临时换成 read-only。"
+      "note": "非交互并显式使用 GPT-5.6-Sol。最终答案走 stdout,过程日志走 stderr(前端按 log 显示)。worker/launchd 环境下统一使用 danger-full-access,边界由队列/提示词/工单红线控制。要只读不改时可临时换成 read-only。"
     },
     "codex-privileged": {
-      "label": "Codex(维修员·特权)",
+      "label": "Codex / GPT-5.6-Sol(特权)",
       "cmd": [
         "codex",
         "exec",
+        "--model",
+        "gpt-5.6-sol",
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check"
       ],
@@ -645,12 +613,10 @@
           "board/",
           "tests/",
           "templates/",
-          "VERSION.json",
-          "交接给claude-code/",
-          ".claude/"
+          "VERSION.json"
         ]
       },
-      "note": "维修员专用:无沙箱、无确认,可重启服务/操作本机/使用 computer use。v2 作为 repair 常驻队列 worker 自动消费工单;高危/不可逆操作仍必须先让主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
+      "note": "维修部门专用 GPT-5.6-Sol 执行器:无沙箱、无确认,可重启服务/操作本机/使用 computer use。repair-lead 与 repair 常驻队列共用;高危/不可逆操作仍必须先让主人确认。allowedWritePaths=特权写路径白名单(拍板⑤告警模式,done gate 消费;YUTU6_WRITE_AUDIT=0 可关)。"
     },
     "hermes": {
       "label": "Hermes(MiniMax-M3)",
@@ -668,6 +634,8 @@
       "cmd": [
         "codex",
         "exec",
+        "--model",
+        "gpt-5.6-sol",
         "--dangerously-bypass-approvals-and-sandbox",
         "--skip-git-repo-check"
       ],
@@ -675,7 +643,7 @@
       "env": {
         "PEEKABOO_CONFIG_DIR": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/peekaboo-config"
       },
-      "note": "兼容 runner id:实际由 Codex 特权执行器接管桌面任务,在需要截图/点击时调用 Peekaboo CLI。已移除 Claude/Opus model 参数。",
+      "note": "兼容 runner id:实际由 GPT-5.6-Sol Codex 特权执行器接管桌面任务,在需要截图/点击时调用 Peekaboo CLI。",
       "execution": {
         "canWriteFiles": true,
         "canRunCommands": true,
@@ -705,6 +673,7 @@
     "zhipu-board-direct": {
       "label": "GLM-5.2(董事专用 Coding Plan 直连)",
       "kind": "openai_http",
+      "providerContract": "zhipu-coding-plan-v1",
       "cmd": [
         "__openai_http__"
       ],
@@ -740,15 +709,19 @@
       "note": "董事会 DeepSeek 出口,走本机 new-api /v1。token 从本机 internal-token.env 读取,不写源码。"
     },
     "zhipu-glm": {
-      "label": "GLM-5.2(通用)",
+      "label": "GLM-5.2(Coding Plan 直连)",
       "kind": "openai_http",
+      "providerContract": "zhipu-coding-plan-v1",
       "cmd": [
         "__openai_http__"
       ],
-      "baseUrl": "http://127.0.0.1:3000/v1",
-      "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/internal-token.env",
+      "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "tokenFile": "/Users/yutu6/.config/yutu6-secrets/secrets.env",
+      "tokenKey": "ZHIPU_API_KEY",
       "model": "glm-5.2",
       "maxTokens": 4096,
+      "probeMode": "chat_completion",
+      "probeMaxTokens": 16,
       "temperature": 0.35,
       "execution": {
         "canWriteFiles": false,
@@ -756,26 +729,26 @@
         "toolHarnessRunner": "zhipu-glm-tools"
       },
       "systemPrompt": "你是玉兔6工作区的 GLM-5.2 通用助手。优先给出清晰、可执行、可验证的分析、编程方案、代码审查和任务拆解。不要回显任何密钥或本地 token。",
-      "note": "走本机 new-api /v1,上游为 GLM Coding Plan 专属端点。纯文本 runner:不能直接落盘/跑命令;implement 任务需要交付文件时由 cli-runner 自动升级到 zhipu-glm-tools。token 从本机 internal-token.env 读取,不写入源码。"
+      "note": "固定直连 GLM Coding Plan 专属 OpenAI 端点,禁止经 new-api 通用计费层。纯文本 runner:不能直接落盘/跑命令;implement 任务需要交付文件时由 cli-runner 自动升级到 zhipu-glm-tools。Key 只从统一保险库读取,不写入源码。"
     },
     "kimi-k2": {
-      "label": "Kimi K2.7 Code（暂停董事席）",
+      "label": "Kimi K3（董事专用 Coding Plan 直连）",
       "kind": "openai_http",
       "cmd": [
         "__openai_http__"
       ],
-      "baseUrl": "https://api.moonshot.cn/v1",
+      "baseUrl": "https://api.kimi.com/coding/v1",
       "tokenFile": "/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/new-api/kimi.env",
-      "tokenKey": "MOONSHOT_API_KEY",
-      "model": "kimi-k2.7-code",
+      "tokenKey": "KIMI_API_KEY",
+      "model": "k3",
       "maxTokens": 4096,
       "temperature": 1,
       "execution": {
         "canWriteFiles": false,
         "canRunCommands": false
       },
-      "systemPrompt": "你是玉兔6备用 Kimi K2.7 Code 评议模型。当前不参与活跃董事会;如被显式调用,只做代码/Agent 风险识别和遗漏检查;不要回显任何密钥或本地 token。",
-      "note": "Kimi/Moonshot OpenAI 兼容出口已暂停董事席,保留为备用 runner。token 从本机 artifacts/new-api/kimi.env 读取,不写源码。K2.7 Code 官方要求 temperature=1.0。"
+      "systemPrompt": "你是玉兔6董事会 Kimi K3 评议董事。只做重要架构、代码与 Agent 链路的严格挑刺和遗漏检查,不改文件,不要回显任何密钥或本地 token。",
+      "note": "Kimi Code OpenAI 兼容直连;使用 Coding Plan 专属端点和 k3 模型,temperature=1 适配当前接口约束。token 从本机 artifacts/new-api/kimi.env 读取,不写源码、不经过 Moonshot 开放平台端点。"
     },
     "zhipu-glm-tools": {
       "label": "GLM-5.2 + Codex 工具执行",

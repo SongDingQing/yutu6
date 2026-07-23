@@ -13,6 +13,11 @@ const TERMINAL_TYPES = new Set([
   'task.failed',
   'queue.completed',
 ]);
+const LINEAGE_TYPES = new Set([
+  'task.queued',
+]);
+const OBSERVABLE_TYPES = new Set([...TERMINAL_TYPES, ...LINEAGE_TYPES]);
+const OBSERVABLE_TYPE_PATTERN = /"type":"(?:project\.route\.(?:done|failed)|task\.(?:done|failed|queued)|queue\.completed)"/;
 
 function sha256(value) {
   return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
@@ -101,10 +106,10 @@ function readTerminalEvents(files, options = {}) {
         carry = parts.pop() || '';
         for (const line of parts) {
           lineNumber += 1;
-          if (!/"type":"(?:project\.route\.(?:done|failed)|task\.(?:done|failed)|queue\.completed)"/.test(line)) continue;
+          if (!OBSERVABLE_TYPE_PATTERN.test(line)) continue;
           let event = null;
           try { event = JSON.parse(line); } catch (_) {}
-          if (!event || !TERMINAL_TYPES.has(event.type)) continue;
+          if (!event || !OBSERVABLE_TYPES.has(event.type)) continue;
           const fingerprint = terminalFingerprint(event);
           if (seen.has(fingerprint)) continue;
           seen.add(fingerprint);
@@ -116,10 +121,10 @@ function readTerminalEvents(files, options = {}) {
       } while (bytes > 0);
       if (carry) {
         lineNumber += 1;
-        if (/"type":"(?:project\.route\.(?:done|failed)|task\.(?:done|failed)|queue\.completed)"/.test(carry)) {
+        if (OBSERVABLE_TYPE_PATTERN.test(carry)) {
           let event = null;
           try { event = JSON.parse(carry); } catch (_) {}
-          if (event && TERMINAL_TYPES.has(event.type)) {
+          if (event && OBSERVABLE_TYPES.has(event.type)) {
             const fingerprint = terminalFingerprint(event);
             if (!seen.has(fingerprint)) {
               seen.add(fingerprint);
@@ -161,7 +166,7 @@ function terminalSummary(event) {
   };
 }
 
-function traceContext(chain) {
+function traceContext(chain, observableEvents) {
   const traces = Array.isArray(chain && chain.traces) ? chain.traces : [];
   const taskIds = new Set(traces.map(trace => trace && trace.task_id).filter(Boolean));
   const rootQueues = new Set();
@@ -169,20 +174,60 @@ function traceContext(chain) {
     if (!trace || !trace.root_queue_agent || !trace.root_queue_id) continue;
     rootQueues.add(`${trace.root_queue_agent}\u0000${trace.root_queue_id}`);
   }
+  const childTaskIds = new Set(Array.from(taskIds).filter(id => id !== chain.root_task_id));
+  const downstreamQueues = new Map();
+  const rootQueue = rootQueues.size === 1 ? Array.from(rootQueues)[0] : null;
+  for (const event of observableEvents || []) {
+    if (!event || event.type !== 'task.queued' || !childTaskIds.has(event.task)) continue;
+    if (normalizedRootTaskId(event) !== chain.root_task_id) continue;
+    if (!event.queueAgent || !event.queueId || !event.rootQueueAgent || !event.rootQueueId) continue;
+    if (!rootQueue || `${event.rootQueueAgent}\u0000${event.rootQueueId}` !== rootQueue) continue;
+    const seq = eventSequence(event);
+    if (seq == null) continue;
+    const key = `${event.task}\u0000${event.queueAgent}\u0000${event.queueId}`;
+    const entries = downstreamQueues.get(key) || [];
+    entries.push({ seq, evidence_ref: event._evidence_ref || null });
+    downstreamQueues.set(key, entries);
+  }
   return {
     traces,
     taskIds,
-    childTaskIds: new Set(Array.from(taskIds).filter(id => id !== chain.root_task_id)),
+    childTaskIds,
     rootQueues,
+    downstreamQueues,
   };
 }
 
 function rootQueueMatches(event, context) {
   if (!event.queueAgent || !event.queueId) return false;
-  if (context.rootQueues.size && !context.rootQueues.has(`${event.queueAgent}\u0000${event.queueId}`)) return false;
+  if (context.rootQueues.size !== 1) return false;
+  if (!context.rootQueues.has(`${event.queueAgent}\u0000${event.queueId}`)) return false;
   if (event.rootQueueAgent && event.rootQueueAgent !== event.queueAgent) return false;
   if (event.rootQueueId && event.rootQueueId !== event.queueId) return false;
   return true;
+}
+
+function traceRootQueueIssue(context) {
+  if (context.rootQueues.size === 0) return 'trace_root_queue_missing';
+  if (context.rootQueues.size > 1) return 'trace_root_queue_ambiguous';
+  return null;
+}
+
+function downstreamQueueMatches(event, context) {
+  if (!event.downstreamQueueAgent || !event.downstreamQueueId || !event.downstreamTaskId) {
+    return { ok: false, reason: 'project_route_downstream_lineage_missing' };
+  }
+  if (!context.childTaskIds.has(event.downstreamTaskId)) {
+    return { ok: false, reason: 'project_route_downstream_task_mismatch' };
+  }
+  const key = `${event.downstreamTaskId}\u0000${event.downstreamQueueAgent}\u0000${event.downstreamQueueId}`;
+  const terminalSeq = eventSequence(event);
+  const evidence = (context.downstreamQueues.get(key) || [])
+    .filter(item => terminalSeq == null || item.seq < terminalSeq);
+  if (!evidence.length) {
+    return { ok: false, reason: 'project_route_downstream_queue_unverified' };
+  }
+  return { ok: true };
 }
 
 function classifyTerminalEvent(rootTaskId, event, context) {
@@ -203,21 +248,17 @@ function classifyTerminalEvent(rootTaskId, event, context) {
 
   if (channel === 'project_route') {
     if (rootRef !== rootTaskId) return { kind: 'invalid', reason: 'project_route_root_task_missing' };
-    if (context.rootQueues.size) {
-      if (!event.rootQueueAgent || !event.rootQueueId) {
-        return { kind: 'invalid', reason: 'project_route_root_queue_missing' };
-      }
-      if (!context.rootQueues.has(`${event.rootQueueAgent}\u0000${event.rootQueueId}`)) {
-        return { kind: 'invalid', reason: 'project_route_root_queue_mismatch' };
-      }
+    const rootQueueIssue = traceRootQueueIssue(context);
+    if (rootQueueIssue) return { kind: 'invalid', reason: rootQueueIssue };
+    if (!event.rootQueueAgent || !event.rootQueueId) {
+      return { kind: 'invalid', reason: 'project_route_root_queue_missing' };
+    }
+    if (!context.rootQueues.has(`${event.rootQueueAgent}\u0000${event.rootQueueId}`)) {
+      return { kind: 'invalid', reason: 'project_route_root_queue_mismatch' };
     }
     if (context.childTaskIds.size) {
-      if (!event.downstreamQueueAgent || !event.downstreamQueueId || !event.downstreamTaskId) {
-        return { kind: 'invalid', reason: 'project_route_downstream_lineage_missing' };
-      }
-      if (!context.childTaskIds.has(event.downstreamTaskId)) {
-        return { kind: 'invalid', reason: 'project_route_downstream_task_mismatch' };
-      }
+      const downstream = downstreamQueueMatches(event, context);
+      if (!downstream.ok) return { kind: 'invalid', reason: downstream.reason };
     } else if (event.downstreamTaskId && !context.taskIds.has(event.downstreamTaskId)) {
       return { kind: 'invalid', reason: 'project_route_downstream_trace_missing' };
     }
@@ -249,7 +290,7 @@ function unknownTerminal(rootTaskId, details = {}) {
 function reduceChainTerminal(chain, terminalEvents) {
   const rootTaskId = chain && chain.root_task_id || null;
   if (!rootTaskId) return unknownTerminal(null, { unknownReason: 'root_task_id_missing' });
-  const context = traceContext(chain);
+  const context = traceContext(chain, terminalEvents);
   const authorities = [];
   const rejected = [];
   const nodeEvents = [];

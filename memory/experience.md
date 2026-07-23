@@ -1,5 +1,11 @@
 # 经验库 · 成功模式 + 失败教训
 
+> 更新于 2026-07-22(本次:合并“canonical 结构化验收表固定证据列表头被误读为当前截图义务”的自由文本分类故障；精确遮罩模板元数据但保留表体真实 UI/显式截图硬门,长期按 current intent、引用完成记录与验收元数据分区。前项:提炼“反占位否定句被关键词门误读为正向设计义务”的通用故障模式；触发层须先识别否定/反占位语义,再保留正向动作+来源及显式引用硬门,并以精确正反矩阵防止修复弱化门禁。前次 2026-07-21:双持久化对象的依赖缺失须在审批与准入双点 fail-closed,smoke 应覆盖隔离目录真实全生命周期。)
+> 更新于 2026-07-21(本次:提炼证据路径指针的行号分隔符契约:绝对与相对路径分支必须统一把 `:`/`#L` 视为行号边界,先拆路径与行号再校验文件存在性和行范围,并以成功、缺失、越界及相对路径组成回归矩阵。)
+> 更新于 2026-07-20(本次:提炼结构化 Markdown 报告的分段边界与完整性门禁经验:顶级 section 语法必须和正文列表标签分离,字段非空不能替代内容来源校验;在写盘/投递前以纯解析正反例、真实错误语料和逐 section 来源断言守住副作用边界。)
+> 更新于 2026-07-17(本次:合并 repair-lead 父任务持有物理 runner 单飞锁、又同步等待同 runner 受信 repair 子任务的 pre-engine 自锁模式。长期解法是在权威验签消费点产生内部能力,以 `runnerType + 固定 lockScope` 选锁,每个作用域仍保持单并发且伪作用域继续 fail-closed;事件同时记录物理 runner 与逻辑锁域,并用串行、错根/错角色、release/stale/PID 组成回归矩阵。)
+> 更新于 2026-07-17(本次:提炼“展示文本→受限 ID”的 producer/consumer 字符集契约:生成器输出集合必须是下游 validator 接受集合的子集;在生产边界生成可读 ASCII 前缀+稳定内容哈希,保留下游 fail-closed,并以多字符集、显式 ID、重复与路径越界组成契约回归矩阵。)
+> 更新于 2026-07-17(本次:合并 done gate 验收 notes 的第三类自由文本误伤:政策说明中的“无证据建议/提议/机制”不得等同于当前行缺证据;先按字段语义与上下文识别,再独立校验证据存在性/对齐,保留裸占位 fail-closed,并以同一事故语料做正反成对回归。)
 > 更新于 2026-07-17(本次:提炼 structured-acceptance 语义证据合同:可核路径只证明证据存在,每行 evidence/notes 或引用片段还必须同时承载验收要点与结果;语言不一致时补引持久化同义证据,不放宽 fail-closed 门禁,并用逐行正反实验验证生成合同。)
 > 更新于 2026-07-17(本次:合并两类控制平面长期守卫:常驻 worker 持续繁忙时也要检测源码修订并停止 claim、drain 后优雅换代;同票 pre-engine 子任务等待主管持有的特权单槽时必须可消费 cancel,且结案只接受窄条件、结构化的 no-engine 终态证明)。
 > 更新于 2026-07-17(本次:合并 `queue_merge_integrity` 第七处自由文本误伤:任务 ID/批准消息中的内容“去重”不得由通用“任务/CEO”锚点解释成队列合并;触发需明确队列域、结构化标签或 queue 专用信号,并以 true-positive + 真实 false-positive 成对回归守边界)。
@@ -12,6 +18,18 @@
 > 记忆官 + 监管复盘写入;反复出现的要提架构改进。
 
 ## 失败教训(已踩过的坑)
+
+- **双持久化对象中依赖记录静默未更新,另一状态仍提交成功；prepare-only smoke 省略真实依赖后产生假正例**(2026-07-20 维修复盘,可泛化,已修):生命周期状态、花名册/实体记录等分别持久化时,若依赖记录缺失只返回“未更新”,调用方却继续提交批准状态,而准入又采用“对象存在才校验”,系统会形成“状态已批准、真实记录不存在”并错误放行；只准备状态、不创建真实依赖的 smoke 还会稳定掩盖该缺口。
+  - 根因:写入结果没有成为调用方必须消费的成功合同；一致性守卫把记录缺失解释成跳过校验,而不是完整性失败；专项测试缺少 missing-dependent-record 负例,smoke 没有覆盖真实依赖的创建与传递。
+  - 做法/预防/自动化(可验证):依赖记录缺失时在提交另一状态前抛结构化 blocker；在“审批写入”和“生产准入”两个权威边界都显式 fail-closed。smoke 使用隔离临时目录执行真实 `create → receive → approve → admit`,同时保留“缺记录必拦”负例与“记录完整可放行”正例,证明守卫既不漏放也不误杀。若两个文件仍非事务提交,原子提交或补偿机制应另行做架构评估；在此之前,生产准入继续以权威状态与依赖记录一致性失败关闭。
+
+- **绝对路径证据的 `:line` / `#Lline` 后缀被贪婪路径正则吞进文件名 → 真实文件被 done gate 误判为证据不可核**(2026-07-20 维修复盘,已修):路径指针解析器若把行号分隔符纳入绝对路径字符类,会把合法证据解析成带行号后缀的不存在文件名；同一指针用相对路径却可能正常,形成系统性假失败。
+  - 根因:绝对路径与相对路径分支使用了不一致的分隔符集合；绝对路径分支未排除冒号和井号,路径 token 贪婪越过了行号边界。
+  - 做法/预防:在路径提取层显式从文件 token 排除 `:` 与 `#`,将 `:line`、`#Lline` 作为独立后缀解析,再分别校验文件存在性与行号范围；缺失文件、越界行仍保持 fail-closed。绝对冒号行号、绝对井号 L 行号、缺失文件、越界行和相对路径必须作为同组回归；凡解析 path+metadata 的多分支正则,都应共享同一分隔符语法,避免只修一个分支。
+
+- **展示文本的宽字符 slug 直接送入 ASCII-only ID/路径校验,两个局部正确组件组合后拒绝非 ASCII 输入**(2026-07-17 维修复盘,已修):文件名、队列键、URL 段等自动 ID 若由 Unicode 友好展示 slug 生成,而消费者只接受安全 ASCII,非拉丁标题会在持久化或入队前稳定失败。
+  - 根因:producer/consumer 的字符集契约分裂,且测试只覆盖 ASCII happy path；生成器输出集合没有被约束为 validator 接受集合的子集。
+  - 做法/预防:在 ID **生产边界**先归一化展示文本,生成“可读 ASCII 前缀 + 稳定内容哈希”；无可读 ASCII 时使用固定安全前缀。继续保留下游 validator fail-closed,显式合法 ID 原样保留,显式非法 ID、空输入、重复 ID 与路径越界仍拒绝。契约测试须成组覆盖英文、中文、混合、纯符号、空标题、显式合法/非法 ID、重复和最终路径包含关系；同类“展示文本→文件/队列/URL ID”应复用统一安全 ID helper 与测试矩阵,禁止把宽字符 slug 直接交给 ASCII-only 消费者。
 
 - **客户端固定信任的证书链在服务器重装时被静默换掉 → 所有客户端网络请求静默失败,且无人察觉近 10 天**(2026-07-04 维修复盘,已修):元宵 App 用 network_security_config 固定信任内置 CA(res/raw/yuanxiao_ca.pem,旧机 5/4 签发);6/25 嫦娥服务器重装时 deploy 脚本因服务器上没有 ca.crt/ca.key 走了"自签兜底"分支,新证书不是该 CA 签的 → App(1.25/1.26)所有 HTTPS 静默失败,推送升级/聊天/任务全断,直到老板报"没收到升级提醒"才发现(服务器日志里手机零请求是关键证据)。是「declared-but-not-honored」在证书层的同族:客户端"声明"了信任锚,部署侧没有消费者保证链条延续。
   - 根因:证书信任是跨端契约(App 内置 CA ↔ 服务器证书),但部署脚本的 CA 签发路径依赖服务器上存在 CA 文件,重装后无人补;客户端 TLS 失败又是静默的(catch 后不上报),没有任何一侧能观测到断链。
@@ -66,7 +84,7 @@
 - **claimed 后停在资源锁/runner/slot 等待阶段(enginePid 未写入)被 started_at>60s 判死 requeue,原 worker 随后获锁启动 engine 又因 running 文件已被移走自杀**(2026-06-23 维修复盘):`ui_optimizer/2316f69d` claim 后先等 `frontend_designer/1eba2dec` 持有的资源锁,此时 engine 未启动、running 记录无 enginePid;`projects/控制台/ceo-worker.js` 的 `sweepStaleRunning()`/`runningEngineHeartbeat()` 只看 `engine_heartbeat_at/engine_started_at/started_at`,**不识别「已 claim 但仍在资源锁/runner 单飞锁/engine slot 等待」的合法 pre-engine 等待**,`started_at` 超 60s 即被当 engine 心跳失联 requeue;原 worker 随后拿到锁启动 engine,但 running 文件已被移走,`runEngine()` 轮询触发 `queue-running-missing` → SIGTERM → failed 终态 + 工单。同类「running 队列文件已不存在」24h 内多次出现,是资源锁等待与 running 恢复逻辑间的**系统性竞态**,与「[[队列清扫器把 owner-worker pid 当 engine pid]]」同族(running 生命周期判定数据源没覆盖 pre-engine 阶段),只是这次缺的是**资源锁等待阶段的专用心跳/子状态**而非 pid 语义。
   - 根因:running 恢复逻辑缺 **pre-engine 等待阶段心跳/子状态**,只用 `started_at`/engine heartbeat 判生命周期,把「claimed/running 但尚未启动 engine 的资源锁等待」与「engine 已启动后心跳失联」混在同一 running 判死通道,合法等待被清扫。
   - 做法(可验证):① 新增 `pre_engine_wait_heartbeat_at` 续租——`handle()` 从 `noteRunningSpec` 起到拿到资源锁、runner 单飞锁、engine slot 之前**持续写** pre-engine 等待心跳;② `runningEngineHeartbeat()` 在**无 enginePid** 时优先用 `pre_engine_wait_heartbeat_at` 保活,**有 enginePid** 时仍以 `engine_heartbeat_at` 为准,避免掩盖真实 engine 失联;③ 补 `projects/控制台/tools/resource-locks-smoke-test.js` 断言:`started_at` 已过期但 `pre_engine_wait_heartbeat_at` 新鲜时不判 stale,一旦 `enginePid` 存在仍优先 `engine_heartbeat_at`。预防/自动化:把 running 子状态**显式化**为 `claimed_waiting_resource / waiting_runner_slot / engine_running`,sweep 按子状态判死;为资源锁等待超时单独告警。现场止血:清理非 repair 且无 running 队列项的旧 ceo-worker 进程,保留 repair worker/engine,后续非 repair 入队由 server 按新源码重新拉起 worker(同 [[补丁已落盘 ≠ 运行态已生效]])。残余:`projects/控制台/tools/mechanisms-smoke-test.js` 的 `checkAutoOptimizer` 既有断言(期望 disabled 实际 enqueued)失败,与本次 pre-engine 心跳修复无关,记为残余测试债。
-  - **同族新维度:主管派出的同票子任务在 pre-engine 阶段等待主管自己持有的特权单槽,结案无法收口**(2026-07-16 维修复盘,已落地):派工已通过作用域校验也可能停在 runner singleflight；若等待循环不消费 cancel,主管又必须等 child 终态才能结案,就会形成“主管持锁→child 等锁→主管等 child”的自锁。根因是 pre-engine 等待只有保活、没有取消检查,结案侧也缺少“engine 从未启动”的可信证明。做法/预防/自动化:等待资源锁、runner 单槽和 engine slot 时都轮询同一取消信号并幂等退出；终态结构化记录 pre-engine cancel 已确认、`engine_started_at` 与 engine PID 均不存在。结案握手只对**同票、已请求取消、仍在 pre-engine、无 engine 启动证据**的 child 接受 no-engine 证明并安全确认,其余情况继续 fail-closed；回归至少覆盖合法窄条件通过、已启动 engine/异票/无取消请求拒绝。架构上可进一步分离主管与执行维修员的特权槽,或把“主管让锁后再派工”显式建模,避免单槽天然环路。
+  - **同族新维度:父任务持有物理 runner 单飞锁,又同步等待同 runner 的受信子任务 → pre-engine 自锁并破坏职责分离**(2026-07-16/17 维修复盘,受控锁域已落地、运行态待换代回访):仅有 pre-engine 保活或结案取消能安全收掉未启动 engine 的子任务,但不能让独立执行者在父任务持锁时真正实施修改。完整根因是 singleflight key 只表达 `runnerType`,没有表达权威验签后的逻辑执行作用域；同时旧等待循环缺取消消费与“engine 从未启动”的可信证明。做法/预防/自动化:①资源锁、runner 单飞锁和 engine slot 等待都轮询同一取消信号并幂等退出,终态结构化记录 pre-engine cancel、`engine_started_at` 与 engine PID；结案握手只对同票、已取消、仍在 pre-engine 且无启动证据的子任务接受 no-engine 证明,其余 fail-closed。②在权威验签消费点产生内部能力,只让 issuer/root/role 一致的 repair 子任务使用固定逻辑 `lockScope`,以 `runnerType + lockScope` 选锁；每个作用域仍只允许一个执行者,无签名/错根/错角色或其他特权任务继续走默认单飞锁。③锁和事件同时保留物理 `runnerType` 与逻辑 `lockScope`,回归成对覆盖“父持默认锁时受信子任务可运行/第二个同作用域仍串行”、伪作用域、角色不变、release/stale/PID 绑定与双字段审计。④磁盘回归通过不等于常驻进程已换代,运行态仍须在自然 reload 或授权受控重启后,用真实获锁事件回访该 `lockScope`。
 
 - **长任务持续输出但 running progress_at 不刷新 → 480s 无进展看门狗误杀活跃 engine,衍生 engine pid missing 连锁 SIGTERM**(2026-06-22 维修复盘):engine 持续 `node.output`(语法检查/各类 smoke/tests 全程有输出),但 `projects/控制台/ceo-worker.js` 的 no-node-progress 看门狗只读 running 记录里的 `progress_at/node_event_at`;`shared/engine/cli-runner.js` 的真实 CLI 子进程把 `node.output` 直接写 EventLog,绕过 engine-runner 的 `createProgressEventLog` 包装,**只写事件日志、不刷 running 进展**,于是被误判"480s 无节点进展"SIGTERM,随后两次 retry 在刚 `node.start` 后又被 `queue.orphan_engine.kill engine pid missing` 连锁杀掉(误杀/恢复窗口)。是「重启即清扫,清扫即杀活」「owner pid 当 engine pid 误清扫」的同族(运行态进展/pid 信号没在判死数据源里对齐)。
   - 根因:**事件流有 `node.output` 进展,但 running 队列记录没有同步进展字段**——判死逻辑只能看到 `node.start` 时间;CLI 子进程输出路径绕过了写队列进展的包装。
@@ -144,6 +162,7 @@
   - 根因:占位词 `NA/none/null` 未做 token 边界与上下文区分,作为子串命中 `canary/null`-后缀等正常英文与结构化测试摘要字段;分析型任务与 smoke 报告因此被错误打回并触发自动维修。
   - 做法(可验证):① `shared/engine/done-gate.js:15` 最小修复——只让 `N/A/NA/none/null` 作为**独立占位词**(token 边界)时打回,保留 `自验收/无证据/待补/同上/声明` 等真禁词;② `tests/done-gate.test.js:508-543` 加回归:`canary`/`nodeOverlap=null` 不误伤、standalone `null` 仍打回;③ 复跑 `DoneGate.validateStructuredAcceptanceTable` 对当前工单原始 result 输出 `ok=true/reason=null`,`node tests/done-gate.test.js`、`node tests/run.js` 全绿。维修边界遵守:未重启服务、未清队列、未触碰密钥。预防/架构:把 acceptance bad-evidence 规则继续拆成**可单测的 predicate**,为常见测试摘要字段(canary、`=null`、`N/A` 占位)增加正反回归样本;**凡用坏词正则扫自由文本/机器输出的门禁,占位词必须加 token 边界并区分独立占位与正常英文/字段值**(与 hard regression 触发词收窄同一架构原则——门禁判据优先结构化、自由文本只作辅助)。
   - **第二维度=中文裸词 `声明/略` 作任意子串匹配误伤边界/策略说明**(2026-06-24 维修复盘,同 `BAD_ACCEPTANCE_EVIDENCE_RE` 新形态):除 NA/none/null 外,该正则还把裸词 `声明`、`略` 当任意子串坏证据。本单 a11y tree 序列化/截图分块**只读**评测的验收 notes 里「**声明**未改运行代码、未新采集截图」「复用既有离线样本**策略**」是正常的边界说明/策略说明,却被 `validateVisualAcceptanceEvidence` 判成「视觉/UI 验收含不可核自验收声明」→ `done_gate.logic_chain_missing`/`node.fail`/自动工单。复发证据:同签名「视觉/UI 验收含不可核自验收声明」JSONL 真实出现 2 次(49226、51951),同族「用不可核声明作证据」6 次,`run_attempt=3/nodeRetry=2/engineRetry=2/engine_code=3`。**链路核查确认 CEO(cr-1782293818054-298ef440)→主管(06e6e9dd)→worker_code 的只读/不改运行代码/不引受限权重/密钥不回显边界全程传递并兑现**,失败纯在 done gate 验收坏词误判,非下游遗漏老板需求。做法(可验证,同函数最小修复 `shared/engine/done-gate.js:15-27`):坏证据匹配从裸词子串**收窄为明确假证据短语**(自验收已归档/自验收/无证据/待补/稍后补/只写声明/仅写声明/口头声明)+**带分隔边界的占位词**(见上/同上/略/N/A/NA/none/null),移除裸 `声明/略` 误伤;`tests/done-gate.test.js:87-111,572-615,656-657` 加回归:真实 peekaboo 截图+opus 评测证据下「声明未改运行代码/策略说明」不误伤、「只写声明」仍打回。验证:`node tests/done-gate.test.js` 输出 `{"pass":true,"suite":"done-gate"}`、`node tests/run.js` All tests passed,原始 queue/result 复跑 `validateStructuredAcceptanceTable`/`validateImplementationLogicChain` 得 `structured_ok=true/implementation_logic_ok=true`。未重启服务、未清队列、未碰密钥。**原则强化**:坏词门禁不仅占位词(NA/null)要 token 边界,**业务常用裸词(声明/略)更要升格为"明确假证据短语"匹配**,区分"假完成声明"(只写声明/口头声明/自验收已归档)与"正常边界/策略说明";继续把坏证据规则拆成小 predicate,并保留当前失败样本为回归基线。
+  - **第三维度=notes 描述“无证据建议应降级”的被测政策,却被当作当前行缺证据**(2026-07-17 维修记忆,同一坏词扫描族):结构化验收行已有独立、可核且语义对齐的 evidence,notes 只是说明“缺少证据的建议/提议/机制不能直接成为硬验收”;若门禁仍对 notes 全文无上下文扫描“无证据”,就会在校验证据真实性之前制造假失败。根因是**字段语义、被测政策与当前完成事实没有分层**,关键词命中顺序又早于 evidence 的存在性和对齐判断。做法/预防:在 `shared/engine/done-gate.js` 将 notes 与 evidence 分字段、分上下文判定,只窄范围识别政策说明组合,随后仍独立执行 evidence 存在性与语义对齐校验;裸“无证据”、待补、只写声明、同句证据待补及裸占位继续 fail-closed。自动化上把真实误伤原句作为正例,并与上述真实缺证据形态组成 `tests/done-gate.test.js` 正反成对回归;**允许政策说明绝不等于相信 notes 自报,最终完成资格始终由独立证据门决定**。
 
 - **失败原因回捞越过父任务成功边界 → 可容忍子节点失败被当父任务失败误 requeue,叠加旧 worker 运行旧代码继续误杀**(2026-06-23 维修复盘):project-route 多节点任务里 `board_glm52` 子节点失败(`zhipu-glm: No available channel for model glm-5.2`)是可容忍的,董事会评议随后已完成、任务在 `project.route.waiting` 进入等待下游、下游 supervisor 已接到任务;但 `projects/控制台/ceo-worker.js` 的 `latestTaskFailureReason()` 只按反向事件查 `node.fail/task.failed`,**遇到更晚的 `engine.worker.end ok=true`/`project.route.waiting` 这类成功/等待下游边界没有停止**,于是把已成功路由的父任务(ceo/938867b8)误判成 engine failure,`maybeRetryEngineFailure()` 又把它 requeue 成 `node_failed`。叠加运行态:常驻 ceo worker(pid 66052,起于 2026-06-21)**没加载磁盘上已存在的 progress_task 不匹配保护**,retry 任务沿用旧 `node_event_at=03:03:01.902Z`/`progress_task=…-938867b8` 被旧 no-progress watchdog 判死 SIGTERM,两次重试耗尽才开工单。是「[[running 进展派生字段在状态迁移边界清理不全]]」「[[补丁已落盘 ≠ 运行态已生效]]」的同族,**新增维度**:不是进度字段污染、而是**失败原因消费侧缺"父任务成功边界优先于早先局部失败"的规则**——事件流里局部 `node.fail` 与父任务成功边界没有优先级,回捞逻辑把早先子失败覆盖到已成功的父任务上。
   - 根因:① `latestTaskFailureReason()` 反向扫描只认失败事件、不认成功/等待下游边界,可容忍子节点失败被当成父任务终态失败;② 常驻 worker pidfile 只看进程/心跳、**不看代码版本漂移**,旧进程继续用旧进展字段和旧 watchdog 逻辑误杀。
@@ -363,9 +382,9 @@
   - 根因:把五个应独立的策略耦合了——worker 生命周期、监督轻探测、审计历史读取、UI 可见性和模型并发;同时缺少只看可执行状态的索引/接口、增量游标、缓存失效和请求防重入,使每轮工作量被历史规模直接决定。
   - 做法/预防/自动化(可验证):只对必需的系统角色显式常驻;普通 worker 按需拉起,连续空闲后退出,但在存在 queued/running 或活动句柄时保护不退。监督层只查可执行状态;历史/终态查询用增量游标、目录签名缓存和写入失效;多路 UI 请求合并为概览接口,页面不可见时暂停,并为各类数据设独立节拍与防重入。持续暴露进程/堆内存指标,并用空闲稳态+受控高并发负载两类基准守住常驻与峰值。并发数属于内存/吞吐取舍,未经决策不静默下调;审计产物的保留/归档与 RSS 治理分账,不把直接删历史当作内存修复。
 
-- **自然语言控制语法缺少语义极性/明确边界，且来源说明、当前交付面与结构化验收路由混用 → 非视觉任务误触视觉门、数值正文被拆坏、硬约束静默丢失**(2026-07-14 维修复盘；2026-07-16 合并同族，可泛化):当任务写“无需视觉/视觉 NA/无 UI”，参考案例、证据路径或英文标识含 `ui-optimizer`、`build` 等字样，或正文含编号范围、配置数值、IP、浮点时，宽泛关键词与编号正则会把否定说明、provenance 文本、普通英文子串和数字误当控制语法；若路由层再用通用摘要重建 `acceptance`，orchestrator 的具体验收会消失，implement 还可能被要求证明尚未发生的 review，形成“诚实报告未完成反而被拦”的阶段自依赖。
-  - 根因:视觉触发把语义极性、来源语义与词面命中混用，短英文 `UI` 采用无词界大小写子串匹配，`positiveVisualRequirement` 又没有区分参考/provenance 行和当前修改动作；编号切分没有限定条目起始边界且对编号项二次按分号拆分；`orchestrator.acceptance` 没有作为结构化字段贯穿 supervisor 信封；通用验收把后续阶段结果写成当前阶段前置条件；简单 fixture 未覆盖真实长验收、参考标识和数值正文。
-  - 做法/预防/自动化:先归一化否定、NA/N/A/不适用等语义；短英文控制词使用明确词界，纯参考/证据/provenance 行在没有真实视觉动作或显式证据请求时不得升级为视觉义务；真实 UI 修改、显式 Peekaboo/截图要求优先，继续保持 Peekaboo + Codex 证据 fail-closed。编号只在明确条目边界切分，编号项不再按分号二次拆碎；orchestrator 验收以结构化字段端到端保存并传入 supervisor，implement 只承诺本阶段可完成的交付/status，review 由系统随后执行。回归同时覆盖参考标识/普通英文子串不触发、真实 UI 动作/显式截图触发、视觉缺证据失败、ID/范围/配置值/IP/浮点正文保真，并用事故原文和真实历史信封做“原验收逐条相等 + 阶段行追加”的无损契约重放；现有解析器的条目上限及无明确边界的英文同行编号属于已知限制，超出时另开评估，不靠放宽门禁绕过。
+- **自然语言控制语法缺少语义极性/明确边界，且来源说明、模板元数据、当前交付面与结构化验收路由混用 → 非视觉任务误触视觉门、数值正文被拆坏、硬约束静默丢失**(2026-07-14 维修复盘；2026-07-16、2026-07-22 合并同族，可泛化):当任务写“无需视觉/视觉 NA/无 UI”，参考案例、证据路径或英文标识含 `ui-optimizer`、`build` 等字样，非视觉后处理 goal 原样嵌入上游验收表且 canonical 证据列表头含“截图路径”，或正文含编号范围、配置数值、IP、浮点时，宽泛关键词与编号正则会把否定说明、provenance/审计元数据、普通英文子串和数字误当控制语法；若路由层再用通用摘要重建 `acceptance`，orchestrator 的具体验收会消失，implement 还可能被要求证明尚未发生的 review，形成“诚实报告未完成反而被拦”的阶段自依赖。
+  - 根因:视觉触发把语义极性、来源/模板语义与词面命中混用，分类器扫描混装当前意图、引用完成记录和验收元数据的完整自由文本；短英文 `UI` 采用无词界大小写子串匹配，`positiveVisualRequirement` 又没有区分参考/provenance 行、canonical 表头和当前修改动作。编号切分没有限定条目起始边界且对编号项二次按分号拆分；`orchestrator.acceptance` 没有作为结构化字段贯穿 supervisor 信封；通用验收把后续阶段结果写成当前阶段前置条件；简单 fixture 未覆盖真实长验收、固定模板表头、参考标识和数值正文。
+  - 做法/预防/自动化:先归一化否定、NA/N/A/不适用等语义；短英文控制词使用明确词界，纯参考/证据/provenance 行在没有真实视觉动作或显式证据请求时不得升级为视觉义务；对 canonical 验收表只精确遮罩固定证据列表头等元数据噪声，不能整表忽略，表体真实 UI 工作或显式 Peekaboo/截图要求仍优先并继续保持证据 fail-closed。长期把 `current_intent`、`quoted_completion`、`acceptance_metadata` 分字段传递，分类器默认只消费当前意图。编号只在明确条目边界切分，编号项不再按分号二次拆碎；orchestrator 验收以结构化字段端到端保存并传入 supervisor，implement 只承诺本阶段可完成的交付/status，review 由系统随后执行。回归同时覆盖固定表头单独不触发、完整事故信封保持非视觉、参考标识/普通英文子串不触发、表体真实 UI 动作与显式截图触发、视觉缺证据失败、ID/范围/配置值/IP/浮点正文保真，并用事故原文和真实历史信封做无损契约重放；现有解析器的条目上限及无明确边界的英文同行编号属于已知限制，超出时另开评估，不靠放宽门禁绕过。
 
 - **工作流选边前复用最终完成验证器 → 合法负向节点被判协议错误、返工边成为死边**(2026-07-14 维修复盘,可泛化):声明式评审流程中，`review.pass=false` 携带“部分/未完成”和可核缺陷证据，本应进入返工边；若选边前按最终完成语义要求验收表全为“完成”，诚实的负向反馈会先变成 `review_invalid/node.fail`，业务缺陷反而无法回到实现节点。
   - 根因:把“节点输出是否结构完整、证据可信”与“流程是否具备最终完成资格”复用为同一个状态约束，没有按节点阶段和评审极性分层；结果是局部合同验证提前吞掉了流图的合法负向分支。
@@ -378,3 +397,51 @@
 - **结构化验收只堆可核路径但不承载要点语义 → 实现完成后仍被证据对齐门禁逐行拒绝**(2026-07-17 维修复盘,可泛化,已修):验收行引用了真实源码/测试位置，但 evidence、notes 与引用片段均没有该行要点和结果的可核术语时，严格 done gate 会正确 fail closed；单补一行后下一行继续失败，说明这是生成合同缺口，不是某个行号或功能未实现。
   - 根因:执行 prompt 只要求“证据对得上”，没有把“指针存在/路径可解析”与“证据语义覆盖本行要点及结果”分成明确合同，agent 因而把引用数量误当证据质量；跨语言的源码标识又放大了词项不对齐。
   - 做法/预防/自动化(可验证):不放宽证据对齐门禁；在生成侧强制每行 evidence/notes 或引用附近片段同时含验收要点的具体术语和结果，源码/测试标识与验收语言不一致时，额外引用 decisions/structured-acceptance 中同时承载要点与结果的持久行。回归用“原始表失败 → 单行补证后下一缺口仍失败 → 全表逐行语义对齐后通过”的正反实验，并用 prompt 合同断言防回退；不得把“路径可核”当成“本行已证明”。
+
+- **结构化 Markdown 报告只校验字段非空,且顶级分段与正文列表标签共享宽松语法 → 内容错位仍被误判完整并进入副作用**(2026-07-20 维修复盘,可泛化,已修):报告正文或知识列表含与顶级 section 同名的“根因/处理/验证/下一步”等字段时,宽松解析器会切换当前分段、覆盖先前内容或截断后续内容；所有目标字段最终仍非空,所以完整性门禁可能给出假通过。
+  - 根因:顶级标题、兼容单行标签和普通列表字段复用同一正则,解析结果又只按“最终非空”验收,没有记录或验证边界类型与内容来源；测试只覆盖扁平 happy path,未覆盖嵌套同名标签、伪标题和真实错误产物。
+  - 做法/预防/自动化(可验证):为顶级 section 定义明确语法并与正文语法分离——合法 ATX heading 必须满足标题标记后的空格规则,兼容标签只能是无列表前缀的独立单行,普通列表项和伪标题继续留在当前正文。任何写盘、通知或投递前先跑无副作用纯解析门,除 `missingSections` 外逐项断言各 section 的内容来源、边界和关键正文归属；回归矩阵同时包含兼容正例、正文同名列表反例、伪标题反例及脱敏后的真实旧错误语料。若未来正文也需要无列表同名字段,应升级为显式标题或结构化载荷,不要继续放宽歧义正则。
+
+- **待拍板候选、暂停分支与可执行队列混成一个计数 → “队列很大但 worker 不消费”假故障**(2026-07-21 监管复盘,可泛化,已修):页面将 65 张待拍板公告卡和 3 个 paused 项混成 68 个“队列任务”,真实 runnable 为 0。
+  - 根因:前端/API 未把 decision candidate、paused branch 与 runnable task 建模为不同状态域；替代分支未幂等收口,收尾任务又可因预算过短或锁域过宽制造真等待。
+  - 做法/预防/自动化(可验证):看板/API 固定分账 `runnable/waiting_owner/paused/terminal`,每个总数只属于一个状态集；替代分支完成后保留审计并收口原分支；长角色节点预算按真实耗时校准,收尾任务只锁实际写域。回归同时断言计数分离、旧分支单终态和新 runnable 可连续消费。
+
+- **宽字符集脱敏误伤公开协议/证据指纹,外部视觉条件不变时又重放相同 attempt**(2026-07-21 监管复盘,可泛化,代码修复已验证但结案待人工条件):公共报告脱敏曾将公开 schema 标识和证据哈希当秘密遮蔽；修复通过后,桌面锁屏使真图无法采集,同一外部状态下又连续重试。
+  - 根因:脱敏只按字符集/长度判定,缺锚定公开语义例外；视觉任务消耗 attempt 前没有做桌面/窗口 preflight,也未把“需主人解锁”停泊为非可调度状态。
+  - 做法/预防/自动化(可验证):只在公共脱敏入口加最窄、完整锚定的语义白名单,每个保留正例同时补一个相似真秘密反例,并在同一外发产物断言保留/遮蔽两边。视觉任务调度前先 preflight；人工外部条件未变时改为 `waiting_human`,不以 headless 图绕过真图门。
+
+- **fresh heartbeat 的 runner/slot 合法等待仍被当成 `running-no-progress` → watchdog 整机重启无解且扩大风险**(2026-07-21 监管复盘,可泛化,未闭环):CEO 任务在 pre-engine `runner-singleflight` 等待中每分钟续约,仍产生 6 次整机重启和 94 次节流；前一任务释放 runner 后等待者自然继续,证明重启不是恢复因。
+  - 根因:watchdog 仅为 `waiting_downstream` 特判 fresh child,没有把已知 runner/slot/resource 占用者的 pre-engine wait 建模为合法等待；无 progress 超阈值便 `restart=true`,即使 queue heartbeat 新鲜且等待原因明确。
+  - 做法/预防/自动化(可验证):为 runner/slot/resource wait 使用明确 `waiting_*` 状态,记录 holder、排队位置和开始时间；已知 holder 心跳新鲜时从 restart 条件排除,重启至少要同时满足 heartbeat 失鲜且非合法等待。回归覆盖 fresh holder/waiter 不重启、holder 失联可恢复、普通真无进展仍重启。
+
+- **诊断面二次扩散:未脱敏日志全文被诊断工具打印,工具输出又自动写回日志**(2026-07-21 监管复盘,新 Meta 误区,重大未闭环):runner stderr 中一个带引号的凭据形态值漏过 `node.output` 脱敏；治理诊断用全文检索读到该行后,当前 runner 又将工具输出持久化,使一处泄漏至少复制成两处。
+  - 根因:脱敏只在部分 producer 上用格式有限的正则,带引号值、句式 token/key 或工具二次回输可漏网；EventLog 唯一写入汇聚点没有第二道安全扫描,诊断工具又默认打印完整 `.text`。
+  - 做法/预防/自动化(可验证):把敏感值保护下沉到 EventLog 写入汇聚点,覆盖带引号值、句式 token/key、Bearer、cookie 和工具回输；用构造凭据断言原输出、eventlog 和二次诊断输出均不含原值。日志审计默认只投影 `ts/type/task/queue/reason-class`,正文必须经脱敏 helper 才可打印；已有泄漏由有权限的安全 owner 决定脱敏、废止/轮换和审计,监管不复制值或擅自删日志。
+
+- **memory producer 按章节顶部插入,lesson-graph consumer 却按文件 EOF 追加校验 → Markdown 保留但图谱连续拒绝**(2026-07-21 监管复盘,可泛化,未闭环):三次 memory-officer 任务成功写入 Markdown,三次 lesson graph canary 均因 `memory-source-not-append-only` 失败,证明是生产/消费合同相斥。
+  - 根因:consumer 只允许同位置“更新于”行变化,并从旧行数之后抽取新 lesson；producer 则在顶部新增元数据行,并在“失败教训”开头插入新条目,使旧行全部下移。两端都称 append-only,但一端按语义章节、另一端按物理后缀。
+  - 做法/预防/自动化(可验证):二选一固化唯一契约——producer 真正把新 lesson 追加到 EOF,顶部元数据仅原位替换；或 consumer 按稳定 lesson ID/hash 做语义差分,不依赖行位置。用真实 memory-officer 写法做端到端回归,断言新 lesson 可提取、旧 lesson 无改写、重试无重复边；图谱失败继续保留 Markdown,合同修复后以幂等键回填已保留但未入图 lesson。
+
+- **`runner.failover` 事件只代表候选切换意图，外层熔断可能在 fallback 真调用前终止同一 engine**(2026-07-22 监管复盘,可泛化,未闭环):quality_ops 在 5 次 `zhipu-glm-tools` 额度失败后均记录 `to=codex`，但没有任何 Codex fallback `runner.call`；外层 queue worker 随即按 `runner:zhipu-glm` scope 终止 engine 并 requeue。
+  - 根因:内层 CLI 候选循环在首选失败后先写 breaker 状态并 emit failover，本应继续下一候选；外层 500ms quota poll 同时消费该 breaker 状态，把仍处于候选循环的 engine 当成整个 scope 已不可执行而 SIGTERM。观测层又把“准备降级”和“降级已执行”复用同一事件名，容易造成假成功统计。
+  - 做法/预防/自动化(可验证):failover 成功必须同时看到 fallback `runner.call(failover=true)` 与后续节点/任务成功终态；内层候选链结束前，外层 scope pause 不得终止同一 engine，或必须按当前实际候选/phase 判断。回归固定“首选预扣费失败→fallback 真调用成功”和“所有候选不可用→一次性 incident 停泊”两条路径，禁止靠移除事件或禁用熔断消除症状。
+
+- **quota-degraded 普通 queued + taskstore 延迟 sweep 再次复发：incident 已识别却没有形成一体化等待状态**(2026-07-22 监管复盘,2026-07-05/06 同族复发与根因细化,未闭环):7 个 quality_ops 任务全部 quota requeue，两个日任务重复产生不同 taskId，全天出现 1428 次 `resource.scheduler.all_blocked(reason=quota-degraded)`；queue 已回 queued 时 engine task 仍保持 running，1 个在 25202 秒后、其余 6 个在下一日引擎启动时才被 sweep 为 paused。
+  - 根因:incident fuse 只写 quota 元数据，队列仍 `Q.requeue(...queued)`；daily scheduler 不按 scope+语义任务+日期合并；queue→waiting/requeued 与 taskstore 状态不是同一幂等迁移，stale sweep 又只在新 engine 启动时运行。因为没有 `task.failed`，自动工单和 rollup 同时漏掉该软事故。
+  - 做法/预防/自动化(可验证):quota backlog 使用不可调度的 `waiting_quota/paused/backoff`，记录 `wake_after`/恢复条件/TTL；新 daily 命中未恢复 incident 时合并或写 `skipped_with_incident`。queue 离开 running 时同步迁移 taskstore，sweep 只兜底；quota requeue 超阈值、等待超过 30 分钟或 all-blocked>100/日时生成一个按 scope+语义任务去重的 owner 缺口并进入 rollup。次日复盘必须以生产状态/回归证据核查落地，不把本条再次写成同义建议即算闭环。
+
+- **关键词驱动的义务门禁不识别否定/反占位极性 → “不得用 X 代替实现”被误判为“必须依据 X”**(2026-07-22 维修复盘,可泛化,已修):任务用“不得只交设计稿或完成自述”等反占位约束强调必须真实实现时,隐式设计检索若只命中实体词“设计稿”,会凭空追加 `decisions.md:行号` 设计对照义务,使已完成且验证通过的实现被假失败打回。这与视觉触发误读否定语义同族,但发生在完成门禁的义务推导层。
+  - 根因:自然语言触发器把词面出现等同于正向意图,没有区分否定方向、反占位约束与正向“按/参考/对照某设计源”动作；同一匹配结果又直接驱动 fail-closed 硬门,放大为跨任务误拒。
+  - 做法/预防/自动化(可验证):在隐式触发前先遮罩或结构化识别明确否定与反占位片段,再仅由“正向动作+设计来源”推导隐式义务；显式 `decisions.md:行号` 与明确按/参考/对照设计的任务仍保持硬门。回归用事故原句、否定句式矩阵和正向防弱化反例成对覆盖；出现新句式时扩充同一极性矩阵,不得用删除关键词或遇到设计词一律放行来消除假失败。长期可将自由文本启发式逐步升级为结构化意图字段,但在迁移期继续 fail-closed 校验显式引用。
+
+- **严格门给出精确行级错误，自动重试却只传通用失败，且终态残留旧错 → 盲重试与冲突诊断**(2026-07-23 监管复盘,可泛化,机制已修):同一 review-loop 三轮分别失败在 review source evidence、changed_files 真实性和第 16 行语义证据，但下轮只知道 `node_failed`，failed 记录还同时保留 current/stale 两个原因。
+  - 根因:精确 `last_engine_error` 没有贯穿 queue running record→engine spec→runner prompt；终态写入又没在同一边界覆盖 current error 与 `last_engine_*`。
+  - 做法/预防/自动化(可验证):保留严格门；将脱敏、有长度上限、只用于定位的 retry detail 传给下轮，不覆盖原目标/边界/验收；终态统一覆盖 error/code/signal 并在成功时清旧失败。回归必须同时覆盖 prompt 包含精确详情、stale→current 覆盖和成功终态清理。
+
+- **watchdog 把 source reload/on-demand spawn 空窗和 fresh-heartbeat 长任务当故障 → 单 worker 恢复失败后反复整机重启**(2026-07-23 监管复盘,可泛化,未闭环):24 小时内整机重启 14 次；其中多次是旧 worker 已为源码换代正常退出、新 worker 即将 spawn 的数秒空窗，或 engine/queue keepalive 仍新鲜但节点输出静默的长任务。
+  - 根因:稳态健康判定没有建模 `worker_reloading`/`worker_starting`/`waiting_*`；单 worker restart 遇 pid 不存在直接升级整机重启，`running-no-progress` 又没将 fresh heartbeat/holder 作为否定条件。
+  - 做法/预防/自动化(可验证):计划换代或有 queued 任务且 supervisor 可拉起时，pid 缺失先进入有界 grace，观察 `queue.worker.spawned/start`；fresh engine/queue heartbeat 或新鲜 holder 存在时不得仅凭无新输出整机重启。回归覆盖 reload gap 不重启、spawn 超过 grace 可升级、fresh heartbeat 不重启与真失联仍恢复。
+
+- **主 memory 任务 done 但派生 lesson graph 失败被视为无事 → 同一 append-only 合同缺口第四次静默复发**(2026-07-23 监管复盘,可泛化,未闭环):Markdown 成功保留是正确降级，但不能被等同为派生图谱已成功；否则同一 `memory-source-not-append-only` 可持续发生而不进入工单/看板。
+  - 根因:主文写入与派生索引没有双终态分账；consumer 的物理 EOF append 定义又与 producer 的语义合并定义相反。
+  - 做法/预防/自动化(可验证):主文可 done 且不回滚，但回执必须同时报告图谱 `applied/failed/pending_backfill`；同 fingerprint 达阈值后只产生一个 owner 缺口。固化唯一 append 契约或稳定 lesson ID/hash 语义差分，并按幂等键回填已保留但未入图条目。

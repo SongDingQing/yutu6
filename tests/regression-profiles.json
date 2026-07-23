@@ -185,6 +185,13 @@
           ]
         },
         {
+          "file": "yutu6-startup.test.js",
+          "reason": "Runtime components were previously split across LaunchAgents, login items and manual container starts, so a reboot could leave a partially running system.",
+          "incident_refs": [
+            "docs/设计/玉兔6-统一启动与重启恢复.md"
+          ]
+        },
+        {
           "file": "incremental-event-reader.test.js",
           "reason": "Waiting parent workers repeatedly reparsed the complete event history on every append, consuming a CPU core while no downstream state changed.",
           "incident_refs": [
@@ -252,6 +259,34 @@
           "incident_refs": [
             "projects/控制台/artifacts/gate-load-audit/incidents/20260716-retry-loop-token-amplification.md"
           ]
+        },
+        {
+          "file": "agent-platforms.test.js",
+          "reason": "External agent platforms must remain optional, reuse the local model pool and never enter autostart or bypass the native completion boundary.",
+          "incident_refs": [
+            "docs/设计/玉兔6-外部智能体平台与模型池接入.md"
+          ]
+        },
+        {
+          "file": "a2a-client.test.js",
+          "reason": "A2A discovery and invocation need a stable zero-dependency contract without putting raw tokens on the command line.",
+          "incident_refs": [
+            "docs/设计/玉兔6-外部智能体平台与模型池接入.md"
+          ]
+        },
+        {
+          "file": "model-fabric.test.js",
+          "reason": "The unified model and agent front door must normalize /v1 paths, keep client credentials out of upstream calls and ledgers, bound failover, and preserve the native done-gate boundary.",
+          "incident_refs": [
+            "docs/设计/玉兔6-模型与智能体中枢-架构与迁移.md"
+          ]
+        },
+        {
+          "file": "zhipu-coding-plan-contract.test.js",
+          "reason": "GLM Coding Plan was repeatedly routed through the generic new-api billing path and platform overload code 1305 was misclassified as exhausted quota.",
+          "incident_refs": [
+            "projects/控制台/artifacts/zhipu-coding-plan-route-repair-20260722.md"
+          ]
         }
       ]
     },
@@ -279,6 +314,125 @@
         "routing"
       ],
       "tests": []
+    },
+    "frontend-fast": {
+      "description": "Under-two-minute frontend gate: types are checked by the wrapper, while this profile verifies contracts, changed modules and budgets.",
+      "tests": [
+        {
+          "file": "react-workspace-shell.test.js",
+          "reason": "The React shell must retain the legacy rollback route and first-screen production functions.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "frontend-contracts.test.js",
+          "reason": "Malformed API payloads previously broke the single-file workspace at runtime.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "workspace-snapshot.test.js",
+          "reason": "Repeated full API polling previously inflated transfer, parsing work and render churn.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "attachment-staging.test.js",
+          "reason": "Inline Base64 attachments previously expanded task payloads and browser memory.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "frontend-module-boundaries.test.js",
+          "reason": "The legacy monolith made every view share one failure and one initial bundle.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "react-control-gateway.test.js",
+          "reason": "Control-room and gateway migrations must not leak intervals or lose their legacy rollback routes.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "task-detail-safety.test.js",
+          "reason": "Task detail must expose structured evidence without private prompts, credentials or unbounded traces.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "frontend-budget.test.js",
+          "reason": "Frontend growth and repeated polling previously raised memory and CPU cost without user-visible benefit.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md",
+            "projects/控制台/artifacts/gate-load-audit/latest.md"
+          ]
+        }
+      ]
+    },
+    "frontend-release": {
+      "description": "Release-only cross-view profile; dormant for routine tasks.",
+      "include": [
+        "frontend-fast"
+      ],
+      "tests": [
+        {
+          "file": "runtime-settings.test.js",
+          "reason": "The React default route must retain safe local runtime settings and restart behavior.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "workspace-settings-api.test.js",
+          "reason": "Settings writes and restarts require localhost, CSRF and running-task guards.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "office-building-state.test.js",
+          "reason": "The office-building migration must preserve its three operational animation states.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "e2e-canary.test.js",
+          "reason": "A default-route release needs a production HTTP and queue canary beyond component checks.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "frontend-route-switch.test.js",
+          "reason": "The React default route must be switchable and reversible without editing production code.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "frontend-canary.test.js",
+          "reason": "The release needs bounded long-running observation and automatic rollback after repeated hard failures.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        },
+        {
+          "file": "react-settings.test.js",
+          "reason": "The React default route must not lose the preset, save-state, CSRF or safe-restart settings workflow.",
+          "incident_refs": [
+            "projects/控制台/tasks/AI前端题库驱动的玉兔6升级总计划.md"
+          ]
+        }
+      ]
     }
   }
 }

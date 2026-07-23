@@ -6,6 +6,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const Audit = require('../../../shared/engine/quality-ops-audit');
 const InteractionTrace = require('../../../shared/engine/interaction-trace');
+const QualityProposalTriage = require('./quality-proposal-triage');
 const Q = require('../../../shared/engine/queue');
 const ProcessReceiptHook = require('../process-receipt-hook');
 const ChainTerminal = require('../quality-ops-chain-terminal');
@@ -257,6 +258,36 @@ function addBulletin(proposal, fingerprint) {
   return { id, action: 'created' };
 }
 
+function proposalDecision(proposal, fingerprint) {
+  const text = [
+    proposal && proposal.title,
+    proposal && proposal.desc,
+    proposal && proposal.risk,
+  ].filter(Boolean).join('\n');
+  const securityOrExternalSideEffect = /密钥|token|私钥|cookie|凭据|认证|授权|权限|删除|上传|外部推送|外部发布|模型发布|github 发布|不可逆/i.test(text);
+  if (securityOrExternalSideEffect) {
+    return {
+      disposition: 'foundational_policy',
+      requires_owner_decision: true,
+      reason: '信息安全、权限边界或外部副作用必须给主人明确决策。',
+      theme: QualityProposalTriage.canonicalTheme(proposal),
+    };
+  }
+  const decision = QualityProposalTriage.dispositionFor({
+    id: `qops-${String(fingerprint || '').slice(0, 16)}`,
+    title: proposal && proposal.title,
+    desc: proposal && proposal.desc,
+  });
+  return {
+    disposition: decision.disposition === 'foundational_policy'
+      ? 'dormant_candidate'
+      : decision.disposition,
+    requires_owner_decision: false,
+    reason: decision.reason,
+    theme: QualityProposalTriage.canonicalTheme(proposal),
+  };
+}
+
 function recordQualityOpsReceipt(actionName, input = {}, runtime = {}) {
   return ProcessReceiptHook.writeCriticalActionReceipt({
     workspaceRoot: WORKDIR,
@@ -316,7 +347,10 @@ function ingest(args = {}) {
       bulletin.push({ fingerprint, action: 'deduplicated' });
       continue;
     }
-    const created = addBulletin(proposal, fingerprint);
+    const decision = proposalDecision(proposal, fingerprint);
+    const created = decision.requires_owner_decision
+      ? addBulletin(proposal, fingerprint)
+      : { id: null, action: 'recorded_without_bulletin' };
     proposals.proposals.push({
       fingerprint,
       audit_id: plan.audit_id,
@@ -326,7 +360,8 @@ function ingest(args = {}) {
       evidence_refs: proposal.evidence_refs,
       bulletin_id: created.id,
       created_at: new Date().toISOString(),
-      status: 'todo_owner_decision',
+      status: decision.requires_owner_decision ? 'todo_owner_decision' : decision.disposition,
+      governance_decision: decision,
     });
     known.add(fingerprint);
     bulletin.push({ fingerprint, ...created });
@@ -467,6 +502,7 @@ if (require.main === module) {
 module.exports = {
   schedule,
   ingest,
+  proposalDecision,
   weekly,
   status,
   batchTask,

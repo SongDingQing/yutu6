@@ -751,8 +751,8 @@ async function main() {
     const terminalEvents = terminalEventText.trim().split(/\n/).filter(Boolean).map(JSON.parse);
     const absentEvents = terminalEvents.filter(event => event.type === 'node.absent');
     const cooldownEvents = terminalEvents.filter(event => event.type === 'board.review.director.cooldown');
-    assert.strictEqual(absentEvents.length, 4);
-    assert.strictEqual(cooldownEvents.length, 4);
+    assert.strictEqual(absentEvents.length, BoardReview.DIRECTORS.length);
+    assert.strictEqual(cooldownEvents.length, BoardReview.DIRECTORS.length);
     assert(absentEvents.every(event => String(event.reason).includes('[REDACTED]')));
     assert(cooldownEvents.every(event => String(event.reason).includes('[REDACTED]')));
 
@@ -792,7 +792,7 @@ async function main() {
       cliRunner: { runBoardNodeAsync: integrationRunner.runNodeAsync },
     });
     assert.strictEqual(reviewed.ok, true);
-    assert.strictEqual(integrationSeen.length, 8, 'four directors each use primary then fallback');
+    assert.strictEqual(integrationSeen.length, BoardReview.DIRECTORS.length * 2, 'each active director uses primary then fallback');
     const refs = integrationSeen.map(row => row.goal.match(/context_ref:([^\n]+)/)).filter(Boolean).map(match => match[1]);
     assert.strictEqual(new Set(refs).size, 1, 'all roles and fallbacks must share one context_ref');
     assert(integrationSeen.filter(row => row.runnerId.endsWith('-fallback')).every(row => row.goal.includes('failure_kind: transport')));
@@ -803,8 +803,8 @@ async function main() {
     assert(preparedEvent && preparedEvent.semantic_equivalence === true
       && preparedEvent.local_estimate_only === true
       && preparedEvent.reduced_estimated_input_tokens > 0);
-    assert.strictEqual(events.filter(event => event.type === 'board.review.context_ref.delivered').length, 4);
-    assert.strictEqual(events.filter(event => event.type === 'board.review.context_ref.fallback_delta').length, 4);
+    assert.strictEqual(events.filter(event => event.type === 'board.review.context_ref.delivered').length, BoardReview.DIRECTORS.length);
+    assert.strictEqual(events.filter(event => event.type === 'board.review.context_ref.fallback_delta').length, BoardReview.DIRECTORS.length);
     assert(fs.existsSync(path.join(
       artifactsRoot, 'engine-runs', 'context-ref-integration', 'board-context-ref', 'prompt-reduction.json',
     )));
@@ -921,7 +921,7 @@ async function main() {
       "process.stdin.on('data', () => {});",
       "process.stdin.on('end', () => process.stdout.write(JSON.stringify({board_review:{risk_level:'low',can_execute:true,hard_block:false,misjudgment_risk:false,issues:[],suggestions:[],summary:'ok'}})));",
     ].join('\n'));
-    for (const runnerId of ['claude-fable-5', 'codex']) {
+    for (const runnerId of ['codex', 'codex-privileged']) {
       const runners = { [runnerId]: { kind: 'command', cmd: [process.execPath, cliScript], promptVia: 'stdin' } };
       const wrapped = BoardFailoverRunner.makeBoardFailoverRunner({
         taskId: `cli-${runnerId}`,
@@ -944,7 +944,7 @@ async function main() {
       const node = { id: `board-${runnerId}`, agent_role: 'board_opus48' };
       const out = await wrapped.runNodeAsync(node, {
         goal: finalGoal,
-        boardLegacyGoal: legacyGoals[3],
+        boardLegacyGoal: legacyGoals[legacyGoals.length - 1],
         boardContextRef: prepared,
         acceptance: '输出董事会挑刺 JSON; 不改文件; 不回显密钥。',
       }, 1);

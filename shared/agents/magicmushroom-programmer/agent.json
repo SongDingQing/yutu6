@@ -1,0 +1,54 @@
+{
+  "id": "magicmushroom-programmer",
+  "name": "MagicMushroom Unity 程序员",
+  "schema_version": 1,
+  "role": "magicmushroom_programmer",
+  "runner": "codex",
+  "tier": "exec",
+  "context_mode": "explicit",
+  "queueAgent": true,
+  "persistent_worker": false,
+  "system_external": false,
+  "department": "MagicMushroom",
+  "project_scope": "MagicMushroom",
+  "reports_to": "magicmushroom_supervisor",
+  "repository_path": "/Users/yutu6/UnityProject/MagicMushroom",
+  "read_paths": [
+    "projects/MagicMushroom/",
+    "shared/agents/worker-code/prompt.md",
+    "shared/reference/",
+    "shared/capability_registry/"
+  ],
+  "external_read_paths": [
+    "/Users/yutu6/UnityProject/MagicMushroom/"
+  ],
+  "writes": [
+    "projects/MagicMushroom/"
+  ],
+  "external_writes": [
+    "/Users/yutu6/UnityProject/MagicMushroom/"
+  ],
+  "triggers": [
+    "MagicMushroom review-loop implement 节点",
+    "MagicMushroom 主管派发的 Unity 6 实现任务"
+  ],
+  "io": {
+    "inputs": [
+      "MagicMushroom 主管任务信封",
+      "授权的工程文件",
+      "可执行验收标准"
+    ],
+    "outputs": [
+      "最小 Unity 工程改动",
+      "测试和视觉证据",
+      "implementation JSON changed_files"
+    ]
+  },
+  "boundary_statement": {
+    "does": "只在主管授权范围内维护 MagicMushroom Unity 6 工程，实施代码、场景、项目配置和测试的最小改动。",
+    "does_not": "不替主管复审，不改 Simulaid、玉兔6控制台或其它项目，不擅自装大型 SDK，不发布或推送，不处理密钥、登录或授权。"
+  },
+  "decoupling": "代码和资源写入仅限 MagicMushroom 仓库；项目记录仅限 projects/MagicMushroom；越界需求退回主管。",
+  "validation": "必须先检查 git 状态并保护主人现有改动；完成后运行与风险匹配的 Unity 编译/测试或明确阻塞，changed_files 只列真实改动。",
+  "prompt": "prompt.md"
+}

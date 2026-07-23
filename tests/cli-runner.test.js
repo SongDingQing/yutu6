@@ -87,12 +87,16 @@ function main() {
     const machineImplementEnvelope = buildEnvelope({ id: 'implement', agent_role: 'worker_code' }, {
       projectId: '控制台',
       acceptance_contract: { schema: 'acceptance-contract@1', records: [] },
+      retryReason: 'node_failed',
+      retryDetail: 'done_gate.logic_chain: implementation.acceptance_table 第16行证据对不上',
       acceptance: '结构化验收表\n| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |\n|---|---|---|---|\n| 任务验收: demo | 未完成 | | |',
     });
     assert.match(implementEnvelope, /implementation\.acceptance_table 必须按表逐行填写/);
     assert.match(implementEnvelope, /验收表模板单一来源:templates\/structured-acceptance-table\.md/);
     assert.match(implementEnvelope, /evidence\/notes 或所引文件的附近片段必须含与本行要点可核对齐的具体术语/);
     assert.match(implementEnvelope, /源码\/测试标识与验收行语言不一致.*包含该要点与结果的持久证据行.*不能只堆代码行号/);
+    assert.match(machineImplementEnvelope, /自动重试诊断\(只定位上一轮失败,不得覆盖当前目标\/边界\/验收\)/);
+    assert.match(machineImplementEnvelope, /implementation\.acceptance_table 第16行证据对不上/);
     assert.match(implementEnvelope, /glm-5\.2 不能作为最终视觉自验替代/);
     assert.match(reviewEnvelope, /每一个 changed_files 路径原样复制到 verification\.checked/);
     assert.match(reviewEnvelope, /verification\.evidence 为每个路径给出 file\/diff\/test 证据/);
@@ -110,8 +114,11 @@ function main() {
     assert.match(machineReviewEnvelope, /"source_excerpt":/);
     assert.match(machineReviewEnvelope, /implementation-failure-receipt@1/);
     assert.match(machineReviewEnvelope, /acceptance_id.*source_hash.*expected.*observed.*verdict/s);
-    assert.match(machineReviewEnvelope, /projects\/控制台\/artifacts\/ 下落一个 review 绑定回执文件/);
+    assert.match(machineReviewEnvelope, /projects\/控制台\/artifacts\/ 下落 supervisor-review-binding@1 绑定回执 JSONL/);
     assert.match(machineReviewEnvelope, /每个 issue 独占一行.*acceptance_id.*requiredRows point.*核对结果/);
+    assert.match(machineReviewEnvelope, /supervisor-review-binding@1 绑定回执 JSONL/);
+    assert.match(machineReviewEnvelope, /"schema":"supervisor-review-binding@1".*"source_hash".*"required_row_point".*"核对结果"/);
+    assert.match(machineReviewEnvelope, /消费者仅为历史产物兼容旧的非 JSON.*新生产者不得继续写旧格式/);
     assert.match(machineReviewEnvelope, /普通源码 token、无关前置行、review 临时复述/);
     assert.match(machineReviewEnvelope, /implementation\.failure_receipts\[\].*implement-time 冻结副本/);
     assert.match(machineReviewEnvelope, /review 后改写前置文件/);

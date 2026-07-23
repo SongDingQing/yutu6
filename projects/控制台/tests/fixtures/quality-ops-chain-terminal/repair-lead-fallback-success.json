@@ -78,6 +78,9 @@
     "status": "completed",
     "final_state": "done",
     "span_failures": ["fixture-repair-primary"],
+    "node_terminal_event_count": 0,
+    "terminal_history_outcomes": ["done", "done"],
+    "final_state_source_seqs": [100, 101],
     "source_types": ["task.done", "queue.completed"]
   }
 }

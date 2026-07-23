@@ -1,0 +1,13 @@
+{
+  "schema": "repair-ticket-evidence@1",
+  "ticket_id": "fixture-onboarding-repair-001",
+  "agent_id": "repair-lead",
+  "project_id": "控制台",
+  "responsibility_domain": "控制台 backend delivery",
+  "summary": "repair-lead directly handled a 控制台 backend delivery incident",
+  "incident": {
+    "status": "closed",
+    "root_cause_verified": true,
+    "rollback_verified": true
+  }
+}

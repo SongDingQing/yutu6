@@ -1,0 +1,23 @@
+{
+  "id": "agent-platform-orchestration",
+  "version": "1.0.0",
+  "status": "active",
+  "summary": "玉兔6原生模型池与外部智能体平台的统一目录、健康检查、按需启动和 A2A 调用能力。",
+  "keywords": [
+    "Nexent",
+    "A2A",
+    "Agent Card",
+    "智能体平台",
+    "模型池",
+    "外部智能体",
+    "ModelEngine-Group",
+    "OpenAI compatible",
+    "平台启动",
+    "agent orchestration"
+  ],
+  "read_order": [
+    "INDEX.md",
+    "operations.md",
+    "architecture.md"
+  ]
+}

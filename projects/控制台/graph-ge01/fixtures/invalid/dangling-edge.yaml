@@ -1,0 +1,6 @@
+id: invalid-dangling
+nodes:
+  - { id: start, type: agent }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: missing }

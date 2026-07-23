@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yutu.hermes.voicewake</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yutu6/.hermes/hermes-agent/venv/bin/python</string>
+    <string>/Users/yutu6/.hermes/voice-wake/hermes_voice_wake.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/yutu6/.hermes/voice-wake</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HERMES_HOME</key>
+    <string>/Users/yutu6/.hermes</string>
+    <key>VIRTUAL_ENV</key>
+    <string>/Users/yutu6/.hermes/hermes-agent/venv</string>
+    <key>PATH</key>
+    <string>/Users/yutu6/.hermes/hermes-agent/venv/bin:/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/yutu6/.hermes/voice-wake/logs/voice-wake.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/yutu6/.hermes/voice-wake/logs/voice-wake.error.log</string>
+</dict>
+</plist>

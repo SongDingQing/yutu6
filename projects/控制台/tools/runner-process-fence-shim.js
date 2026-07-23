@@ -223,6 +223,7 @@ function mtimeChanges(before, after) {
 async function main() {
   const executable = String(process.env.YUTU6_TIMEOUT_FENCE_ORIGINAL_EXECUTABLE || '');
   const receiptFile = String(process.env.YUTU6_TIMEOUT_FENCE_RECEIPT || '');
+  const settlementNonce = String(process.env.YUTU6_TIMEOUT_FENCE_SETTLEMENT_NONCE || '');
   const taskId = String(process.env.YUTU6_TIMEOUT_FENCE_TASK_ID || '');
   const nodeId = String(process.env.YUTU6_TIMEOUT_FENCE_NODE_ID || '');
   const runnerId = String(process.env.YUTU6_TIMEOUT_FENCE_RUNNER_ID || '');
@@ -235,7 +236,7 @@ async function main() {
   const postSettleMonitorMs = numberEnv('YUTU6_TIMEOUT_FENCE_POST_SETTLE_MONITOR_MS', 200, 0, 500);
   const uninterruptibleGraceMs = numberEnv('YUTU6_TIMEOUT_FENCE_UNINTERRUPTIBLE_GRACE_MS', 0, 0, 1000);
   const dirtyMonitor = process.env.YUTU6_TIMEOUT_FENCE_DIRTY_MONITOR === '1';
-  if (!executable || !receiptFile || !taskId || !nodeId) {
+  if (!executable || !receiptFile || !settlementNonce || !taskId || !nodeId) {
     process.stderr.write('runner timeout fence shim missing required metadata\n');
     process.exit(127);
   }
@@ -261,6 +262,7 @@ async function main() {
   } catch (error) {
     atomicJson(receiptFile, {
       schema: RECEIPT_SCHEMA,
+      settlement_nonce: settlementNonce,
       task_id: taskId,
       node_id: nodeId,
       runner_id: runnerId,
@@ -315,6 +317,7 @@ async function main() {
     const changes = mtimeChanges(before, after);
     atomicJson(receiptFile, {
       schema: RECEIPT_SCHEMA,
+      settlement_nonce: settlementNonce,
       task_id: taskId,
       node_id: nodeId,
       runner_id: runnerId,
@@ -366,6 +369,7 @@ async function main() {
     if (terminating) return;
     atomicJson(receiptFile, {
       schema: RECEIPT_SCHEMA,
+      settlement_nonce: settlementNonce,
       task_id: taskId,
       node_id: nodeId,
       runner_id: runnerId,
@@ -384,6 +388,7 @@ async function main() {
     const survivors = survivorsFor([child.pid], [child.pid], processMarker);
     atomicJson(receiptFile, {
       schema: RECEIPT_SCHEMA,
+      settlement_nonce: settlementNonce,
       task_id: taskId,
       node_id: nodeId,
       runner_id: runnerId,

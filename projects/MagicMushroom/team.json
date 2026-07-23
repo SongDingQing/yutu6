@@ -1,0 +1,17 @@
+{
+  "schema": "yutu6-project-department@1",
+  "projectId": "MagicMushroom",
+  "repositoryPath": "/Users/yutu6/UnityProject/MagicMushroom",
+  "branch": "main",
+  "unityVersion": "6000.3.16f1",
+  "queue": "supervisor-MagicMushroom",
+  "roles": {
+    "supervisor": "magicmushroom_supervisor",
+    "programmer": "magicmushroom_programmer"
+  },
+  "routing": {
+    "flow": "review-loop",
+    "implementRole": "magicmushroom_programmer",
+    "reviewRole": "magicmushroom_supervisor"
+  }
+}

@@ -1,0 +1,7 @@
+id: invalid-unreachable
+nodes:
+  - { id: start, type: agent }
+  - { id: orphan, type: tool }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: done }

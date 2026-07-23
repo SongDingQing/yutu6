@@ -29,38 +29,34 @@ function main() {
   const expansionModule = JSON.parse(fs.readFileSync(path.join(root, 'shared/capability_registry/modules/instruction-expansion-router/module.json'), 'utf8'));
   const engineRunner = require('../projects/控制台/engine-runner')._test;
   const ctx = { root, roles, runners };
-  // 维修主管已由 Codex 特权接管;当前只有秘书与 Claude 董事席可自动路由 Claude。
+  // Claude 订阅已过期：活跃角色、runner、模型路由和机器前门都不得继续依赖 Claude。
   const claudeAutoRoutes = Object.entries(config.roleRouting || {})
     .filter(([, route]) => route && /^claude/.test(String(route.runner || '')))
     .map(([role, route]) => `${role}:${route.runner}`)
     .sort();
   const claudeRunnerDefs = Object.entries(config.runners || {})
     .filter(([id]) => /^claude/.test(id));
-  assert.deepStrictEqual(claudeAutoRoutes, ['board_claude:claude-fable-5', 'secretary:claude'], 'only secretary/board_claude may auto-route to Claude runners');
-  assert(claudeRunnerDefs.length > 0, 'Claude runner definitions must be registered');
-  for (const id of ['claude', 'claude-code']) {
-    const def = config.runners[id];
-    assert(def && def.hidden !== true && def.deprecated !== true, `${id} runner must be active (not hidden/deprecated)`);
-  }
-  const fableRunner = config.runners['claude-fable-5'];
-  assert(fableRunner, 'Claude Fable 5 board runner must be registered');
-  assert(fableRunner.cmd.includes('claude-fable-5'), 'Claude board runner must select the Fable 5 model explicitly');
-  assert.strictEqual(fableRunner.execution.canWriteFiles, false, 'Claude board runner must remain read-only');
-  assert.strictEqual(fableRunner.execution.canRunCommands, false, 'Claude board runner must not execute shell commands');
-  // 其余 claude* runner(如 claude-opus-4-8 历史通道)仍允许保留为兼容记录。
-  const claudePreferRoles = ['secretary', 'board_claude'];
-  for (const role of claudePreferRoles) {
-    assert(/prefer:\s*\[subscription\.claude/.test(roleBlock(modelRoutingText, role)), `${role} must prefer Claude subscription first`);
-    assert(/subscription\.codex/.test(roleBlock(modelRoutingText, role)), `${role} must keep Codex as failover candidate`);
-  }
-  const otherClaudePrefer = (modelRoutingText.match(/prefer:\s*\[[^\]]*subscription\.claude[^\]]*\]/g) || []).length;
-  assert.strictEqual(otherClaudePrefer, claudePreferRoles.length, 'only secretary and board_claude prefer chains may include Claude subscription');
-  assert.strictEqual(machine.runners.front_door, 'claude', 'machine front door must be Claude Code (secretary)');
-  assert.strictEqual(machine.runners['claude-code'].status, 'active', 'Claude repair-lead machine runner must be active');
-  assert.strictEqual(expansionModule.binding.front_door_runner, 'claude', 'instruction expansion front door must bind Claude');
+  assert.deepStrictEqual(claudeAutoRoutes, [], 'no active role may route to a Claude runner');
+  assert.deepStrictEqual(claudeRunnerDefs, [], 'console config must not register Claude runners');
+  assert(!/^\s{4}claude:/m.test(modelRoutingText), 'subscription providers must not contain Claude');
+  assert(!/subscription\.claude/.test(modelRoutingText), 'no active prefer chain may contain Claude');
+  assert.strictEqual(machine.runners.front_door, 'codex', 'machine front door must be Codex');
+  assert(!machine.runners.claude && !machine.runners['claude-code'], 'machine config must not advertise Claude runners');
+  assert.strictEqual(machine.runners.codex.model, 'gpt-5.6-sol', 'machine config must pin GPT-5.6-Sol');
+  assert.strictEqual(expansionModule.binding.front_door_runner, 'codex', 'instruction expansion front door must bind Codex');
   const expander = registry.modules.find(m => m.id === 'instruction-expansion-router');
-  assert(expander && /Claude Code CLI/.test(expander.summary), 'capability registry must advertise Claude Code front door');
-  assert(!/只绑前门总管 Codex CLI/.test(expander.summary), 'capability registry must not advertise Codex as active front door');
+  assert(expander && /Codex\/GPT-5\.6-Sol/.test(expander.summary), 'capability registry must advertise GPT-5.6-Sol front door');
+  assert(!/Claude/.test(expander.summary), 'capability registry must not advertise Claude as active front door');
+  const secretary = agents.find(a => a.id === 'secretary');
+  assert(secretary, 'secretary agent must be registered');
+  assert.strictEqual(secretary.runner, 'codex', 'secretary agent must use Codex');
+  assert.strictEqual(config.roleRouting.secretary.runner, 'codex', 'secretary role must use Codex');
+  assert(/prefer:\s*\[subscription\.codex,\s*api\.zhipu\.glm-5\.2/.test(roleBlock(modelRoutingText, 'secretary')), 'secretary must prefer GPT-5.6-Sol Codex');
+  assert(!agents.some(a => a.id === 'board-claude' || a.role === 'board_claude'), 'Claude board agent must be removed');
+  for (const id of ['codex', 'codex-privileged']) {
+    const def = config.runners[id];
+    assert(def && def.cmd.includes('--model') && def.cmd.includes('gpt-5.6-sol'), `${id} must pin GPT-5.6-Sol`);
+  }
 
   const frontend = agents.find(a => a.id === 'frontend-designer');
   assert(frontend, 'frontend-designer agent must be registered');
@@ -146,23 +142,23 @@ function main() {
   const boardRoutes = Object.entries(config.roleRouting || {}).filter(([role]) => role.startsWith('board_'));
   assert.deepStrictEqual(
     boardRoutes.map(([role]) => role).sort(),
-    ['board_claude', 'board_deepseek', 'board_glm52', 'board_opus48'],
-    'active board roleRouting must exclude Kimi and must not keep both board_gpt55 and board_opus48',
+    ['board_deepseek', 'board_glm52', 'board_kimi', 'board_opus48'],
+    'active board roleRouting must exclude Claude and must not keep both board_gpt55 and board_opus48',
   );
   assert.strictEqual(
     boardRoutes.filter(([, route]) => route && route.runner === 'codex').length,
     1,
-    'active board directors must have exactly one Codex/GPT-5.5 runner seat',
+    'active board directors must have exactly one Codex/GPT-5.6-Sol runner seat',
   );
   assert(/board_gpt55:[\s\S]*deprecated:\s*true[\s\S]*alias_of:\s*board_opus48/.test(modelRoutingText), 'board_gpt55 must be marked as a deprecated alias of board_opus48');
-  assert(!config.roleRouting.board_kimi, 'board_kimi must not be active in roleRouting');
-  assert(!/^\s{2}board_kimi:/m.test(modelRoutingText), 'board_kimi must not be active in model-routing roles');
+  assert.strictEqual(config.roleRouting.board_kimi.runner, 'kimi-k2', 'board_kimi must use the Kimi K3 direct runner');
+  assert(/^\s{2}board_kimi:/m.test(modelRoutingText), 'board_kimi must be active in model-routing roles');
   assert(runners.has('kimi-k2'), 'kimi-k2 runner must be registered');
   const boardKimi = agents.find(a => a.id === 'board-kimi');
-  assert(boardKimi, 'board-kimi archived agent metadata must remain readable');
+  assert(boardKimi, 'board-kimi agent metadata must remain readable');
   assert.strictEqual(boardKimi.role, 'board_kimi');
   assert.strictEqual(boardKimi.runner, 'kimi-k2');
-  assert.strictEqual(boardKimi.status, 'disabled_retired_from_board');
+  assert.strictEqual(boardKimi.status, 'active');
   assert.deepStrictEqual(validateAgent(boardKimi, ctx), []);
 
   const repairLead = agents.find(a => a.id === 'repair-lead');

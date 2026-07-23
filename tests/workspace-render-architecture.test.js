@@ -112,7 +112,8 @@ function main() {
 	  assert(html.includes("localStorage.getItem(FLOW_VIEW_STATE_VERSION_KEY)!==FLOW_VIEW_STATE_VERSION"), 'old all-expanded preferences must migrate once to the new main-chain default');
   assert(html.includes('flowShowAllEdges='), 'flow graph must support all-edge expansion');
   assert(html.includes('const FLOW_BOARD_DIRECTOR_IDS=BOARD_DIRECTOR_IDS;'), 'flow board layer must derive directly from BOARD_DIRECTOR_IDS');
-	  assert(html.includes("board_claude:{label:'董事 Claude Fable 5',runner:'claude-fable-5'}"), 'Claude Fable director must be visible in workspace topology');
+	  assert(!html.includes("board_claude:{label:'董事 Claude Fable 5',runner:'claude-fable-5'}"), 'Claude director must not remain in active workspace topology');
+	  assert(html.includes("board_opus48:{label:'董事 Codex/GPT-5.6-Sol',runner:'codex'}"), 'GPT-5.6-Sol final director must remain visible');
 	  assert(!html.includes('function carpetFloorTilesHtml'), 'office floor must not recreate overlapping thick carpet tiles');
 	  assert(!html.includes('office-tile carpet'), 'office floor must use one continuous surface instead of toothed tile rows');
   assert(html.includes('function fitFlowView') && html.includes('function resetFlowView'), 'flow graph must expose fit and reset operations');

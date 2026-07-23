@@ -1,0 +1,25 @@
+{
+  "id": "yutu6-model-fabric",
+  "version": "0.1.0",
+  "status": "active_canary",
+  "summary": "玉兔6统一模型与智能体中枢：OpenAI 兼容入口、模型路由、健康熔断、脱敏计量、Agent/能力目录与 A2A 发布。",
+  "keywords": [
+    "模型池",
+    "模型网关",
+    "Model Fabric",
+    "智能体中枢",
+    "OpenAI compatible",
+    "A2A",
+    "Agent Card",
+    "故障转移",
+    "健康检查",
+    "用量计量",
+    "new-api replacement",
+    "Nexent"
+  ],
+  "read_order": [
+    "INDEX.md",
+    "operations.md",
+    "architecture.md"
+  ]
+}

@@ -56,3 +56,8 @@ projects/控制台/artifacts/repair-reports/
 # 控制台 React 前端:依赖与 Vite 本地缓存不入库;public/app 是部署产物,需要跟踪
 projects/控制台/frontend/node_modules/
 projects/控制台/frontend/.vite/
+projects/控制台/frontend/.contract-test-dist/
+
+# 本地运行态与验收缓存不进入版本库
+memory/.acceptance-evidence/
+tmp/

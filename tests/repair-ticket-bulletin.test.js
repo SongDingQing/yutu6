@@ -53,6 +53,10 @@ function main() {
     assert.strictEqual(memoryQueued[0].task.flowId, 'agent-once');
     assert(memoryQueued[0].task.goal.includes('问题模式 → 根因 → 解法'));
     assert(memoryQueued[0].task.bounds.includes('只写 memory/'));
+    assert.deepStrictEqual(memoryQueued[0].task.resourceDomains, {
+      read: [],
+      write: ['memory'],
+    });
 
     const cardsFile = path.join(artifactsDir, 'bulletin', 'cards.json');
     writeJson(cardsFile, [{

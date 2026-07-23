@@ -31,11 +31,17 @@ const RepairCloseoutHandshake = require('./repair-closeout-handshake');
 const RepairClaimNoop = require('./repair-claim-noop');
 const BulletinOutputRedaction = require('./bulletin-output-redaction');
 const AcceptanceHandoff = require('./acceptance-handoff');
+const TaskDetail = require('./task-detail');
+const FrontendRoute = require('./frontend-route');
+const ZhipuCodingPlan = require('../../shared/model-fabric/zhipu-coding-plan');
 // [B-1 去同步阻塞] 异步 sqlite / JSONL 增量游标 / 目录签名 async 版(稳定性拍板)
 const AsyncUnblock = require('./async-unblock');
 
 const ROOT = __dirname;
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
+for (const [runnerId, runner] of Object.entries(cfg.runners || {})) {
+  if (ZhipuCodingPlan.isContractRunner(runner)) ZhipuCodingPlan.assertRunner(runner, runnerId);
+}
 const PORT = Number(process.env.PORT || cfg.port || 8787);
 function normalizeAliasPorts(value, primaryPort = PORT) {
   const source = Array.isArray(value) ? value : String(value == null ? '' : value).split(',');
@@ -57,6 +63,7 @@ const ARTIFACTS_ROOT = process.env.CONSOLE_ARTIFACTS_DIR
   : path.join(ROOT, 'artifacts');
 
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif', '.json':'application/json; charset=utf-8', '.txt':'text/plain; charset=utf-8', '.log':'text/plain; charset=utf-8', '.md':'text/markdown; charset=utf-8' };
+const FRONTEND_CONTRACT_SCHEMA_VERSION = 1;
 
 // 任务历史(file = brain):每次派单追加一行 JSONL,供 WebUI 历史抽屉读取
 const HISTORY = path.join(ARTIFACTS_ROOT, 'task-history.jsonl');
@@ -68,6 +75,7 @@ const ENGINE_WORKER_LOG = path.join(ARTIFACTS_ROOT, 'engine-worker.log');
 const QUEUE_ROOT = ARTIFACTS_ROOT;
 const QUEUE_WORKER_LOG_DIR = path.join(ARTIFACTS_ROOT, 'queue-workers');
 const TASK_ATTACHMENT_DIR = path.join(ARTIFACTS_ROOT, 'task-attachments');
+const TASK_ATTACHMENT_STAGING_DIR = path.join(TASK_ATTACHMENT_DIR, 'staged');
 const BULLETIN_DIR = path.join(ARTIFACTS_ROOT, 'bulletin');
 const BULLETIN_FILE = path.join(BULLETIN_DIR, 'cards.json');
 const SAFE_RESTART_HELPER = path.join(ROOT, 'tools', 'restart-console-safe.js');
@@ -100,6 +108,7 @@ function createDirectCompletionReceiptAuthority() {
 const DIRECT_COMPLETION_RECEIPT_AUTHORITY = createDirectCompletionReceiptAuthority();
 const PEEKABOO_BASELINE_DIR = path.join(ARTIFACTS_ROOT, 'peekaboo-baseline');
 const NEW_API_BASE = (process.env.NEW_API_BASE || 'http://localhost:3000').replace(/\/+$/, '');
+const MODEL_FABRIC_BASE = (process.env.MODEL_FABRIC_BASE || 'http://127.0.0.1:3020').replace(/\/+$/, '');
 const NEW_API_DB = process.env.NEW_API_DB || path.join(ARTIFACTS_ROOT, 'new-api', 'data', 'one-api.db');
 const NEW_API_QUOTA_USD_DIVISOR = Math.max(1, Number(process.env.NEW_API_QUOTA_USD_DIVISOR || 500000) || 500000);
 const WORKER_SUPERVISE_MS = Math.max(1000, parseInt(process.env.WORKER_SUPERVISE_MS || '10000', 10) || 10000);
@@ -136,9 +145,13 @@ const ENGINE_LOCK_STALE_MS = Math.max(60 * 1000, parseInt(process.env.ENGINE_LOC
 const ARTIFACT_RETENTION_COUNT = Math.max(20, parseInt(process.env.ARTIFACT_RETENTION_COUNT || '200', 10) || 200);
 const ARTIFACT_RETENTION_DAYS = Math.max(1, parseInt(process.env.ARTIFACT_RETENTION_DAYS || '14', 10) || 14);
 const MAX_JSON_BODY_BYTES = Math.max(1024 * 1024, parseInt(process.env.MAX_JSON_BODY_BYTES || String(48 * 1024 * 1024), 10) || (48 * 1024 * 1024));
-const MAX_IMAGE_ATTACHMENTS = Math.max(1, parseInt(process.env.MAX_IMAGE_ATTACHMENTS || '12', 10) || 12);
+const MAX_IMAGE_ATTACHMENTS = Math.max(1, parseInt(process.env.MAX_IMAGE_ATTACHMENTS || '6', 10) || 6);
 const MAX_IMAGE_BYTES = Math.max(1024 * 1024, parseInt(process.env.MAX_IMAGE_BYTES || String(10 * 1024 * 1024), 10) || (10 * 1024 * 1024));
 const MAX_IMAGE_TOTAL_BYTES = Math.max(MAX_IMAGE_BYTES, parseInt(process.env.MAX_IMAGE_TOTAL_BYTES || String(30 * 1024 * 1024), 10) || (30 * 1024 * 1024));
+const ATTACHMENT_STAGING_ENABLED = process.env.ATTACHMENT_STAGING_ENABLED !== '0';
+const ATTACHMENT_RETENTION_DAYS = Math.max(1, parseInt(process.env.ATTACHMENT_RETENTION_DAYS || '7', 10) || 7);
+const ATTACHMENT_RETENTION_MS = ATTACHMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const ATTACHMENT_CLEANUP_MS = Math.max(60 * 60 * 1000, parseInt(process.env.ATTACHMENT_CLEANUP_MS || String(6 * 60 * 60 * 1000), 10) || (6 * 60 * 60 * 1000));
 const TASK_BOARD_HISTORY_LIMIT = 50;
 const TASK_BOARD_EVENT_LIMIT = Math.max(300, parseInt(process.env.TASK_BOARD_EVENT_LIMIT || '1200', 10) || 1200);
 const TASK_BOARD_CACHE_MS = Math.max(0, parseInt(process.env.TASK_BOARD_CACHE_MS || '1000', 10) || 1000);
@@ -173,6 +186,7 @@ let workerEventWakeRemainder = '';
 let autoOptimizerTimer = null;
 let scheduledPageReviewTimer = null;
 let insightScoutReposTimer = null;
+let attachmentCleanupTimer = null;
 let taskBoardCache = null;
 let queueOverviewCache = null;
 let configuredQueueAgentsCache = null;
@@ -347,10 +361,11 @@ function readEngineEventsFromWakeOffset() {
   }
 }
 
-function handleVersion(res) {
+function versionPayload() {
   try {
     const state = VersionManager.readVersionState(WORKDIR);
-    return json(res, 200, {
+    return {
+      schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
       ok: true,
       version: state.version || '0.0.0.0',
       updated_at: state.updated_at || null,
@@ -361,16 +376,21 @@ function handleVersion(res) {
         web_url: VersionManager.GITEE_WEB_URL,
       },
       parts: state.parts || VersionManager.PART_LABELS,
-    });
+    };
   } catch (e) {
-    return json(res, 200, {
+    return {
+      schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
       ok: false,
       version: '0.0.0.0',
       updated_at: null,
       owner_agent: 'it-engineer',
       error: String(e && e.message || e).slice(0, 300),
-    });
+    };
   }
+}
+
+function handleVersion(res) {
+  return json(res, 200, versionPayload());
 }
 
 let _versionHistoryCache = null;
@@ -538,6 +558,52 @@ function handleRuntimeSettings(req, res) {
   });
 }
 
+function frontendRouteResponse(extra = {}) {
+  const target = FrontendRoute.readTarget(ARTIFACTS_ROOT);
+  return Object.assign({
+    ok: true,
+    target,
+    workspace: '/workspace',
+    react: '/workspace-next',
+    legacy: '/workspace-legacy',
+    options: [
+      { target: 'react', label: '简洁 UI' },
+      { target: 'legacy', label: '复杂 UI' },
+    ],
+  }, extra);
+}
+
+function handleFrontendRoute(req, res) {
+  const localError = runtimeApiLocalError(req);
+  if (localError) return json(res, 403, { ok: false, error: localError });
+  if (req.method === 'GET') {
+    setSettingsCsrfCookie(res);
+    return json(res, 200, frontendRouteResponse());
+  }
+  if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method not allowed' });
+  if (!isJsonRequest(req)) return json(res, 415, { ok: false, error: 'application/json required' });
+  if (!csrfMatches(req)) return json(res, 403, { ok: false, error: 'CSRF validation failed' });
+  readJson(req, res, body => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json(res, 400, { ok: false, error: 'settings body must be an object' });
+    }
+    const keys = Object.keys(body);
+    if (keys.length !== 1 || keys[0] !== 'target') {
+      return json(res, 400, { ok: false, error: 'unknown or missing settings field' });
+    }
+    const target = FrontendRoute.normalizeTarget(body.target, '');
+    if (!target) return json(res, 400, { ok: false, error: 'target must be react or legacy' });
+    try {
+      FrontendRoute.writeTarget(ARTIFACTS_ROOT, target, {
+        reason: 'settings center UI selection',
+      });
+      return json(res, 200, frontendRouteResponse({ saved: true }));
+    } catch (_) {
+      return json(res, 500, { ok: false, error: 'UI selection save failed; previous selection was preserved' });
+    }
+  });
+}
+
 function canonicalRunningTasks() {
   const running = [];
   for (const agent of configuredQueueAgents()) {
@@ -653,6 +719,79 @@ function normalizeAttachmentArray(value) {
   return value.filter(Boolean).slice(0, MAX_IMAGE_ATTACHMENTS);
 }
 
+function safeAttachmentId(value) {
+  let id;
+  try { id = decodeURIComponent(String(value || '')); }
+  catch (_) { return null; }
+  return /^[A-Za-z0-9_-]{12,120}$/.test(id) ? id : null;
+}
+
+function safeAttachmentName(value) {
+  let name = String(value || 'image').trim();
+  try { name = decodeURIComponent(name); } catch (_) {}
+  name = path.basename(name).replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 160);
+  return name || 'image';
+}
+
+function detectImageMime(head) {
+  const buffer = Buffer.isBuffer(head) ? head : Buffer.from(head || []);
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  const ascii = buffer.subarray(0, 12).toString('ascii');
+  if (ascii.startsWith('GIF87a') || ascii.startsWith('GIF89a')) return 'image/gif';
+  if (buffer.length >= 12 && ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
+function attachmentMetaFile(id) {
+  return path.join(TASK_ATTACHMENT_STAGING_DIR, `${id}.json`);
+}
+
+function attachmentDataFile(meta) {
+  const id = safeAttachmentId(meta && meta.id);
+  const ext = IMAGE_EXT_BY_MIME[String(meta && meta.mime || '')];
+  if (!id || !ext) return null;
+  const file = path.resolve(TASK_ATTACHMENT_STAGING_DIR, `${id}.${ext}`);
+  const root = path.resolve(TASK_ATTACHMENT_STAGING_DIR) + path.sep;
+  return file.startsWith(root) ? file : null;
+}
+
+function publicAttachmentMeta(meta) {
+  return {
+    id: meta.id,
+    kind: 'image',
+    name: meta.name,
+    mime: meta.mime,
+    type: meta.mime,
+    size: meta.size,
+    hash: meta.hash,
+    path: meta.path,
+    created_at: meta.created_at,
+    claimed_at: meta.claimed_at || undefined,
+    pinned: meta.pinned === true || undefined,
+    previewUrl: `/api/attachments/${encodeURIComponent(meta.id)}`,
+  };
+}
+
+function readStagedAttachment(id) {
+  const safeId = safeAttachmentId(id);
+  if (!safeId) return null;
+  const meta = readJsonFile(attachmentMetaFile(safeId));
+  if (!meta || meta.id !== safeId || !IMAGE_EXT_BY_MIME[meta.mime]) return null;
+  const file = attachmentDataFile(meta);
+  if (!file || !fs.existsSync(file)) return null;
+  let stat;
+  try { stat = fs.statSync(file); } catch (_) { return null; }
+  if (!stat.isFile() || stat.size !== Number(meta.size) || stat.size > MAX_IMAGE_BYTES) return null;
+  return Object.assign({}, meta, { file });
+}
+
+function writeStagedAttachmentMeta(meta) {
+  fs.mkdirSync(TASK_ATTACHMENT_STAGING_DIR, { recursive: true, mode: 0o700 });
+  writeJsonFileAtomic(attachmentMetaFile(meta.id), meta);
+  try { fs.chmodSync(attachmentMetaFile(meta.id), 0o600); } catch (_) {}
+}
+
 function decodeImageAttachment(att) {
   const rawData = String(att && (att.dataUrl || att.data || att.base64) || '').trim();
   let mime = String(att && (att.mime || att.type) || '').toLowerCase().trim();
@@ -689,12 +828,35 @@ function saveImageAttachments(rawAttachments) {
     return {
       id,
       kind: 'image',
+      name: safeAttachmentName(att && att.name),
       mime: img.mime,
+      type: img.mime,
       size: img.buffer.length,
+      hash: crypto.createHash('sha256').update(img.buffer).digest('hex'),
       path: relToWorkdir(file),
       created_at: nowIso(),
     };
   });
+}
+
+function resolveStagedAttachments(rawAttachments) {
+  const refs = normalizeAttachmentArray(rawAttachments);
+  if (!refs.length) return [];
+  const seen = new Set();
+  let total = 0;
+  const resolved = refs.map(ref => {
+    const id = safeAttachmentId(ref && ref.id);
+    if (!id || seen.has(id)) throw new Error('附件引用无效或重复');
+    seen.add(id);
+    const meta = readStagedAttachment(id);
+    if (!meta) throw new Error(`附件引用不存在或已过期:${id.slice(0, 12)}`);
+    total += Number(meta.size) || 0;
+    if (total > MAX_IMAGE_TOTAL_BYTES) throw new Error(`图片总大小超过 ${Math.round(MAX_IMAGE_TOTAL_BYTES / 1024 / 1024)}MB`);
+    meta.claimed_at = meta.claimed_at || nowIso();
+    writeStagedAttachmentMeta(meta);
+    return publicAttachmentMeta(meta);
+  });
+  return resolved;
 }
 
 function attachmentInputPaths(attachments) {
@@ -702,7 +864,9 @@ function attachmentInputPaths(attachments) {
 }
 
 function taskWithSavedAttachments(task, rawAttachments) {
-  const saved = saveImageAttachments(rawAttachments);
+  const raw = normalizeAttachmentArray(rawAttachments);
+  const hasInlineData = raw.some(att => att && (att.dataUrl || att.data || att.base64));
+  const saved = hasInlineData ? saveImageAttachments(raw) : resolveStagedAttachments(raw);
   if (!saved.length) return { task, attachments: [] };
   const payload = task && typeof task === 'object' && !Array.isArray(task)
     ? Object.assign({}, task)
@@ -718,10 +882,250 @@ function taskWithSavedAttachments(task, rawAttachments) {
 
 function prepareTaskForEnqueue(task, body) {
   const objectAttachments = task && typeof task === 'object' && !Array.isArray(task) ? task.attachments : null;
-  const rawAttachments = normalizeAttachmentArray(objectAttachments && objectAttachments.some(a => a && (a.dataUrl || a.data || a.base64))
+  const rawAttachments = normalizeAttachmentArray(objectAttachments && objectAttachments.length
     ? objectAttachments
     : (body && (body.attachments || body.images)));
   return taskWithSavedAttachments(task, rawAttachments);
+}
+
+function collectAttachmentIdsFromTask(task, output) {
+  const attachments = task && typeof task === 'object' && Array.isArray(task.attachments) ? task.attachments : [];
+  for (const attachment of attachments) {
+    const id = safeAttachmentId(attachment && attachment.id);
+    if (id) output.add(id);
+  }
+}
+
+function activeStagedAttachmentIds() {
+  const active = new Set();
+  for (const agent of configuredQueueAgents()) {
+    let state;
+    try { state = Q.list(QUEUE_ROOT, agent.id); } catch (_) { continue; }
+    for (const bucket of ['queued', 'running', 'paused']) {
+      for (const entry of state[bucket] || []) collectAttachmentIdsFromTask(entry && entry.task, active);
+    }
+  }
+  return active;
+}
+
+function cleanupStagedAttachments(options = {}) {
+  const now = Number(options.now) || Date.now();
+  const active = options.activeIds instanceof Set ? options.activeIds : activeStagedAttachmentIds();
+  const result = { scanned: 0, removed: 0, active: active.size, pinned: 0, retained: 0, errors: 0 };
+  let files = [];
+  try { files = fs.readdirSync(TASK_ATTACHMENT_STAGING_DIR).filter(name => name.endsWith('.json')); }
+  catch (_) { return result; }
+  for (const name of files) {
+    result.scanned += 1;
+    const id = safeAttachmentId(name.slice(0, -5));
+    const meta = id ? readStagedAttachment(id) : null;
+    if (!meta) {
+      result.errors += 1;
+      continue;
+    }
+    if (meta.pinned === true) {
+      result.pinned += 1;
+      continue;
+    }
+    if (active.has(id)) {
+      result.active += active.has(id) ? 0 : 1;
+      continue;
+    }
+    const timestamp = Date.parse(meta.claimed_at || meta.created_at || '') || 0;
+    if (!timestamp || now - timestamp < ATTACHMENT_RETENTION_MS) {
+      result.retained += 1;
+      continue;
+    }
+    try {
+      fs.unlinkSync(meta.file);
+      fs.unlinkSync(attachmentMetaFile(id));
+      result.removed += 1;
+    } catch (_) {
+      result.errors += 1;
+    }
+  }
+  return result;
+}
+
+function deleteStagedAttachment(id) {
+  const meta = readStagedAttachment(id);
+  if (!meta) return { ok: false, code: 404, error: '附件不存在或已过期' };
+  if (activeStagedAttachmentIds().has(meta.id)) return { ok: false, code: 409, error: '附件仍被活动任务引用' };
+  try {
+    fs.unlinkSync(meta.file);
+    fs.unlinkSync(attachmentMetaFile(meta.id));
+    return { ok: true, code: 200, attachment: publicAttachmentMeta(meta) };
+  } catch (_) {
+    return { ok: false, code: 500, error: '附件删除失败' };
+  }
+}
+
+function pinStagedAttachment(id, pinned) {
+  const meta = readStagedAttachment(id);
+  if (!meta) return { ok: false, code: 404, error: '附件不存在或已过期' };
+  meta.pinned = pinned === true;
+  meta.updated_at = nowIso();
+  writeStagedAttachmentMeta(meta);
+  return { ok: true, code: 200, attachment: publicAttachmentMeta(meta) };
+}
+
+function handleAttachmentUpload(req, res) {
+  const localError = runtimeApiLocalError(req);
+  if (localError) return json(res, 403, { ok: false, error: localError });
+  if (!ATTACHMENT_STAGING_ENABLED) return json(res, 503, { ok: false, code: 'ATTACHMENT_STAGING_DISABLED', error: '附件暂存已关闭' });
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  const ext = IMAGE_EXT_BY_MIME[mime];
+  if (!ext) return json(res, 415, { ok: false, error: `不支持的图片类型:${mime || 'unknown'}` });
+  const declaredSize = Number(req.headers['content-length']);
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_IMAGE_BYTES) {
+    return json(res, 413, { ok: false, error: `单张图片超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB` });
+  }
+
+  fs.mkdirSync(TASK_ATTACHMENT_STAGING_DIR, { recursive: true, mode: 0o700 });
+  const id = `${Date.now().toString(36)}-${crypto.randomBytes(10).toString('hex')}`;
+  const tempFile = path.join(TASK_ATTACHMENT_STAGING_DIR, `.${id}.${process.pid}.upload`);
+  const finalFile = path.join(TASK_ATTACHMENT_STAGING_DIR, `${id}.${ext}`);
+  const hash = crypto.createHash('sha256');
+  const stream = fs.createWriteStream(tempFile, { flags: 'wx', mode: 0o600 });
+  const headChunks = [];
+  let headBytes = 0;
+  let size = 0;
+  let settled = false;
+
+  const cleanup = () => {
+    try { fs.unlinkSync(tempFile); } catch (_) {}
+  };
+  const fail = (code, error) => {
+    if (settled) return;
+    settled = true;
+    try { stream.destroy(); } catch (_) {}
+    cleanup();
+    req.resume();
+    return json(res, code, { ok: false, error });
+  };
+
+  stream.on('error', () => fail(500, '附件暂存写入失败'));
+  req.on('aborted', () => {
+    if (settled) return;
+    settled = true;
+    try { stream.destroy(); } catch (_) {}
+    cleanup();
+  });
+  req.on('error', () => fail(400, '附件上传中断'));
+  req.on('data', chunk => {
+    if (settled) return;
+    size += chunk.length;
+    if (size > MAX_IMAGE_BYTES) return fail(413, `单张图片超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB`);
+    hash.update(chunk);
+    if (headBytes < 32) {
+      const part = chunk.subarray(0, Math.min(chunk.length, 32 - headBytes));
+      headChunks.push(part);
+      headBytes += part.length;
+    }
+    if (!stream.write(chunk)) {
+      req.pause();
+      stream.once('drain', () => req.resume());
+    }
+  });
+  req.on('end', () => {
+    if (settled) return;
+    stream.end();
+  });
+  stream.on('finish', () => {
+    if (settled) return;
+    if (!size) return fail(400, '图片为空');
+    const detected = detectImageMime(Buffer.concat(headChunks));
+    if (detected !== mime) return fail(415, `图片内容与 MIME 不一致:${mime}`);
+    settled = true;
+    try {
+      fs.renameSync(tempFile, finalFile);
+      const meta = {
+        id,
+        kind: 'image',
+        name: safeAttachmentName(req.headers['x-file-name']),
+        mime,
+        size,
+        hash: hash.digest('hex'),
+        path: relToWorkdir(finalFile),
+        created_at: nowIso(),
+        claimed_at: null,
+        pinned: false,
+      };
+      writeStagedAttachmentMeta(meta);
+      return json(res, 201, {
+        ok: true,
+        attachment: publicAttachmentMeta(meta),
+        limits: {
+          maxAttachments: MAX_IMAGE_ATTACHMENTS,
+          maxBytes: MAX_IMAGE_BYTES,
+          maxTotalBytes: MAX_IMAGE_TOTAL_BYTES,
+          retentionDays: ATTACHMENT_RETENTION_DAYS,
+        },
+      });
+    } catch (_) {
+      try { fs.unlinkSync(finalFile); } catch (_) {}
+      return json(res, 500, { ok: false, error: '附件暂存收尾失败' });
+    }
+  });
+}
+
+function handleAttachment(req, res, match) {
+  const localError = runtimeApiLocalError(req);
+  if (localError) return json(res, 403, { ok: false, error: localError });
+  const id = safeAttachmentId(match[1]);
+  const action = match[2] || null;
+  if (!id) return json(res, 400, { ok: false, error: '附件 id 无效' });
+  if (req.method === 'GET' && !action) {
+    const meta = readStagedAttachment(id);
+    if (!meta) return json(res, 404, { ok: false, error: '附件不存在或已过期' });
+    res.writeHead(200, {
+      'Content-Type': meta.mime,
+      'Content-Length': meta.size,
+      'Cache-Control': 'private, no-cache',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(meta.name)}"`,
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'X-Content-Type-Options': 'nosniff',
+      ETag: `"sha256-${meta.hash}"`,
+    });
+    const stream = fs.createReadStream(meta.file);
+    stream.on('error', () => {
+      if (!res.headersSent) return json(res, 404, { ok: false, error: '附件读取失败' });
+      try { res.destroy(); } catch (_) {}
+    });
+    stream.pipe(res);
+    return;
+  }
+  if (req.method === 'DELETE' && !action) {
+    const result = deleteStagedAttachment(id);
+    return json(res, result.code, result);
+  }
+  if (req.method === 'POST' && action === 'pin') {
+    return readJson(req, res, body => {
+      const result = pinStagedAttachment(id, body && body.pinned !== false);
+      return json(res, result.code, result);
+    });
+  }
+  return json(res, 405, { ok: false, error: 'method not allowed' });
+}
+
+function startAttachmentCleanupScheduler() {
+  if (attachmentCleanupTimer) return attachmentCleanupTimer;
+  try {
+    const result = cleanupStagedAttachments();
+    if (result.removed || result.errors) engineLog().emit('attachments.cleanup', result);
+  } catch (error) {
+    engineLog().emit('attachments.cleanup_failed', { reason: String(error && error.message || error).slice(0, 200) });
+  }
+  attachmentCleanupTimer = setInterval(() => {
+    try {
+      const result = cleanupStagedAttachments();
+      if (result.removed || result.errors) engineLog().emit('attachments.cleanup', result);
+    } catch (error) {
+      engineLog().emit('attachments.cleanup_failed', { reason: String(error && error.message || error).slice(0, 200) });
+    }
+  }, ATTACHMENT_CLEANUP_MS);
+  if (attachmentCleanupTimer.unref) attachmentCleanupTimer.unref();
+  return attachmentCleanupTimer;
 }
 
 function routePreparedQueueEnqueue(requestedAgent, preparedTask) {
@@ -979,24 +1383,37 @@ function configuredQueueAgents() {
     return configuredQueueAgentsCache.value;
   }
   const disabled = disabledQueueAgentIds();
-  const roleIds = Object.keys(cfg.roleRouting || {}).filter(safeAgent);
+  const nonQueueRoles = new Set(Object.entries(cfg.roleRouting || {})
+    .filter(([, route]) => route && route.queueAgent === false)
+    .map(([id]) => id));
+  const roleIds = Object.entries(cfg.roleRouting || {})
+    .filter(([id, route]) => safeAgent(id) && (!route || route.queueAgent !== false))
+    .map(([id]) => id);
   const ids = ['ceo', ...roleIds.filter(id => id !== 'orchestrator' && !disabled.has(id))];
   for (const projectId of listProjects()) ids.push(`supervisor-${projectId}`);
   try {
     const dir = path.join(QUEUE_ROOT, 'queues');
-    for (const agent of fs.readdirSync(dir)) if (isQueueAgentDirName(agent) && !disabled.has(agent) && !ids.includes(agent)) ids.push(agent);
+    for (const agent of fs.readdirSync(dir)) {
+      if (isQueueAgentDirName(agent) && !disabled.has(agent) && !nonQueueRoles.has(agent) && !ids.includes(agent)) ids.push(agent);
+    }
   } catch (_) {}
   const value = [...new Set(ids)].map(id => {
     const projectMatch = String(id).match(/^supervisor-(.+)$/);
-    const projectId = projectMatch ? projectMatch[1] : null;
     const roleKey = id === 'memory-officer' ? 'memory_officer' : id;
+    const route = ((cfg.roleRouting || {})[roleKey] || {});
+    const queueProjectId = projectMatch ? projectMatch[1] : null;
+    const projectId = queueProjectId || route.projectId || null;
+    const department = queueProjectId && ((cfg.projectDepartments || {})[queueProjectId] || null);
+    const role = queueProjectId
+      ? (department && department.supervisorRole || 'supervisor')
+      : (id === 'ceo' ? 'orchestrator' : roleKey);
     return ({
     id,
-    role: projectId ? 'supervisor' : (id === 'ceo' ? 'orchestrator' : roleKey),
+    role,
     projectId,
-    label: projectId ? `项目主管 · ${projectId}` : (id === 'ceo'
+    label: queueProjectId ? (department && department.supervisorLabel || `项目主管 · ${queueProjectId}`) : (id === 'ceo'
       ? (((cfg.roleRouting || {}).orchestrator || {}).label || 'CEO')
-      : (((cfg.roleRouting || {})[roleKey] || {}).label || id)),
+      : (route.label || id)),
   });
   });
   configuredQueueAgentsCache = { at: now, value };
@@ -1832,6 +2249,8 @@ function resolveConfigPath(file) {
 }
 
 function resolveRunnerSecret(r, key) {
+  const contracted = ZhipuCodingPlan.resolveRunner(r);
+  if (contracted && key === 'token') return contracted.token;
   if (r[`${key}Env`] && process.env[r[`${key}Env`]]) return process.env[r[`${key}Env`]];
   if (r.tokenEnv && key === 'token' && process.env[r.tokenEnv]) return process.env[r.tokenEnv];
   const file = resolveConfigPath(r.tokenFile || r.envFile);
@@ -1844,6 +2263,8 @@ function resolveRunnerSecret(r, key) {
 }
 
 function resolveRunnerBaseUrl(r) {
+  const contracted = ZhipuCodingPlan.resolveRunner(r);
+  if (contracted) return contracted.baseUrl;
   const file = resolveConfigPath(r.tokenFile || r.envFile);
   const env = file ? readEnvFile(file) : {};
   return String(r.baseUrl || env.NEW_API_BASE_URL || '').replace(/\/+$/, '');
@@ -1927,17 +2348,36 @@ function listPeekabooBaselineArtifacts() {
 }
 
 async function openaiHttpRun(r, prompt, emit) {
-  const baseUrl = resolveRunnerBaseUrl(r);
-  const token = resolveRunnerSecret(r, 'token');
-  const model = r.model || (resolveConfigPath(r.tokenFile) ? readEnvFile(resolveConfigPath(r.tokenFile)).NEW_API_MODEL : '') || 'glm-5.2';
+  const contracted = ZhipuCodingPlan.resolveRunner(r);
+  const baseUrl = contracted ? contracted.baseUrl : resolveRunnerBaseUrl(r);
+  const chatUrl = contracted ? contracted.chatUrl : `${baseUrl}/chat/completions`;
+  const token = contracted ? contracted.token : resolveRunnerSecret(r, 'token');
+  const model = contracted ? contracted.model : (r.model || (resolveConfigPath(r.tokenFile) ? readEnvFile(resolveConfigPath(r.tokenFile)).NEW_API_MODEL : '') || 'glm-5.2');
   if (!baseUrl) throw new Error('openai_http 缺 baseUrl/NEW_API_BASE_URL');
   if (!token) throw new Error('openai_http 缺 token/NEW_API_TOKEN');
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const messages = r.systemPrompt ? [{ role: 'system', content: r.systemPrompt }, { role: 'user', content: prompt }] : [{ role: 'user', content: prompt }];
+  if (contracted) {
+    const result = await ZhipuCodingPlan.requestChatCompletion({
+      token,
+      messages,
+      temperature: r.temperature == null ? 0.3 : r.temperature,
+      maxTokens: r.maxTokens || 2048,
+      maxAttempts: 3,
+    });
+    if (!result.ok) throw new Error(`GLM Coding Plan ${result.errorClass}${result.providerCode ? ` (code ${result.providerCode})` : ''}`);
+    const body = result.body;
+    const msg = (body.choices && body.choices[0] && body.choices[0].message) || {};
+    const content = msg.content || msg.reasoning_content || '';
+    emit({ type:'delta', text: content || '(openai_http 返回空内容)' });
+    emit({ type:'done', code:0, model: body.model || model });
+    return;
+  }
+  const response = await fetch(chatUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({
       model,
-      messages: r.systemPrompt ? [{ role: 'system', content: r.systemPrompt }, { role: 'user', content: prompt }] : [{ role: 'user', content: prompt }],
+      messages,
       temperature: r.temperature == null ? 0.3 : r.temperature,
       max_tokens: r.maxTokens || 2048,
     }),
@@ -2552,7 +2992,11 @@ function handleBulletin(req, res, match) {
   if (match[1] && !id) return json(res, 400, { ok:false, error:'坏公告卡 id' });
 
   if (req.method === 'GET' && !id && !action) {
-    return json(res, 200, BulletinOutputRedaction.sanitize({ ok:true, cards: readBulletinCards() }));
+    return json(res, 200, BulletinOutputRedaction.sanitize({
+      schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
+      ok: true,
+      cards: readBulletinCards(),
+    }));
   }
   if (req.method !== 'POST') return json(res, 405, { ok:false, error:'method not allowed' });
 
@@ -2820,6 +3264,88 @@ function queueEntryFile(agent, id) {
 function readQueueEntry(agent, id) {
   const file = queueEntryFile(agent, id);
   return file ? readJsonFile(file) : null;
+}
+
+function handleTaskDetail(res, u) {
+  const agent = safeAgent(u.searchParams.get('agent') || '');
+  const id = safeQueueId(u.searchParams.get('id') || '');
+  const taskId = safeQueueId(u.searchParams.get('taskId') || '');
+  if (!agent || !id) return json(res, 400, { ok:false, error:'agent/id 必填且必须合法' });
+  const entry = readQueueEntry(agent, id);
+  if (!entry) return json(res, 404, { ok:false, error:'任务不存在' });
+  const payload = TaskDetail.buildTaskDetail({
+    entry,
+    agent,
+    queueId: id,
+    taskId,
+    cfg,
+    events: readTaskBoardEvents(TASK_BOARD_EVENT_LIMIT),
+  });
+  payload.artifacts = TaskDetail.listTaskArtifacts({
+    workdir: WORKDIR,
+    engineRuns: ENGINE_RUNS,
+    taskIds: payload.task.relatedTaskIds,
+    maxItems: 80,
+  });
+  return json(res, 200, payload);
+}
+
+function handleTaskArtifact(res, u) {
+  const file = TaskDetail.resolveArtifactPath(
+    WORKDIR,
+    [ENGINE_RUNS, ENGINE_TASKS, TASK_ATTACHMENT_DIR],
+    u.searchParams.get('path') || '',
+  );
+  if (!file) return json(res, 403, { ok:false, error:'产物路径不允许访问' });
+  const ext = path.extname(file).toLowerCase();
+  if (TaskDetail.IMAGE_ARTIFACT_EXTENSIONS.has(ext)) return serveFile(res, file);
+  let stat;
+  try { stat = fs.statSync(file); } catch (_) { return json(res, 404, { ok:false, error:'产物不存在' }); }
+  if (stat.size > 2 * 1024 * 1024) return json(res, 413, { ok:false, error:'文本产物超过 2MB，请在本机文件系统查看' });
+  fs.readFile(file, 'utf8', (error, text) => {
+    if (error) return json(res, 404, { ok:false, error:'产物不存在' });
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(TaskDetail.redactSensitive(text));
+  });
+}
+
+function handleTaskRetry(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { ok:false, error:'method not allowed' });
+  readJson(req, res, body => {
+    try {
+      const agent = safeAgent(body && body.agent || '');
+      const id = safeQueueId(body && body.id || '');
+      if (!agent || !id) return json(res, 400, { ok:false, error:'agent/id 必填且必须合法' });
+      const entry = readQueueEntry(agent, id);
+      if (!entry) return json(res, 404, { ok:false, error:'任务不存在' });
+      if (!['failed', 'canceled'].includes(String(entry.status || ''))) {
+        return json(res, 409, { ok:false, error:'只有失败或已取消任务可以重试' });
+      }
+      const sourceTask = entry.task && typeof entry.task === 'object'
+        ? Object.assign({}, entry.task)
+        : entry.task;
+      if (sourceTask && typeof sourceTask === 'object') {
+        sourceTask.retryOf = id;
+        sourceTask.retryRequestedAt = nowIso();
+      }
+      const out = applyCeoQueueControl({
+        action: 'enqueue',
+        agent,
+        task: sourceTask,
+        priority: entry.priority,
+        source: 'react-task-detail:retry',
+        requestedBy: 'owner-ui',
+      });
+      invalidateQueueReadCaches();
+      return json(res, out.status, out.body);
+    } catch (error) {
+      return json(res, 500, { ok:false, error:String(error && error.message || error).slice(0, 300) });
+    }
+  });
 }
 
 function writeJsonFileAtomic(file, data) {
@@ -3373,15 +3899,20 @@ function queueOverviewSnapshot() {
   return value;
 }
 
-function handleQueueOverview(res) {
+function queueOverviewPayload() {
   const snapshot = queueOverviewSnapshot();
-  return json(res, 200, {
+  return {
+    schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
     ok: true,
     generated_at: snapshot.generated_at,
     cached: snapshot.cached,
     queueAgents: snapshot.agents,
     queues: snapshot.queues,
-  });
+  };
+}
+
+function handleQueueOverview(res) {
+  return json(res, 200, queueOverviewPayload());
 }
 
 function taskBoardRoleLabel(role, node) {
@@ -4065,11 +4596,10 @@ function readTerminalQueueHistory(agents, index, limit = TASK_BOARD_HISTORY_LIMI
   return result;
 }
 
-function handleCeoTaskBoard(res) {
-  try {
-    if (taskBoardCache && TASK_BOARD_CACHE_MS > 0 && Date.now() - taskBoardCache.at < TASK_BOARD_CACHE_MS) {
-      return json(res, 200, Object.assign({}, taskBoardCache.payload, { cached: true }));
-    }
+function ceoTaskBoardPayload() {
+  if (taskBoardCache && TASK_BOARD_CACHE_MS > 0 && Date.now() - taskBoardCache.at < TASK_BOARD_CACHE_MS) {
+    return Object.assign({}, taskBoardCache.payload, { cached: true });
+  }
     const events = readTaskBoardEvents(TASK_BOARD_EVENT_LIMIT);
     const index = buildTaskBoardIndex(events);
     const queueSnapshot = queueOverviewSnapshot();
@@ -4153,6 +4683,7 @@ function handleCeoTaskBoard(res) {
     const tasks = [...active, ...queued];
     const history = readTerminalQueueHistory(agents, index, TASK_BOARD_HISTORY_LIMIT);
     const payload = {
+      schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
       ok: true,
       source: path.relative(WORKDIR, ENGINE_EVENTS),
       generated_at: nowIso(),
@@ -4167,7 +4698,12 @@ function handleCeoTaskBoard(res) {
       history,
     };
     taskBoardCache = { at: Date.now(), payload };
-    return json(res, 200, payload);
+    return payload;
+}
+
+function handleCeoTaskBoard(res) {
+  try {
+    return json(res, 200, ceoTaskBoardPayload());
   } catch (e) {
     return json(res, 500, { ok: false, error: e.message });
   }
@@ -4178,9 +4714,38 @@ function probe(res, id) {
   if (!r) return json(res, 400, { ok:false, error:'未知 runner' });
   if (r.cmd[0] === '__mock__') return json(res, 200, { ok:true, version:'mock' });
   if (r.kind === 'openai_http') {
-    const baseUrl = resolveRunnerBaseUrl(r);
-    const token = resolveRunnerSecret(r, 'token');
+    let contracted;
+    try { contracted = ZhipuCodingPlan.resolveRunner(r, id); }
+    catch (error) { return json(res, 200, { ok:false, error:error.message }); }
+    const baseUrl = contracted ? contracted.baseUrl : resolveRunnerBaseUrl(r);
+    const token = contracted ? contracted.token : resolveRunnerSecret(r, 'token');
     if (!baseUrl || !token) return json(res, 200, { ok:false, error:'openai_http 缺 baseUrl 或 token' });
+    if (contracted || r.probeMode === 'chat_completion') {
+      const chatUrl = contracted ? contracted.chatUrl : `${baseUrl}/chat/completions`;
+      const model = contracted ? contracted.model : (r.model || 'glm-5.2');
+      const request = contracted
+        ? ZhipuCodingPlan.requestChatCompletion({ token, prompt:'只回复 OK', temperature:0, maxTokens:r.probeMaxTokens || ZhipuCodingPlan.PROBE_MAX_TOKENS, maxAttempts:3 })
+        : fetch(chatUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify({ model, messages:[{ role:'user', content:'只回复 OK' }], temperature:0, max_tokens:Math.max(1, Number(r.probeMaxTokens || 16)) }),
+        }).then(async rr => {
+          const text = await rr.text(); let body; try { body = JSON.parse(text); } catch (_) { body = {}; }
+          return { ok:rr.ok && !body.error, status:rr.status, body, errorClass:rr.ok ? null : 'http', providerCode:null };
+        });
+      request.then(result => {
+        const body = result.body || {};
+        const hasChoice = !!(Array.isArray(body.choices) && body.choices[0] && body.choices[0].message);
+        json(res, 200, {
+          ok: result.ok && hasChoice,
+          version: `${model} via ${baseUrl}`,
+          probe: 'chat_completion',
+          error_class: result.ok ? null : result.errorClass,
+          provider_code: result.ok ? null : result.providerCode,
+        });
+      }).catch(error => json(res, 200, { ok:false, error_class:'transport', error:error.message }));
+      return;
+    }
     fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${token}` } })
       .then(async rr => {
         const text = await rr.text();
@@ -4234,6 +4799,51 @@ async function newApiFetch(pathname, auth) {
   let body; try { body = JSON.parse(text); } catch (_) { body = {}; }
   if (!resp.ok || body.success === false) throw new Error(body.message || `new-api ${resp.status}`);
   return body.data;
+}
+
+async function modelFabricFetch(pathname, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${MODEL_FABRIC_BASE}${pathname}`, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok === false) {
+      throw new Error(body.error || `Model Fabric ${response.status}`);
+    }
+    return body;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function handleModelFabricOverview(res) {
+  try {
+    return json(res, 200, await modelFabricFetch('/api/fabric/overview'));
+  } catch (error) {
+    return json(res, 200, {
+      ok: false,
+      state: error && error.name === 'AbortError' ? 'timeout' : 'unavailable',
+      error: '模型与智能体中枢暂不可用',
+      base_url: MODEL_FABRIC_BASE,
+    });
+  }
+}
+
+async function handleModelFabricUsage(res, u) {
+  const days = clampInt(u.searchParams.get('days'), 7, 1, 90);
+  try {
+    return json(res, 200, await modelFabricFetch(`/api/fabric/usage?days=${days}`));
+  } catch (error) {
+    return json(res, 200, {
+      ok: false,
+      state: error && error.name === 'AbortError' ? 'timeout' : 'unavailable',
+      error: 'Model Fabric 用量账本暂不可用',
+      base_url: MODEL_FABRIC_BASE,
+    });
+  }
 }
 
 // [B-1 去同步阻塞] 改 async:两条查询并行发,内部走 sqliteJson 异步+缓存
@@ -4555,6 +5165,121 @@ async function handleNewApiOverview(res) {
   }
 }
 
+function runnersPayload(includeDeprecated = false) {
+  const runners = Object.entries(cfg.runners)
+    .filter(([, runner]) => includeDeprecated || !runner.hidden)
+    .map(([id, runner]) => ({
+      id,
+      label: runner.label,
+      note: runner.note || '',
+      deprecated: !!runner.hidden,
+    }));
+  return {
+    schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
+    runners,
+    roles: cfg.roleRouting || {},
+    frontDoorPolicy: cfg.frontDoorPolicy || null,
+    glm52Delegation: cfg.glm52Delegation || null,
+    versionManagement: cfg.versionManagement || null,
+    boardReviewControl: currentBoardReviewControl(),
+    queueAgents: configuredQueueAgents(),
+    workdir: WORKDIR,
+  };
+}
+
+function bulletinSnapshotPayload() {
+  const allCards = readBulletinCards();
+  const cards = allCards.filter(card => card.status === 'todo' || card.status === '待拍板');
+  return {
+    schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
+    ok: true,
+    cards,
+    summary: {
+      total: allCards.length,
+      pending: cards.length,
+      archived: allCards.length - cards.length,
+    },
+  };
+}
+
+function snapshotRevisionInput(snapshot) {
+  return {
+    schemaVersion: snapshot.schemaVersion,
+    lastSeq: snapshot.lastSeq,
+    runners: {
+      roles: snapshot.runners.roles,
+      queueAgents: snapshot.runners.queueAgents,
+      runners: snapshot.runners.runners,
+    },
+    queues: {
+      queueAgents: snapshot.queues.queueAgents,
+      queues: snapshot.queues.queues,
+    },
+    taskBoard: {
+      counts: snapshot.taskBoard.counts,
+      tasks: snapshot.taskBoard.tasks,
+      history: snapshot.taskBoard.history,
+    },
+    bulletin: {
+      cards: snapshot.bulletin.cards,
+      summary: snapshot.bulletin.summary,
+    },
+    version: {
+      version: snapshot.version.version,
+      updated_at: snapshot.version.updated_at,
+    },
+  };
+}
+
+function workspaceSnapshotPayload() {
+  const snapshot = {
+    schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
+    revision: '',
+    lastSeq: latestEngineEventSeqFromTail(),
+    generatedAt: nowIso(),
+    runners: runnersPayload(false),
+    queues: queueOverviewPayload(),
+    taskBoard: ceoTaskBoardPayload(),
+    bulletin: bulletinSnapshotPayload(),
+    version: versionPayload(),
+  };
+  snapshot.revision = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(snapshotRevisionInput(snapshot)))
+    .digest('hex')
+    .slice(0, 24);
+  return snapshot;
+}
+
+function handleWorkspaceSnapshot(req, res) {
+  try {
+    const payload = workspaceSnapshotPayload();
+    const etag = `"${payload.revision}"`;
+    const headers = {
+      ETag: etag,
+      'Cache-Control': 'private, no-cache, must-revalidate',
+      'X-Workspace-Revision': payload.revision,
+    };
+    if (String(req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(etag)) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    const body = JSON.stringify(payload);
+    res.writeHead(200, Object.assign({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      'X-Workspace-Snapshot-Bytes': Buffer.byteLength(body),
+    }, headers));
+    return res.end(body);
+  } catch (e) {
+    return json(res, 500, {
+      schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION,
+      ok: false,
+      error: String(e && e.message || e).slice(0, 300),
+    });
+  }
+}
+
 const handler = (req, res) => {
   const u = new URL(req.url, `http://${HOST}`);
   if (req.method === 'GET' && u.pathname === '/') {
@@ -4576,24 +5301,28 @@ const handler = (req, res) => {
       },
     });
   }
+  if (req.method === 'GET' && u.pathname === '/api/workspace/snapshot') return handleWorkspaceSnapshot(req, res);
+  if (req.method === 'POST' && u.pathname === '/api/attachments') return handleAttachmentUpload(req, res);
+  const attachmentMatch = u.pathname.match(/^\/api\/attachments\/([^/]+)(?:\/(pin))?$/);
+  if (attachmentMatch) return handleAttachment(req, res, attachmentMatch);
   if (req.method === 'GET' && u.pathname === '/api/version') return handleVersion(res);
   if (req.method === 'GET' && u.pathname === '/api/version/history') return handleVersionHistory(res, u);
   if (req.method === 'GET' && u.pathname === '/api/servers/status') return handleServersStatus(res);
   if (req.method === 'GET' && u.pathname === '/api/runners') {
     const includeDeprecated = /^(1|true|yes)$/i.test(String(u.searchParams.get('includeDeprecated') || ''));
-    const runners = Object.entries(cfg.runners)
-      .filter(([, r]) => includeDeprecated || !r.hidden)
-      .map(([id, r]) => ({ id, label: r.label, note: r.note || '', deprecated: !!r.hidden }));
-    return json(res, 200, { runners, roles: cfg.roleRouting || {}, frontDoorPolicy: cfg.frontDoorPolicy || null, glm52Delegation: cfg.glm52Delegation || null, versionManagement: cfg.versionManagement || null, boardReviewControl: currentBoardReviewControl(), queueAgents: configuredQueueAgents(), workdir: WORKDIR });
+    return json(res, 200, runnersPayload(includeDeprecated));
   }
   if (req.method === 'GET' && u.pathname === '/api/history')
     return json(res, 200, { history: readHistory(parseInt(u.searchParams.get('n') || '30', 10)) });
   if (req.method === 'GET' && u.pathname === '/api/events') {
     const events = readEvents(u.searchParams.get('after') || 0, u.searchParams.get('n') || 120);
     const lastSeq = events.length ? events[events.length - 1].seq : Number(u.searchParams.get('after') || 0);
-    return json(res, 200, { source: path.relative(WORKDIR, ENGINE_EVENTS), lastSeq, events });
+    return json(res, 200, { schemaVersion: FRONTEND_CONTRACT_SCHEMA_VERSION, source: path.relative(WORKDIR, ENGINE_EVENTS), lastSeq, events });
   }
   if (req.method === 'GET' && u.pathname === '/api/task-board/ceo') return handleCeoTaskBoard(res);
+  if (req.method === 'GET' && u.pathname === '/api/task-detail') return handleTaskDetail(res, u);
+  if (u.pathname === '/api/task-detail/retry') return handleTaskRetry(req, res);
+  if (req.method === 'GET' && u.pathname === '/api/task-artifact') return handleTaskArtifact(res, u);
   if (req.method === 'GET' && u.pathname === '/api/auto-optimizer/status') {
     return json(res, 200, {
       ok: true,
@@ -4646,6 +5375,8 @@ const handler = (req, res) => {
   if (queueMatch) return handleQueue(req, res, queueMatch);
   if (req.method === 'GET' && u.pathname === '/api/probe') return probe(res, u.searchParams.get('runner'));
   if (req.method === 'GET' && u.pathname === '/api/llm-usage/overview') return handleLlmUsageOverview(res, u);
+  if (req.method === 'GET' && u.pathname === '/api/model-fabric/overview') return handleModelFabricOverview(res);
+  if (req.method === 'GET' && u.pathname === '/api/model-fabric/usage') return handleModelFabricUsage(res, u);
   if (req.method === 'GET' && u.pathname === '/api/newapi/overview') return handleNewApiOverview(res);
   if (req.method === 'GET' && u.pathname === '/api/newapi/usage') return handleNewApiUsage(res, u);
   const newApiLogMatch = u.pathname.match(/^\/api\/newapi\/logs\/(\d+)$/);
@@ -4660,14 +5391,19 @@ const handler = (req, res) => {
   }
   if (req.method === 'GET' && u.pathname === '/api/vision/locate/health')
     return json(res, 200, { ok:true, state: LocateAnything.health() });
-  if (req.method === 'GET' && u.pathname === '/control-room') return serveStatic(res, 'control-room.html');
-  if (req.method === 'GET' && u.pathname === '/workspace') return serveStatic(res, 'workspace.html');
+  if (req.method === 'GET' && u.pathname === '/control-room') return serveStatic(res, 'app/index.html');
+  if (req.method === 'GET' && u.pathname === '/control-room-legacy') return serveStatic(res, 'control-room.html');
+  if (req.method === 'GET' && u.pathname === '/workspace') {
+    return serveStatic(res, FrontendRoute.workspaceStaticFile(FrontendRoute.readTarget(ARTIFACTS_ROOT)));
+  }
+  if (u.pathname === '/api/frontend/route') return handleFrontendRoute(req, res);
   if (req.method === 'GET' && u.pathname === '/workspace-next') return serveStatic(res, 'app/index.html');
   if (req.method === 'GET' && u.pathname === '/workspace-legacy') return serveStatic(res, 'workspace.html');
   if (req.method === 'GET' && (u.pathname === '/app' || u.pathname === '/app/')) return serveStatic(res, 'app/index.html');
   if (req.method === 'GET' && u.pathname.startsWith('/app/')) return serveStatic(res, u.pathname.slice(1));
   if (req.method === 'GET' && u.pathname === '/office-experiment') return serveStatic(res, 'office-experiment.html');
-  if (req.method === 'GET' && u.pathname === '/api-gateway') return serveStatic(res, 'newapi.html');
+  if (req.method === 'GET' && u.pathname === '/api-gateway') return serveStatic(res, 'app/index.html');
+  if (req.method === 'GET' && u.pathname === '/api-gateway-legacy') return serveStatic(res, 'newapi.html');
   if (req.method === 'GET' && u.pathname === '/api/cr/overview') {
     try { return json(res, 200, require('./control-room').overview(WORKDIR)); }
     catch (e) { return json(res, 500, { error: String(e.message || e) }); }
@@ -4724,6 +5460,7 @@ async function start() {
       startAutoOptimizerScheduler();
       startScheduledPageReviewScheduler();
       startInsightScoutReposScheduler();
+      startAttachmentCleanupScheduler();
       engineLog().emit('console.background_startup.done', {
         delayMs: BACKGROUND_STARTUP_DELAY_MS,
         schedulerStartupDelayMs: SCHEDULER_STARTUP_DELAY_MS,
@@ -4771,6 +5508,8 @@ module.exports = {
     sqliteJsonCache,
     newApiUsageFromDb,
     handleNewApiUsage,
+    handleModelFabricOverview,
+    handleModelFabricUsage,
     handleCeoTaskBoard,
     scheduledPageReviewExistingItems,
     scheduledPageReviewTask,
@@ -4808,6 +5547,16 @@ module.exports = {
     scheduleSafeConsoleRestart,
     handleRuntimeSettings,
     handleConsoleRestart,
+    frontendRouteTarget: () => FrontendRoute.readTarget(ARTIFACTS_ROOT),
+    detectImageMime,
+    safeAttachmentId,
+    readStagedAttachment,
+    cleanupStagedAttachments,
+    deleteStagedAttachment,
+    pinStagedAttachment,
+    activeStagedAttachmentIds,
+    startAttachmentCleanupScheduler,
+    prepareTaskForEnqueue,
     resetRestartRequestState() {
       restartRequestState = { locked: false, lastAcceptedAt: 0, helperPid: null };
       try { fs.unlinkSync(RESTART_BARRIER_FILE); } catch (_) {}

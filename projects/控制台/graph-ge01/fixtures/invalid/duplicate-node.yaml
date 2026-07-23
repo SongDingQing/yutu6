@@ -1,0 +1,7 @@
+id: invalid-duplicate
+nodes:
+  - { id: start, type: agent }
+  - { id: start, type: tool }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: done }

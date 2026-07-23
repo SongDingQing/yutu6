@@ -1469,3 +1469,80 @@
 - 轮次:1/1
 - 结论:默认执行
 - 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T04:48:48.333Z
+- 任务:评估并拍板 proposal_only 洞察卡在主人手动启用后是否跳过重复董事会评议。先给出 feature flag、事件审计、负例和回滚方案，未拍板不得启用。
+- 触发:explicit-important-architecture (agent体系)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:27:16.163Z
+- 任务:设计 proposal_only 的轻量执行 flow：一次生成、一次硬复核、真实证据不降级；给出分类协议、升级条件、feature flag、回归测试和回滚，未拍板不得切换。
+- 触发:architecture-action-evidence (引擎/版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:38:56.485Z
+- 任务:分离 repair-lead 与 repair 的特权执行槽并记录接管链 类别:role_boundary 问题:repair-lead 只做归因、派工、独立复核和关票；实际代码变更必须有单独 repair trace。为两角色建立不互相阻塞的受控特权槽或让 lead 在派工前释放执行槽；任何 manual take…
+- 触发:architecture-action-evidence (并发与锁)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:39:25.663Z
+- 任务:设计并灰度 worker 依赖域热重载：给出依赖清单生成、稳定窗、强制全局 reload、旧码探针、回归和一键回滚；未完成故障注入前不切生产。
+- 触发:architecture-action-evidence (版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:45:52.346Z
+- 任务:评估并实现按 projectId+workloadClass 的 WIP 限流 shadow：默认只观测，记录被延后任务与预计等待；主人确认后再切自动优化类上限 2，保留紧急旁路和回滚。
+- 触发:architecture-action-evidence (版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:53:20.601Z
+- 任务:读取 board/repair-tickets/auto-20260716150914-5bcb2faef11b92cd.md。按维修主管初查执行严重问题的最小机制修复：仅检查并修改 shared/engine/done-gate.js 与对应 tests/done-gate.test.js（如 hardening …
+- 触发:architecture-action-evidence (引擎/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:56:34.458Z
+- 任务:读取 board/repair-tickets/auto-20260716150914-5bcb2faef11b92cd.md。按维修主管初查执行严重问题的最小机制修复：仅检查并修改 shared/engine/done-gate.js 与对应 tests/done-gate.test.js（如 hardening …
+- 触发:architecture-action-evidence (引擎/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-17T05:59:08.979Z
+- 任务:读取 board/repair-tickets/auto-20260716150914-5bcb2faef11b92cd.md。按维修主管初查执行严重问题的最小机制修复：仅检查并修改 shared/engine/done-gate.js 与对应 tests/done-gate.test.js（如 hardening …
+- 触发:architecture-action-evidence (引擎/路由)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-20T16:47:36.770Z
+- 任务:MagicMushroom 项目交接与首轮修复。请由 CEO 路由到 supervisor-MagicMushroom，并由主管按先后顺序派 magicmushroom_programmer 执行。阶段A：完整熟悉 /Users/yutu6/UnityProject/MagicMushroom 当前分支和代码/场景/…
+- 触发:architecture-action-evidence (版本发布)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-20T17:56:08.085Z
+- 任务:设计并落地“新智能体入职必须先完成交接任务”的严谨机制，复用现有 HR onboarding、interaction trace、队列和 done gate，不另起重型框架。职责决策：HR 负责入职流程与四要素/权限检查；CEO 负责跨项目或归属不明的交接路线；项目主管负责项目专属智能体的交接内容与验收；若维修主管对…
+- 触发:architecture-action-evidence (并发与锁/引擎)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。
+
+## 董事会评议 2026-07-22T10:24:35.155Z
+- 任务:执行 projects/控制台/tasks/GE-01-Graph-Manifest与影子编译器.md。以 docs/设计/玉兔6-Graph-Engineering-演进架构.md 为唯一演进基线，由 CEO 交控制台主管组织后端程序员与质量/架构复审；只完成 yutu-graph@1 最小合同、零依赖 valid…
+- 触发:architecture-action-evidence (引擎/路由/性能与资源)
+- 轮次:1/1
+- 结论:默认执行
+- 理由:单轮事前评审未判硬阻断/误判风险,按方案默认执行。

@@ -31,11 +31,11 @@ const DIRECTORS = [
     runner: 'zhipu-board-direct',
   },
   {
-    id: 'board_claude',
-    role: 'board_claude',
-    name: 'Claude Fable 5 董事',
-    model: 'Claude Fable 5(claude-fable-5)',
-    runner: 'claude-fable-5',
+    id: 'board_kimi',
+    role: 'board_kimi',
+    name: 'Kimi K3 董事',
+    model: 'Kimi K3(Coding Plan 直连)',
+    runner: 'kimi-k2',
   },
   {
     id: 'board_opus48',
@@ -47,7 +47,7 @@ const DIRECTORS = [
   },
 ];
 
-// 拍板 Q11 分级评审:命中这些核心域=高危,全体 4 席评审;其余普通架构任务只派轮值+终审 2 席。
+// 拍板 Q11 分级评审:命中这些核心域=高危,全体董事评审;其余普通架构任务只派轮值+终审 2 席。
 const HIGH_RISK_TIER_AREAS = ['engine', 'queue', 'routing', 'concurrency'];
 
 const IMPORTANT_AREAS = [
@@ -356,7 +356,7 @@ function rotatingDirectorFor(taskId, directors = DIRECTORS) {
 }
 
 // 分级判定:
-// - full(4 席全体+终审): 命中高危核心域(engine/queue/routing/concurrency)、老板/秘书显式点名
+// - full(全体,含终审): 命中高危核心域(engine/queue/routing/concurrency)、老板/秘书显式点名
 //   董事会(explicit-important-architecture)、跨项目改动,或 matches 为空无法分类(保守全体)。
 // - light(2 席: 轮值+终审): 其余触发董事会的普通架构任务。
 function reviewTierFor({ spec, assessment, taskId } = {}) {
@@ -1162,7 +1162,7 @@ async function runBoardReview(opts) {
   if (!cliRunner) return { required: true, ok: false, reason: 'missing cliRunner', assessment };
   const maxRounds = opts.maxRounds || boardReviewMaxRounds();
 
-  // 拍板 Q11 分级:高危/显式点名/跨项目=full(4 席);普通架构=light(轮值+终审 2 席)。
+  // 拍板 Q11 分级:高危/显式点名/跨项目=full(全体);普通架构=light(轮值+终审 2 席)。
   const tiering = reviewTierFor({ spec, assessment, taskId });
   const panel = tiering.directors;
   const panelIds = panel.map(d => d.id);

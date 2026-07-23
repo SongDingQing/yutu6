@@ -27,6 +27,7 @@ const { keywordProjectId } = require('./project-guard');
 const Runtime = require('./engine-runtime');
 const ResourceLocks = require('./resource-locks');
 const QuotaDegrade = require('./quota-degrade');
+const Failover = require('../../shared/routing/failover');
 const RuntimePaths = require('./runtime-paths');
 const DoneGate = require('../../shared/engine/done-gate');
 const { IncrementalEventReader } = require('../../shared/engine/incremental-event-reader');
@@ -57,8 +58,9 @@ const CFG = (() => {
   try { return JSON.parse(fs.readFileSync(cfgPath, 'utf8')); }
   catch (_) { return {}; }
 })();
+const ROLE_PREFER = Failover.loadRolePrefer();
 const DEFAULT_ROLE_MAP = {
-  secretary: 'claude',
+  secretary: 'codex',
   orchestrator: 'codex',
   supervisor: 'codex',
   reasoning_architect: 'codex',
@@ -71,13 +73,12 @@ const DEFAULT_ROLE_MAP = {
   it_engineer: 'zhipu-glm',
   hr_manager: 'codex',
   hr_specialist: 'zhipu-glm',
-  'repair-lead': 'claude-code',
+  'repair-lead': 'codex-privileged',
   repair: 'codex-privileged',
   gui_desktop_control: 'peekaboo',
   frontend_designer: 'zhipu-glm',
   board_glm52: 'zhipu-board-direct',
   board_deepseek: 'deepseek-board-direct',
-  board_claude: 'claude-fable-5',
   board_opus48: 'codex',
 };
 const ENGINE_MAX_CONCURRENCY = Math.max(1, parseInt(process.env.ENGINE_MAX_CONCURRENCY || '3', 10) || 3);
@@ -87,6 +88,8 @@ const RUNNER_SINGLEFLIGHT = new Set(String(process.env.RUNNER_SINGLEFLIGHT || 'c
   .split(',')
   .map(s => s.trim())
   .filter(Boolean));
+const DELEGATED_REPAIR_LOCK_SCOPE = 'delegated-repair';
+const VERIFIED_SCOPED_ROUTE = Symbol('verified-scoped-route');
 const QUEUE_MAX_RETRY = Math.max(0, parseInt(process.env.QUEUE_MAX_RETRY || '2', 10) || 2);
 const NODE_FAILURE_MAX_RETRY = Math.max(0, parseInt(process.env.NODE_FAILURE_MAX_RETRY || '2', 10) || 2);
 const RUNNING_SWEEP_MS = Math.max(1000, parseInt(process.env.RUNNING_SWEEP_MS || '5000', 10) || 5000);
@@ -101,6 +104,7 @@ const AUTO_REPAIR_DIR = path.join(ARTIFACTS_ROOT, 'repair-auto');
 const AUTO_REPAIR_STATE = path.join(AUTO_REPAIR_DIR, 'index.json');
 const AUTO_REPAIR_COOLDOWN_MS = Math.max(60 * 1000, parseInt(process.env.AUTO_REPAIR_COOLDOWN_MS || String(30 * 60 * 1000), 10) || (30 * 60 * 1000));
 const SUPERVISOR_REVIEW_NODE_TIMEOUT_SEC = 1800;
+const REPAIR_LEAD_NODE_TIMEOUT_SEC = 1800;
 const PROJECT_DONE_NOTIFY_STATE = path.join(ARTIFACTS_ROOT, 'project-done-notify-state.json');
 const PROJECT_DONE_NOTIFY_COOLDOWN_MS = Math.max(0, parseInt(process.env.PROJECT_DONE_NOTIFY_COOLDOWN_MS || String(2 * 60 * 1000), 10) || 0);
 const OWNER_AUTO_NOTIFY_STATE = path.join(ARTIFACTS_ROOT, 'owner-auto-notify-state.json');
@@ -433,6 +437,9 @@ function taskNodeTimeoutMs(record) {
   if (Number.isFinite(n) && n > 0) return n * 1000;
   const queueAgent = String(record && (record.queueAgent || record.agent || record.owner) || AGENT || '');
   const flowId = String(record && (record.flowId || task.flowId) || '');
+  if (queueAgent === 'repair-lead') {
+    return REPAIR_LEAD_NODE_TIMEOUT_SEC * 1000;
+  }
   if (flowId === 'review-loop' && /^supervisor-/.test(queueAgent)) {
     return SUPERVISOR_REVIEW_NODE_TIMEOUT_SEC * 1000;
   }
@@ -597,6 +604,7 @@ function lockEventPayload(kind, file, record, reason, extra = {}) {
     queueAgent: record && record.agent || null,
     queueId: record && record.queueId || null,
     runnerType: record && record.runnerType || null,
+    lockScope: record && (record.lockScope || record.runnerType) || null,
     reason,
   };
   if (kind === 'slot') base.slot = path.basename(file);
@@ -1476,9 +1484,14 @@ function listSlots() {
   }
 }
 
-function runnerTypeLockFile(runnerType) {
-  const safe = String(runnerType || 'unknown').replace(/[^A-Za-z0-9_-]/g, '_') || 'unknown';
-  return path.join(ENGINE_TYPE_LOCKS, `runner-${safe}.json`);
+function runnerTypeLockFile(runnerType, lockScope = runnerType) {
+  const safeRunner = String(runnerType || 'unknown').replace(/[^A-Za-z0-9_-]/g, '_') || 'unknown';
+  const normalizedScope = String(lockScope || runnerType || 'unknown');
+  if (normalizedScope === String(runnerType || 'unknown')) {
+    return path.join(ENGINE_TYPE_LOCKS, `runner-${safeRunner}.json`);
+  }
+  const safeScope = normalizedScope.replace(/[^A-Za-z0-9_-]/g, '_') || 'unknown';
+  return path.join(ENGINE_TYPE_LOCKS, `runner-${safeRunner}--scope-${safeScope}.json`);
 }
 
 function listRunnerTypeLocks() {
@@ -1587,21 +1600,44 @@ function quotaScopeForSpec(spec, entry, runnerTypeHint = null) {
   return QuotaDegrade.bucketScope(bucket && bucket !== runnerType ? bucket : null, runnerType);
 }
 
+function quotaCandidateDecisionsForEntry(agent, entry, runnerTypeHint = null) {
+  const role = roleForAgentEntry(agent, entry);
+  const primaryRunner = runnerTypeHint || runnerTypeForAgentEntry(agent, entry);
+  const candidates = process.env.YUTU6_RUNNER_FAILOVER === '0'
+    ? [primaryRunner]
+    : Failover.failoverCandidates(role, {
+      primaryRunnerId: primaryRunner,
+      runners: CFG.runners || {},
+      rolePrefer: ROLE_PREFER,
+    });
+  const ordered = candidates.length ? candidates : [primaryRunner];
+  return ordered.map((runnerType, index) => {
+    const scope = index === 0
+      ? quotaScopeForAgentEntry(agent, entry, runnerType)
+      : QuotaDegrade.runnerScope(runnerType);
+    const state = QuotaDegrade.readState(ARTIFACTS_ROOT, scope);
+    const decision = QuotaDegrade.breakerDecision(state);
+    return { runnerType, scope, state, decision };
+  });
+}
+
 function isQuotaScopePausedForEntry(agent, entry, runnerTypeHint = null) {
   if (!QUOTA_DEGRADE_ENABLED) return { paused: false, scope: null, state: null };
-  const scope = quotaScopeForAgentEntry(agent, entry, runnerTypeHint);
-  const state = QuotaDegrade.readState(ARTIFACTS_ROOT, scope);
-  // 调度层额度门:用 breakerDecision(计入 retry_after)而非裸 statePaused(只看 status)。
-  // 根因修复(2026-07-06 停机):statePaused 对 degraded 恒真,retry_after 过期后调度层仍无限 block,
-  // 而恢复所需的试探(probe)在 cli-runner,任务被挡在调度层永远到不了 cli-runner → degraded 死锁、all_blocked 空转。
-  // breakerDecision:retry_after 未到→blocked(仍等);过期→{blocked:false,probe:true}(放行,让 cli-runner 跑一次 probe 自愈);
-  // 人工 degraded 无 retry_after→blocked(维持等人工 restore)。三种既有语义不变,只补"退避过期即放行试探"这条自愈路径。
-  const decision = QuotaDegrade.breakerDecision(state);
+  const candidates = quotaCandidateDecisionsForEntry(agent, entry, runnerTypeHint);
+  const available = candidates.find(item => !item.decision.blocked);
+  const primary = candidates[0] || { scope: null, state: null, decision: { blocked: false, probe: false } };
+  // 调度层与 cli-runner 必须使用同一条 failover 候选链。首选 runner 熔断时，只要存在健康
+  // 候选就放行任务，由 cli-runner 跳过熔断候选并执行备用 runner；只有候选池全部熔断才暂停。
+  // 否则会出现“执行层明明能 GLM→Codex 降级，任务却永远进不了执行层”的 all_blocked 死锁。
   return {
-    paused: !!decision.blocked,
-    probe: !!decision.probe,
-    scope,
-    state,
+    paused: !available,
+    probe: !!(available && available.decision.probe),
+    scope: available ? available.scope : primary.scope,
+    state: available ? available.state : primary.state,
+    selectedRunnerType: available && available.runnerType || null,
+    primaryRunnerType: primary.runnerType || null,
+    fallbackAvailable: !!(available && available !== primary),
+    candidates,
   };
 }
 
@@ -1643,15 +1679,17 @@ function bypassEngineSlot(entry, runnerType) {
   };
 }
 
-async function acquireRunnerTypeLock(entry, runnerType) {
+async function acquireRunnerTypeLock(entry, runnerType, lockScope = runnerType) {
   if (!RUNNER_SINGLEFLIGHT.has(runnerType)) {
     return {
       file: null,
+      runnerType,
+      lockScope,
       release() {},
     };
   }
   fs.mkdirSync(ENGINE_TYPE_LOCKS, { recursive: true });
-  const file = runnerTypeLockFile(runnerType);
+  const file = runnerTypeLockFile(runnerType, lockScope);
   let loggedWait = false;
   while (true) {
     const waitDecision = preEngineWaitAbortDecision(readRunningEntry(entry.id));
@@ -1660,16 +1698,17 @@ async function acquireRunnerTypeLock(entry, runnerType) {
         queueAgent: AGENT,
         queueId: entry.id,
         runnerType,
+        lockScope,
         reason: waitDecision.reason,
       });
-      return { file: null, canceled: true, reason: waitDecision.reason, release() {} };
+      return { file: null, runnerType, lockScope, canceled: true, reason: waitDecision.reason, release() {} };
     }
     await cleanupDeadRunnerTypeLocks();
     const cur = readJson(file);
     if (cur && lockValid(cur)) {
       if (!loggedWait) {
         loggedWait = true;
-        eventlog.emit('engine.slot.wait', { queueAgent: AGENT, queueId: entry.id, runnerType, reason: 'runner-singleflight' });
+        eventlog.emit('engine.slot.wait', { queueAgent: AGENT, queueId: entry.id, runnerType, lockScope, reason: 'runner-singleflight' });
       }
       await sleep(700);
       continue;
@@ -1683,6 +1722,7 @@ async function acquireRunnerTypeLock(entry, runnerType) {
       agent: AGENT,
       queueId: entry.id,
       runnerType,
+      lockScope,
       started_at: new Date().toISOString(),
     };
     try {
@@ -1694,31 +1734,48 @@ async function acquireRunnerTypeLock(entry, runnerType) {
           queueAgent: AGENT,
           queueId: entry.id,
           runnerType,
+          lockScope,
           reason: acquiredDecision.reason,
         });
-        return { file: null, canceled: true, reason: acquiredDecision.reason, release() {} };
+        return { file: null, runnerType, lockScope, canceled: true, reason: acquiredDecision.reason, release() {} };
       }
-      eventlog.emit('engine.runner_lock.acquired', { queueAgent: AGENT, queueId: entry.id, runnerType });
+      eventlog.emit('engine.runner_lock.acquired', { queueAgent: AGENT, queueId: entry.id, runnerType, lockScope });
       return {
         file,
+        runnerType,
+        lockScope,
         release() {
+          let released = false;
           try {
             const cur2 = readJson(file);
-            if (cur2 && cur2.ownerPid === process.pid && cur2.queueId === entry.id) {
+            if (cur2
+              && cur2.ownerPid === process.pid
+              && cur2.agent === AGENT
+              && cur2.queueId === entry.id
+              && cur2.runnerType === runnerType
+              && (cur2.lockScope || cur2.runnerType) === lockScope) {
               if (Runtime.engineAliveForRecord(cur2)) {
                 eventlog.emit('engine.runner_lock.release_blocked', {
                   queueAgent: AGENT,
                   queueId: entry.id,
                   runnerType,
+                  lockScope,
                   reason: 'engine still alive',
                   enginePid: Runtime.enginePidFromRecord(cur2) || null,
                 });
                 return;
               }
               fs.unlinkSync(file);
+              released = true;
             }
           } catch (_) {}
-          eventlog.emit('engine.runner_lock.released', { queueAgent: AGENT, queueId: entry.id, runnerType });
+          eventlog.emit(released ? 'engine.runner_lock.released' : 'engine.runner_lock.release_skipped', {
+            queueAgent: AGENT,
+            queueId: entry.id,
+            runnerType,
+            lockScope,
+            reason: released ? undefined : 'lock ownership changed',
+          });
         },
       };
     } catch (_) {
@@ -2143,7 +2200,8 @@ function workerClaimOptions() {
 async function claimNextRunnableEntry() {
   const claimOpts = workerClaimOptions();
   if (!RESOURCE_DOMAIN_LOCKS_ENABLED) {
-    return Q.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, {
+    return QueueAutoMerge.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, {
+      eventlog,
       match: entry => !isQuotaScopePausedForEntry(AGENT, entry).paused,
     }));
   }
@@ -2151,7 +2209,7 @@ async function claimNextRunnableEntry() {
   try {
     queued = Q.list(QUEUE_ROOT, AGENT).queued || [];
   } catch (_) {
-    return Q.claim(QUEUE_ROOT, AGENT, claimOpts);
+    return QueueAutoMerge.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, { eventlog }));
   }
   if (!queued.length) return null;
 
@@ -2189,7 +2247,7 @@ async function claimNextRunnableEntry() {
           action: 'fallback-head-claim',
         });
       }
-      return Q.claim(QUEUE_ROOT, AGENT, claimOpts);
+      return QueueAutoMerge.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, { eventlog }));
     }
     if (probe.available && !requestConflictsWithReservations(entry, probe.request)) {
       runnableIds.add(entry.id);
@@ -2216,7 +2274,8 @@ async function claimNextRunnableEntry() {
   }
 
   const firstQueuedId = queued[0] && queued[0].id;
-  const entry = Q.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, {
+  const entry = QueueAutoMerge.claim(QUEUE_ROOT, AGENT, Object.assign({}, claimOpts, {
+    eventlog,
     match: item => runnableIds.has(item.id),
   }));
   if (entry && firstQueuedId && firstQueuedId !== entry.id) {
@@ -4209,6 +4268,19 @@ function maybeRetryEngineFailure(spec, entry, result, reason) {
   return true;
 }
 
+function terminalEngineOutcomePatch(result, effectiveOk, status, reason) {
+  const failed = !effectiveOk && status === 'failed';
+  return {
+    engine_code: result && result.code != null ? result.code : null,
+    engine_signal: result && result.signal || null,
+    last_engine_error: failed ? sanitizeReason(reason) : null,
+    last_engine_code: result && result.code != null ? result.code : null,
+    last_engine_signal: result && result.signal || null,
+    error: failed ? reason : null,
+    reason: status === 'paused' ? reason : undefined,
+  };
+}
+
 function taskTextForSecretary(payload, latest) {
   return String(payload.goal || payload.message || payload.task || latest.task || '').trim();
 }
@@ -4341,7 +4413,7 @@ function consumeScopedBypassOrFallback(entry) {
       issuerTaskId: assessment.issuerTaskId,
       reason: assessment.reason,
     });
-    return { handled: false, assessment };
+    return { handled: false, assessment, [VERIFIED_SCOPED_ROUTE]: true };
   }
 
   const fallbackTask = routed.task;
@@ -4404,6 +4476,23 @@ function consumeScopedBypassOrFallback(entry) {
   return { handled: true, assessment, fallbackEntry };
 }
 
+function runnerLockScopeForScopedRoute(scopedRoute, runnerType) {
+  const assessment = scopedRoute && scopedRoute.assessment;
+  const trustedDelegatedRepair = AGENT === 'repair'
+    && runnerType === 'codex-privileged'
+    && scopedRoute && scopedRoute[VERIFIED_SCOPED_ROUTE] === true
+    && scopedRoute.handled === false
+    && assessment && assessment.accepted === true
+    && assessment.reason === 'trusted_repair_ticket_scope'
+    && assessment.requestedAgent === 'repair'
+    && assessment.issuerRole === 'repair-lead'
+    && assessment.rootQueueAgent === 'repair-lead'
+    && assessment.rootQueueId === assessment.issuerQueueId
+    && assessment.rootTaskId === assessment.issuerTaskId
+    && !!assessment.ticketId;
+  return trustedDelegatedRepair ? DELEGATED_REPAIR_LOCK_SCOPE : runnerType;
+}
+
 function appendProjectStatus(projectId, spec, result) {
   if (!projectId || !result.ok) return;
   const stamp = new Date().toISOString();
@@ -4462,6 +4551,7 @@ async function handle(entry) {
     eventlog.emit('queue.claimed', { queueAgent: AGENT, queueId: entry.id });
     const scopedRoute = consumeScopedBypassOrFallback(entry);
     if (scopedRoute.handled) return;
+    const runnerLockScope = runnerLockScopeForScopedRoute(scopedRoute, runnerType);
     spec = makeSpec(entry);
     emitManualCompletionOverrideAudit(spec);
     noteRunningSpec(entry, spec);
@@ -4476,7 +4566,7 @@ async function handle(entry) {
         heartbeatMs: RESOURCE_LOCK_HEARTBEAT_MS,
       });
     }
-    typeLock = await acquireRunnerTypeLock(entry, runnerType);
+    typeLock = await acquireRunnerTypeLock(entry, runnerType, runnerLockScope);
     const postLockCancel = typeLock.canceled
       ? { abort: true, reason: typeLock.reason }
       : preEngineWaitAbortDecision(readRunningEntry(entry.id));
@@ -4613,14 +4703,12 @@ async function handle(entry) {
       : (independentReceiptResult && independentReceiptResult.paused
         ? 'paused'
         : (result.paused ? 'paused' : (result.canceled ? 'canceled' : (effectiveOk ? 'done' : 'failed'))));
-    Q.finish(QUEUE_ROOT, AGENT, entry.id, status, {
-      engine_code: result.code,
-      engine_signal: result.signal || null,
-      error: result.error || (!effectiveOk && !result.canceled && !result.paused ? reason : null),
-      reason: status === 'paused' ? reason : undefined,
+    Q.finish(QUEUE_ROOT, AGENT, entry.id, status, Object.assign(
+      terminalEngineOutcomePatch(result, effectiveOk, status, reason), {
       downstream: downstream ? downstreamEventMeta(downstream) : undefined,
       independentReceipts: independentReceiptResult || undefined,
-    });
+      },
+    ));
     if (/^supervisor-/.test(AGENT)) appendProjectStatus(spec.projectId, spec, Object.assign({}, result, { ok: effectiveOk }));
     const queueEvent = {
       queueAgent: AGENT,
@@ -5266,11 +5354,13 @@ module.exports = {
     isInfraRestartNoise,
     isQueueAgentDirName,
     isRetryableEngineFailure,
+    terminalEngineOutcomePatch,
     latestTaskFailureReason,
     isTestPassProjectNotice,
     classifyQuotaExhaustion,
     handleQuotaDegradation,
     isQuotaScopePausedForEntry,
+    quotaCandidateDecisionsForEntry,
     quotaScopeForAgentEntry,
     quotaScopeForSpec,
     quotaSnapshotEntries,
@@ -5284,7 +5374,15 @@ module.exports = {
 	    normalizeProjectId,
 	    prefixedNotifyTitle,
 	    releaseQueueRuntimeLocks,
+	    acquireRunnerTypeLock,
+	    cleanupDeadRunnerTypeLocks,
+	    consumeScopedBypassOrFallback,
+	    listRunnerTypeLocks,
+	    noteEnginePid,
+	    runnerLockScopeForScopedRoute,
+	    runnerTypeLockFile,
 	    runningNoProgress,
+	    taskNodeTimeoutMs,
 	    preEngineWaitAbortDecision,
 	    preEngineCancellationPatch,
 	    resourceDomainsForTask: ResourceLocks.normalizeResourceRequest,

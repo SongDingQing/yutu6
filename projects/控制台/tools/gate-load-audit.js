@@ -203,6 +203,13 @@ function policyMetrics(policy) {
     duplicates_dormant: entries
       .filter(([, gate]) => gate.mode === 'dormant' && gate.duplicate_of)
       .map(([id, gate]) => ({ id, duplicate_of: gate.duplicate_of })),
+    active_blocking_bindings: entries
+      .filter(([, gate]) => gate.mode === 'active' && gate.blocking === true)
+      .map(([id, gate]) => ({
+        id,
+        incidents: Array.isArray(gate.incident_refs) ? gate.incident_refs : [],
+        regressions: Array.isArray(gate.regression_tests) ? gate.regression_tests : [],
+      })),
   };
 }
 
@@ -214,6 +221,12 @@ function markdown(report) {
     `- policy: ${report.policy_file}`,
     `- 主门 active: ${report.policy.active.join(', ') || '(无)'}`,
     `- 重复门 dormant: ${report.policy.duplicates_dormant.map(item => `${item.id} -> ${item.duplicate_of}`).join('; ') || '(无)'}`,
+    '',
+    '## 常开门事故映射',
+    '',
+    '| Gate | Incident refs | Regression tests |',
+    '|---|---:|---|',
+    ...report.policy.active_blocking_bindings.map(item => `| ${item.id} | ${item.incidents.length} | ${item.regressions.join('<br>')} |`),
     '',
     '## 回归负载',
     '',
@@ -247,7 +260,7 @@ function markdown(report) {
     '1. 主 DoneGate 保持 active；完成真实性、规格指纹、密钥卫生和队列恢复不休眠。',
     '2. 已被主 DoneGate 覆盖的协议、硬回归和 loop convergence hook 休眠，避免重复校验。',
     '3. 普通任务运行专项测试或 smoke；核心控制面改动运行 lean；full 仅用于跨引擎、发布、基线刷新与人工全检。',
-    '4. 新 gate 若无 incident_refs，不允许以 active+block 注册；shadow 失败自动写 gate.incident。',
+    '4. 新 gate 若无 incident_refs 或 regression_tests，不允许以 active+block 注册；shadow 失败自动写 gate.incident。',
     '',
   ];
   return lines.join('\n');

@@ -21,6 +21,9 @@
 | `multi-agent-collaboration-contract` | ✅ 已转入(包内快照) | `modules/multi-agent-collaboration-contract/` |
 | `hermes-yutu-voice-bridge` | ✅ 已转入(包内快照) | `modules/hermes-yutu-voice-bridge/` |
 | `instruction-expansion-router` | ✅ **新机重建**(全局件③) | `modules/instruction-expansion-router/` |
+| `yutu6-unified-startup` | ✅ 已接入(统一登录启动 + 健康核对) | `modules/yutu6-unified-startup/` |
+| `agent-platform-orchestration` | ✅ 已接入(模型池目录 + 外部平台 + A2A) | `modules/agent-platform-orchestration/` |
+| `yutu6-model-fabric` | 🧪 影子前门(Model/Agent 统一中枢 + new-api 可回滚兼容层) | `modules/yutu6-model-fabric/` |
 | `meowa-game-assets` | ✅ 已接入(共享 CLI + 统一 key + module) | `modules/meowa-game-assets/` |
 | `peekaboo-desktop-control` | ✅ 已 brew 装(GUI/桌面控制 runner,待授权) | `shared/routing/runners.yaml` (id=peekaboo) |
 | `chang-e-android-control-plane` | 🔻 按需拉(元宵/嫦娥,已后置) | 旧机 `~/.codex/modules/` |

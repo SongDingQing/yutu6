@@ -88,6 +88,35 @@ function main() {
   assertNonVisualCase('repair no-op', 'repair no-op：工单已恢复，只记录无操作结果');
   assertNonVisualCase('non-UI PoC', '非 UI PoC：只验证 Node 协议解析与日志');
 
+  const incidentStructuredHeader = '| 要点 | 完成状态(完成/部分/未完成) | 证据位置(文件:行 / git diff / 截图路径) | 备注 |';
+  assertNonVisualCase('incident structured-acceptance header', incidentStructuredHeader);
+  assertNonVisualCase('embedded non-visual post-processing table', [
+    '维修工单 auto-20260722101945-21bd038b3b9eff90 已完成,请按记忆官职责提炼长期记忆。',
+    '维修员完成结果:验收表协议: structured-acceptance@2',
+    incidentStructuredHeader,
+    '|---|---|---|---|',
+    '| 任务验收: 可泛化维修经验进入 memory/experience.md; 项目技术映射进入 memory/entities.md。 | 完成 | memory/experience.md:433 | 无密钥泄露。 |',
+    '| 视觉/UI证据: not_applicable | not_applicable | task-envelope:visual_acceptance | source=task_type; no positive visual requirement |',
+    '提炼要求:只写 memory/;不要改 knowledge/ 管道。',
+  ].join('\n'));
+
+  const embeddedUiRowAudit = classify({
+    goal: [
+      incidentStructuredHeader,
+      '| 任务验收: 调整真实 UI 页面版式与按钮样式。 | 未完成 | | |',
+    ].join('\n'),
+  });
+  assert.strictEqual(embeddedUiRowAudit.required, true, 'real UI work inside a table must remain visual');
+  assert.strictEqual(embeddedUiRowAudit.source, 'task_type');
+  const embeddedScreenshotRowAudit = classify({
+    goal: [
+      incidentStructuredHeader,
+      '| 任务验收: 用户明确要求必须提交 Peekaboo 截图。 | 未完成 | | |',
+    ].join('\n'),
+  });
+  assert.strictEqual(embeddedScreenshotRowAudit.required, true, 'explicit screenshot work inside a table must remain visual');
+  assert.strictEqual(embeddedScreenshotRowAudit.source, 'explicit_user_requirement');
+
   // Non-visual classification is pure: it creates neither one-off images nor
   // memory writes. The fixture directory is the observable artifact boundary.
   const pureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'visual-acceptance-pure-'));

@@ -25,5 +25,5 @@ const notifyScript = fs.readFileSync(path.resolve(__dirname, '../shared/agents/u
 // 任务11:三类交互——提问/对话仍走纯文本(默认),进展/决策走 interactive 卡片(有意新增)。
 assert(/"text",\s*json\.dumps\(\{"text": text\}/.test(notifyScript) || notifyScript.includes('json.dumps({"text": text}'), 'Feishu text(提问/对话)仍须编码为纯文本 payload');
 assert(notifyScript.includes('"interactive"'), 'Feishu 进展/决策须支持 interactive 卡片(任务11)');
-assert(notifyScript.includes('parse_buttons'), 'Feishu 决策卡须支持按钮(parse_buttons)');
+assert(notifyScript.includes('parse_actions'), 'Feishu 决策卡须支持原生 value 与 URL 按钮(parse_actions)');
 console.log(JSON.stringify({ pass: true, suite: 'owner-auto-notify-wrapper' }));

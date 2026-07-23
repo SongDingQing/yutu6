@@ -4,8 +4,12 @@
 // projectId. Project availability itself is decided by the projects directory.
 const PROJECT_KEYWORD_RULES = [
   {
+    projectId: 'MagicMushroom',
+    re: /magic\s*mushroom|magicmushroom|魔法蘑菇|UnityProject\/MagicMushroom/i,
+  },
+  {
     projectId: 'Simulaid',
-    re: /simulaid|模拟纪元|团结|unity|tuanjie/i,
+    re: /simulaid|模拟纪元|团结|tuanjie/i,
   },
   {
     projectId: '控制台',

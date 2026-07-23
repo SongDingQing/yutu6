@@ -2,18 +2,17 @@
 # 依据:多智能体架构设计 §5(多模型接入)、§18.4(per-agent + 预测性故障转移)
 # 编排层只读这张表选 provider/模型,本身不调模型、不烧 token。
 schema_version: 1
-updated_at: 2026-07-03
+updated_at: 2026-07-20
 
 # ── 统一出口与三路兜底链(订阅 → API → 本地 Ollama)──────────────
 providers:
   subscription:                 # 吃性价比,优先
-    claude: { via: claude-cli,  models: [claude-code] }   # 2026-07-03 复活:秘书前门 + 维修主管
-    codex:  { via: codex-cli,   models: [gpt-5-codex] }
+    codex:  { via: codex-cli,   models: [gpt-5.6-sol] }
   api:                          # 稳、可预测,兜底第二层
     openai:    { env: OPENAI_API_KEY,    models: [gpt-5, gpt-5-mini] }
     deepseek:  { via: new-api,           models: [deepseek-chat, deepseek-reasoner] }
-    zhipu:     { via: new-api,           models: [glm-5.2, glm-5] }
-    kimi:      { env: MOONSHOT_API_KEY,  models: [kimi-k2.7-code, kimi-k2.7-code-highspeed, kimi-k2.6] }
+    zhipu:     { via: coding-plan-direct, models: [glm-5.2, glm-5] }
+    kimi:      { via: new-api, env: KIMI_API_KEY, models: [k3] }
   local:                        # 离线 / 降本,最后兜底(5090 / mini)
     ollama: { host_env: OLLAMA_HOST, default: "http://localhost:11434", models: [qwen2.5, nomic-embed-text] }
 
@@ -25,15 +24,19 @@ failover:
 
 # ── 分层 / 分角色选模型(判断层强模型,执行层快省模型)────────────
 roles:
-  secretary:                    # 秘书:前门补全与路由,不直接执行项目细节(2026-07-03 由 Claude Code 接管;codex/GLM 兜底)
+  secretary:                    # 秘书:前门补全与路由,不直接执行项目细节;由 Codex/GPT-5.6-Sol 执行
     tier: strong
-    prefer: [subscription.claude, subscription.codex, api.zhipu.glm-5.2]
+    prefer: [subscription.codex, api.zhipu.glm-5.2]
     context_mode: last_only
   orchestrator:                 # 总管:拆项目、压缩趋势、消歧 —— 强模型
     tier: strong
     prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5.2]
     context_mode: accumulate    # 仅总管级可全量
   supervisor:                   # 主管:单项目规划 / 审产物 —— 强模型
+    tier: strong
+    prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5.2]
+    context_mode: explicit
+  magicmushroom_supervisor:     # MagicMushroom 专属主管:Unity 6 规划与硬复审
     tier: strong
     prefer: [subscription.codex, api.openai.gpt-5, api.zhipu.glm-5.2]
     context_mode: explicit
@@ -44,6 +47,11 @@ roles:
   worker_code:                  # 后端程序员 / 写码 / 构建 / 测试 —— Codex 主力,GLM 仅作后续可验证候选
     tier: exec
     prefer: [subscription.codex, api.zhipu.glm-5.2, api.openai.gpt-5]
+    execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: reject_or_harness }
+    context_mode: explicit
+  magicmushroom_programmer:     # MagicMushroom 专属 Unity 6 落盘执行
+    tier: exec
+    prefer: [subscription.codex, api.openai.gpt-5]
     execution: { requires_tool_capable_for_delivery: true, pure_text_runner_policy: reject_or_harness }
     context_mode: explicit
   worker_narrow:                # 外包员工 / 轻量 / 省钱 / 离线 —— Haiku 或本地
@@ -72,16 +80,16 @@ roles:
     tier: standard
     prefer: [api.zhipu.glm-5.2]
     context_mode: explicit
+  board_kimi:                   # 董事会 Kimi K3:代码/Agent 链路与长上下文遗漏审查
+    tier: strong
+    prefer: [api.kimi.k3]
+    context_mode: explicit
   board_gpt55:                  # 兼容旧别名:不再作为活跃董事;GPT-5.6-Sol 视角并入 board_opus48
     tier: strong
     prefer: [subscription.codex]
     context_mode: explicit
     deprecated: true
     alias_of: board_opus48
-  board_claude:                 # 董事会 Claude:2026-07-14 切换 Fable 5
-    tier: strong
-    prefer: [subscription.claude.fable-5, subscription.codex]
-    context_mode: explicit
   board_opus48:                 # 历史兼容槽位:最终误判风险裁决,现为唯一 Codex/GPT-5.6-Sol 董事
     tier: strong
     prefer: [subscription.codex]

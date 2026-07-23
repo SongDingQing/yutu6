@@ -1,13 +1,13 @@
 {
   "id": "instruction-expansion-router",
   "schema_version": 1,
-  "updated_at": "2026-06-18",
+  "updated_at": "2026-07-20",
   "status": "rebuilt_in_workspace",
   "origin": "新机重建(不从旧机拷);沿用旧机同名 skill 的分发原则,精简为前门专用。",
   "summary": "前门指令补齐路由器:把人随口/简略/截图/跨项目的指令,补全成完整 task 信封后再派单。",
   "binding": {
     "attached_to": "front_door_orchestrator_only",
-    "front_door_runner": "claude",
+    "front_door_runner": "codex",
     "not_attached_to": "内部 agent(主管/员工)——它们走精确 task.md/result.md 信封,不挂本扩展",
     "reason": "指令补齐是人↔系统入口的事;内部信封已是补全态,重复补齐会串味、浪费 token"
   },

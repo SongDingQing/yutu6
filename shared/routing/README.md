@@ -8,7 +8,7 @@
 | 文件 | 作用 | 蓝图依据 |
 |---|---|---|
 | `model-routing.yaml` | 分层/分角色选 provider+模型;订阅→API→本地 三路兜底 + 预测性故障转移 | §5 / §18.4 |
-| `runners.yaml` | Runner 注册表:谁真正执行(Hermes=默认对话 runner,Codex=最强推理执行,本地脚本;Claude 仅兼容保留) | §10 |
+| `runners.yaml` | Runner 注册表:谁真正执行(Hermes=默认对话 runner,Codex/GPT-5.6-Sol=前门与最强推理执行,本地脚本=确定性动作) | §10 |
 | `flows/*.yaml` | 声明式流程节点图(节点=agent/工具/human gate;边=Jinja2 条件);结构已知就确定性走 | §18.1 |
 
 ## 三条规矩(落到节点级强制)

@@ -58,6 +58,17 @@
   ],
   "terminal_events": [
     {
+      "seq": 5,
+      "ts": "2026-07-17T00:00:03.500Z",
+      "type": "task.queued",
+      "task": "fixture-supervisor-task",
+      "queueAgent": "supervisor-控制台",
+      "queueId": "fixture-supervisor-queue",
+      "rootTaskId": "fixture-root-route",
+      "rootQueueAgent": "ceo",
+      "rootQueueId": "fixture-root-queue"
+    },
+    {
       "seq": 10,
       "ts": "2026-07-17T00:00:04.000Z",
       "type": "project.route.failed",
@@ -142,6 +153,9 @@
     "final_state": "done",
     "span_failures": ["fixture-route-primary"],
     "node_terminal_event_count": 1,
+    "node_terminal_tasks": ["fixture-supervisor-task"],
+    "terminal_history_outcomes": ["failed", "failed", "failed", "done", "done", "done"],
+    "final_state_source_seqs": [20, 21, 22],
     "source_types": ["project.route.done", "task.done", "queue.completed"]
   }
 }

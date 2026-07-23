@@ -35,7 +35,7 @@ function main() {
     const overview = LlmUsage.buildOverview({ cfg: {}, nowMs: Date.now(), queueAgents: [] });
     const codex = overview.models.find(m => m.id === 'codex');
     assert(codex, 'codex usage model must be present');
-    assert(overview.models.some(m => m.id === 'claude-code'), 'Claude usage must be visible by default (2026-07-03 秘书+维修主管复活)');
+    assert(!overview.models.some(m => m.id === 'claude-code'), 'deprecated Claude usage must be hidden by default');
     assert.strictEqual(codex.sourceStatus, 'ok');
     assert(codex.sourceDetail.filesSkipped >= 1, 'large usage files must be skipped instead of parsed');
     assert.strictEqual(codex.currentUsage.total_tokens, 15);

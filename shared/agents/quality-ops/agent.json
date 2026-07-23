@@ -8,7 +8,7 @@
   "context_mode": "explicit",
   "system_wide_singleton": true,
   "read_paths": ["shared/engine/", "projects/*/artifacts/engine/events*.jsonl", "projects/控制台/artifacts/quality-ops/traces/", "projects/控制台/artifacts/quality-ops/audits/", "projects/控制台/artifacts/quality-ops/review-ledger.json", "projects/控制台/artifacts/canary/", "projects/控制台/tools/mechanisms-smoke-test.js", "board/repair-tickets/", "projects/*/tasks/*/", "shared/capability_registry/"],
-  "writes": ["shared/capability_registry/(硬化提案)", "knowledge/归档/硬化建议-*.md", "board/repair-tickets/(金丝雀红灯归因补充)", "projects/控制台/artifacts/quality-ops/audits/", "projects/控制台/artifacts/quality-ops/review-ledger.json", "projects/控制台/artifacts/quality-ops/proposal-ledger.json", "artifacts/bulletin/(仅 source=质量运营,status=todo,经 ingest 去重)", "/Users/yutu6/Documents/玉兔质量运营报告/"],
+  "writes": ["shared/capability_registry/(硬化提案)", "knowledge/归档/硬化建议-*.md", "board/repair-tickets/(金丝雀红灯归因补充)", "projects/控制台/artifacts/quality-ops/audits/", "projects/控制台/artifacts/quality-ops/review-ledger.json", "projects/控制台/artifacts/quality-ops/proposal-ledger.json", "artifacts/bulletin/(仅信息安全/权限/外部副作用提案可写 source=质量运营,status=todo,经 ingest 去重)", "/Users/yutu6/Documents/玉兔质量运营报告/"],
   "triggers": ["每日 12:00 链路抽查(首周全检,其后冷门线路加权随机)", "每周六 21:00 质量运营 PDF", "每日金丝雀巡检结果产出后(e2e-canary)", "mechanisms-smoke 断言变红 / 机制演进", "项目架构更改 / 里程碑后", "同一确定性动作序列重复 >= N 次", "周期性 / 手动"],
   "io": {
     "inputs": ["金丝雀状态(artifacts/canary/state.json + canary.* 事件)", "事件日志(eventlog)", "任务 ledger(taskstore)", "脱敏 prompt/result/process 摘要 + 角色/runner/交接索引", "抽查去重账本与冷门线路频次"],
@@ -19,6 +19,6 @@
     "does_not": "不直接做业务实现、不做特权维修(归因后交维修部门)、不替主管规划项目、不创建新 agent。"
   },
   "decoupling": "从脱敏 trace 索引进入,只按 batch 顺藤摸瓜;首周全覆盖按批次,此后冷门线路加权随机,不盲扫全部 engine-runs",
-  "validation": "链路结论必须有显式 prompt/角色交接/结果/工具或文件证据;review-ledger 防重复;提案只能 todo 待拍板;不保存隐藏思维链;硬化产物须带测试与回退",
+  "validation": "链路结论必须有显式 prompt/角色交接/结果/工具或文件证据;review-ledger 防重复;普通提案默认 dormant/offline,仅信息安全/权限/外部副作用进入 todo 待拍板;不保存隐藏思维链;硬化产物须带测试与回退",
   "prompt": "prompt.md"
 }

@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>玉兔6 · 工作区</title>
-	<link rel="icon" href="data:,">
+	<link rel="icon" type="image/png" sizes="32x32" href="/app/assets/brand/yutu6-rabbit-icon-32.png">
+	<link rel="icon" href="/app/favicon.ico" sizes="any">
+	<link rel="apple-touch-icon" href="/app/assets/brand/yutu6-rabbit-icon-192.png">
 <style>
   :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--panel3:#121720;--line:#2a2f3a;--line2:#354052;--text:#e6e8ee;--dim:#9aa3b2;--accent:#6ea8fe;--ok:#46d39a;--warn:#fbbf24;--err:#ff6b6b;--shadow:0 14px 36px rgba(0,0,0,.28);--mono:ui-monospace,Menlo,monospace;--sans:-apple-system,"PingFang SC",Segoe UI,sans-serif;--scrollbar-size:7px;--scrollbar-thumb:rgba(226,234,248,.18);--scrollbar-thumb-hover:rgba(238,244,255,.44);}
 	  *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent;scrollbar-gutter:auto;-webkit-overflow-scrolling:touch} *:hover{scrollbar-color:var(--scrollbar-thumb-hover) transparent} *::-webkit-scrollbar{width:var(--scrollbar-size);height:var(--scrollbar-size);background-color:transparent} *::-webkit-scrollbar-track,*::-webkit-scrollbar-track-piece{background:transparent;border:0;box-shadow:none} *::-webkit-scrollbar-thumb{background-color:var(--scrollbar-thumb);border:0;border-radius:999px;box-shadow:none} *::-webkit-scrollbar-thumb:hover,*::-webkit-scrollbar-thumb:active{background-color:var(--scrollbar-thumb-hover)} *::-webkit-scrollbar-corner,*::-webkit-scrollbar-button,*::-webkit-resizer{background:transparent;border:0;box-shadow:none}
@@ -12,6 +14,7 @@
 	  body.has-attachments{padding-bottom:154px}
   body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:linear-gradient(118deg,rgba(110,168,254,.045),transparent 32%,rgba(70,211,154,.035) 58%,transparent 78%),radial-gradient(circle,rgba(231,238,255,.085) 1px,transparent 1.5px);background-size:190% 190%,28px 28px;background-position:0 0,0 0;mask-image:linear-gradient(180deg,rgba(0,0,0,.88),rgba(0,0,0,.36) 74%,transparent);animation:auroraDrift 24s ease-in-out infinite}
   header{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:11px 16px;background:rgba(23,26,33,.96);border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(255,255,255,.02);flex-wrap:wrap}
+  .legacy-brand-icon{width:34px;height:34px;display:block;flex:0 0 auto;border-radius:50%;object-fit:contain;box-shadow:0 0 0 1px rgba(110,168,254,.24),0 5px 14px rgba(0,0,0,.24)}
   header h1{font-size:15px;margin:0;letter-spacing:0;font-weight:850;background:linear-gradient(100deg,#f3f7ff 0%,#9ec7ff 28%,#e9f7ff 42%,#87e6bd 58%,#dce7ff 74%,#f3f7ff 100%);background-size:240% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shinyText 7.5s linear infinite;white-space:nowrap}.nav{font-size:13px;color:var(--accent);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;background:#151a22;transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
   /* 头部导航锚点(控制室/办公室/网关)此前唯独没有 hover 反馈:同排的 button(line37)、version-badge(line15)都有,鼠标移上去无变化=可发现性弱+与同类元素不一致。补 hover 提亮(配色对齐 version-badge:hover)。洞察员 axe-core(insights.md:1277/1303「label/role/contrast/focus 规则化自检」)背书此 focus/hover 方向 */
   .nav:hover{border-color:rgba(110,168,254,.7);background:#16243a;color:#cfe0ff}
@@ -372,16 +375,18 @@
 	  .settings-head h2{margin:0;font-size:15px;color:#edf4ff}.settings-head p{margin:2px 0 0;font-size:11px;color:#7e93b4}.settings-save-state{margin-left:auto;min-width:58px;padding:4px 9px;border:1px solid rgba(107,123,150,.42);border-radius:999px;background:rgba(107,123,150,.1);color:#aebbd0;font-size:10px;font-weight:850;text-align:center}.settings-save-state[data-state="saved"]{border-color:rgba(70,211,154,.58);background:rgba(20,89,66,.24);color:#9ff0c7}.settings-save-state[data-state="unsaved"]{border-color:rgba(255,107,107,.62);background:rgba(106,31,38,.25);color:#ffb5b5}.settings-close{width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;background:transparent;font-size:20px;color:#8aa0bf}.settings-close:hover{background:rgba(255,255,255,.08);color:#fff}
 	  .settings-body{display:grid;gap:14px;padding:16px}.settings-card{display:grid;gap:12px;padding:14px;border:1px solid rgba(107,123,150,.34);border-radius:13px;background:rgba(17,25,39,.78)}
 	  .settings-card-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#eaf2ff}.settings-help{margin:0;font-size:11px;line-height:1.5;color:#8fa0b8}
+	  .settings-ui-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.settings-ui-option{display:grid;gap:5px;min-height:88px;padding:12px;border:1px solid rgba(78,91,112,.62);border-radius:10px;background:#0b111d;color:#aebbd0;text-align:left}.settings-ui-option:hover,.settings-ui-option:focus-visible{border-color:rgba(110,168,254,.72);background:#111c2d;outline:2px solid rgba(110,168,254,.62);outline-offset:-2px}.settings-ui-option[aria-checked="true"]{border-color:#5c8ac6;background:#182a42;color:#eef5ff;box-shadow:inset 0 0 0 1px rgba(110,168,254,.28)}.settings-ui-option strong{font-size:13px}.settings-ui-option span{font-size:10px;line-height:1.45;color:#8494ad}.settings-ui-option[aria-checked="true"] span{color:#b7c9e5}.settings-ui-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border-radius:8px;background:#0b111d;color:#91a2ba;font-size:10px}.settings-ui-summary b{color:#dceaff;font-size:11px}.settings-ui-apply{background:#1a3353;border-color:rgba(110,168,254,.64);color:#dceaff;font-weight:750}
 	  .settings-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:3px;border:1px solid rgba(78,91,112,.62);border-radius:10px;background:#0a101b}.settings-preset{min-width:0;min-height:38px;padding:7px 5px;border:0;border-radius:7px;background:transparent;color:#8fa0b8;font-size:11px;font-weight:780;white-space:nowrap}.settings-preset:hover,.settings-preset:focus-visible{background:#162238;color:#e4efff;outline:2px solid rgba(110,168,254,.72);outline-offset:-2px}.settings-preset[aria-selected="true"]{background:#1b3659;color:#eef5ff;box-shadow:inset 0 0 0 1px rgba(110,168,254,.68)}.settings-preset:disabled{opacity:.34;cursor:not-allowed}.settings-preset[hidden]{display:none}
 	  .settings-preview{display:grid;gap:6px;padding:11px 12px;border-left:3px solid #6ea8fe;border-radius:7px;background:#0b111d}.settings-preview-title{font-size:13px;font-weight:850;color:#e8f1ff}.settings-preview-resources{font:11px/1.5 var(--mono);color:#a9c8f5}.settings-preview-copy{margin:0;font-size:11px;line-height:1.55;color:#9eabc0}.settings-preview-note{margin:0;font-size:10px;line-height:1.5;color:#68778f}
 	  .settings-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.settings-save{background:#1a3353;border-color:rgba(110,168,254,.64);color:#dceaff;font-weight:750}.settings-restart{border-color:rgba(255,107,107,.5);background:rgba(78,15,15,.38);color:#ffd0d0;font-weight:750}.settings-restart:hover,.settings-restart:focus-visible{border-color:var(--err);background:rgba(78,15,15,.88);outline-color:var(--err)}
 	  .settings-feedback{padding:8px 10px;border:1px solid rgba(107,123,150,.28);border-radius:9px;background:rgba(8,13,22,.62);font-size:11px;line-height:1.45;color:#9fb0c7}.settings-feedback[hidden]{display:none}.settings-feedback[data-tone="warn"]{border-color:rgba(251,191,36,.48);color:#fee3aa}.settings-feedback[data-tone="err"]{border-color:rgba(255,107,107,.54);color:#ffd0d0}
 	  .task-context-menu{position:fixed;z-index:170;display:grid;min-width:174px;padding:5px;border:1px solid rgba(107,123,150,.58);border-radius:10px;background:#111927;box-shadow:0 16px 38px rgba(0,0,0,.5)}.task-context-menu[hidden]{display:none}.task-context-menu button{width:100%;padding:8px 10px;text-align:left;border:0;background:transparent;color:#e7edf7}.task-context-menu button:hover,.task-context-menu button:focus-visible{background:#1b2a40;outline:2px solid var(--accent);outline-offset:-2px}.task-context-menu button[data-context-action="delete-bulletin"]{color:#ffd0d0}.task-context-menu button[data-context-action="delete-bulletin"]:hover,.task-context-menu button[data-context-action="delete-bulletin"]:focus-visible{background:rgba(78,15,15,.72);outline-color:var(--err)}
-	  @media(max-width:560px){.settings-overlay{padding:52px 8px 8px}.settings-panel{width:100%;max-height:calc(100vh - 60px)}.settings-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-actions button{flex:1 1 130px}}
+	  @media(max-width:560px){.settings-overlay{padding:52px 8px 8px}.settings-panel{width:100%;max-height:calc(100vh - 60px)}.settings-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-ui-options{grid-template-columns:1fr}.settings-actions button{flex:1 1 130px}}
 </style>
 </head>
 <body>
 <header>
+  <img class="legacy-brand-icon" src="/app/assets/brand/yutu6-rabbit-icon-64.png" alt="" aria-hidden="true" onerror="this.hidden=true">
   <h1>玉兔6 · 工作区</h1>
   <a class="nav" href="/control-room">控制室</a>
   <a class="nav" href="/api-gateway">API 网关</a>
@@ -400,11 +405,23 @@
 	<div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
 	  <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-describedby="settingsDescription">
 	    <div class="settings-head">
-	      <div><h2 id="settingsTitle">设置中心</h2><p id="settingsDescription">仅管理本机控制台的安全运行设置</p></div>
+	      <div><h2 id="settingsTitle">设置中心</h2><p id="settingsDescription">管理本机界面与安全运行设置</p></div>
 	      <span id="settingsSaveState" class="settings-save-state" data-state="loading" role="status" aria-live="polite" aria-atomic="true">读取中</span>
 	      <button id="settingsClose" class="settings-close" type="button" title="关闭设置中心" aria-label="关闭设置中心">×</button>
 	    </div>
 	    <div class="settings-body">
+	      <section class="settings-card" aria-labelledby="uiSettingTitle">
+	        <div class="settings-card-title"><span id="uiSettingTitle">工作区界面</span></div>
+	        <p class="settings-help">两套界面共用同一份任务、队列和配置数据，切换不会删除任何内容。</p>
+	        <div class="settings-ui-options" role="radiogroup" aria-label="选择工作区界面">
+	          <button class="settings-ui-option" type="button" role="radio" aria-checked="false" data-settings-ui-target="react"><strong>简洁 UI</strong><span>React 新版 · 层级清晰，适合日常派单与查看进度</span></button>
+	          <button class="settings-ui-option" type="button" role="radio" aria-checked="false" data-settings-ui-target="legacy"><strong>复杂 UI</strong><span>经典完整版 · 信息密集，适合同时查看更多细节</span></button>
+	        </div>
+	        <div class="settings-ui-summary"><span>当前选择</span><b id="settingsUiSummary">正在读取…</b></div>
+	        <div class="settings-actions">
+	          <button id="settingsUiApply" class="settings-ui-apply" type="button" disabled>应用界面</button>
+	        </div>
+	      </section>
 	      <section class="settings-card" aria-labelledby="concurrencySettingTitle">
 	        <div class="settings-card-title"><span id="concurrencySettingTitle">运行资源档位</span></div>
 	        <div id="settingsPresets" class="settings-presets" role="tablist" aria-label="选择运行资源档位">
@@ -655,12 +672,11 @@
 		  hr_specialist:{label:'HR专员',runner:'zhipu-glm'},
 		  board_deepseek:{label:'董事 DeepSeek',runner:'new-api'},
 		  board_glm52:{label:'董事 GLM-5.2',runner:'zhipu-glm'},
-		  board_claude:{label:'董事 Claude Fable 5',runner:'claude-fable-5'},
-		  board_opus48:{label:'董事 Codex/GPT-5.5',runner:'codex'},
+		  board_opus48:{label:'董事 Codex/GPT-5.6-Sol',runner:'codex'},
 	  dev_worker:{label:'自优化开发',runner:'dev-worker'},
 	  hermes:{label:'Hermes',runner:'hermes'}
 	};
-		const BOARD_DIRECTOR_IDS=['board_deepseek','board_glm52','board_claude','board_opus48'];
+		const BOARD_DIRECTOR_IDS=['board_deepseek','board_glm52','board_opus48'];
 	const FLOW_BOARD_DIRECTOR_IDS=BOARD_DIRECTOR_IDS;
 	const BOARD_VACATION_STATUS='休假中';
 	const BOARD_VACATION_TASK='董事会评议已关闭';
@@ -701,7 +717,7 @@
 	  }catch(e){ return defaultFlowCollapsedGroups(); }
 	}
 	let PROJECTS=[], AGENT_META=[], META={}, GRAPH_NODES=[], GRAPH_POS={}, FLOW_RENDER_POS={}, BASE_EDGES=[];
-		let roles={}, queueAgents=[], boardReviewControl=BOARD_REVIEW_CONTROL_FALLBACK, busy=false, eventCursor=0, manualSeq=0, queueState={}, ceoTaskBoard=null, bulletinCards=[], llmUsage=null, peekabooBaseline=null, imageAttachments=[], dragQueueId=null, dragQueueAgent=null, dragQueueStatus=null, queueOpenState={running:true,queued:true,paused:false,agents:false,history:false}, queueTaskCache={}, queueHistory=[], queueBoardDirty=false, queueFeedback={text:'',until:0}, taskBoardScrollState={}, taskBoardRenderKey='', taskBoardSelectedKey='', taskBoardOutsideCollapseBound=false, taskBoardMode=(function(){try{const m=taskBoardNormalizeMode(localStorage.getItem('yt6-task-board-mode'));localStorage.setItem('yt6-task-board-mode',m);return m;}catch(e){return 'running';}})(), flowCollapsedGroups=loadFlowCollapsedGroups(), flowShowAllEdges=(function(){try{return localStorage.getItem('yt6-flow-show-all-edges')==='1';}catch(e){return false;}})(), flowFitView=(function(){try{return new URLSearchParams(location.search).get('flowFit')==='1';}catch(e){return false;}})(), flowRenderKey='', flowRenderPending=false, motionSeenKeys=new Set(), chairmanHandoffTimer=null, chairmanHandoffKey='', runtimeSettingsData=null, settingsSelectedConcurrency=null, settingsReturnFocus=null, taskContextTarget=null, taskContextReturnFocus=null;
+		let roles={}, queueAgents=[], boardReviewControl=BOARD_REVIEW_CONTROL_FALLBACK, busy=false, eventCursor=0, manualSeq=0, queueState={}, ceoTaskBoard=null, bulletinCards=[], llmUsage=null, peekabooBaseline=null, imageAttachments=[], dragQueueId=null, dragQueueAgent=null, dragQueueStatus=null, queueOpenState={running:true,queued:true,paused:false,agents:false,history:false}, queueTaskCache={}, queueHistory=[], queueBoardDirty=false, queueFeedback={text:'',until:0}, taskBoardScrollState={}, taskBoardRenderKey='', taskBoardSelectedKey='', taskBoardOutsideCollapseBound=false, taskBoardMode=(function(){try{const m=taskBoardNormalizeMode(localStorage.getItem('yt6-task-board-mode'));localStorage.setItem('yt6-task-board-mode',m);return m;}catch(e){return 'running';}})(), flowCollapsedGroups=loadFlowCollapsedGroups(), flowShowAllEdges=(function(){try{return localStorage.getItem('yt6-flow-show-all-edges')==='1';}catch(e){return false;}})(), flowFitView=(function(){try{return new URLSearchParams(location.search).get('flowFit')==='1';}catch(e){return false;}})(), flowRenderKey='', flowRenderPending=false, motionSeenKeys=new Set(), chairmanHandoffTimer=null, chairmanHandoffKey='', runtimeSettingsData=null, settingsSelectedConcurrency=null, frontendRouteData=null, settingsSelectedUi=null, settingsReturnFocus=null, taskContextTarget=null, taskContextReturnFocus=null;
 		const TASK_BOARD_ACTIVE_LIMIT=20, TASK_BOARD_HISTORY_LIMIT=50;
 				const nodeRoles={}, taskGoals={}, taskProjects={}, taskRanks={}, taskFinals={}, taskProgress={}, taskProgressPending={}, finalClearTimers={}, officeGateTimers={}, officeToolApplyTimers={}, agents={}, graphEdges={};
 		const MAX_IMAGE_ATTACHMENTS=12, MAX_IMAGE_BYTES=10*1024*1024;
@@ -1287,6 +1303,43 @@
 	  el.textContent=message;
 	  if(tone) el.dataset.tone=tone; else delete el.dataset.tone;
 	}
+	function settingsUiButtons(){ return [...document.querySelectorAll('[data-settings-ui-target]')]; }
+	function settingsUiLabel(target){ return target==='react'?'简洁 UI':target==='legacy'?'复杂 UI':'未知界面'; }
+	function syncFrontendUiSelection(){
+	  const apply=$('#settingsUiApply'), summary=$('#settingsUiSummary');
+	  const valid=!!frontendRouteData&&['react','legacy'].includes(settingsSelectedUi);
+	  settingsUiButtons().forEach(button=>{
+	    const selected=valid&&button.dataset.settingsUiTarget===settingsSelectedUi;
+	    button.setAttribute('aria-checked',selected?'true':'false');
+	  });
+	  if(summary) summary.textContent=valid?settingsUiLabel(settingsSelectedUi):'设置尚未加载';
+	  if(apply){
+	    const saved=valid&&settingsSelectedUi===frontendRouteData.target;
+	    apply.disabled=!valid||saved;
+	    apply.textContent=saved?'当前界面':'应用界面';
+	  }
+	}
+	async function loadFrontendUiPanel(){
+	  const apply=$('#settingsUiApply');
+	  settingsUiButtons().forEach(button=>button.disabled=true);
+	  if(apply) apply.disabled=true;
+	  try{
+	    const resp=await fetch('/api/frontend/route',{cache:'no-store',credentials:'same-origin'});
+	    const data=await resp.json().catch(()=>({}));
+	    if(!resp.ok||!data.ok||!['react','legacy'].includes(data.target)) throw new Error(data.error||`HTTP ${resp.status}`);
+	    frontendRouteData=data;
+	    settingsSelectedUi=data.target;
+	    settingsUiButtons().forEach(button=>button.disabled=false);
+	    syncFrontendUiSelection();
+	    return data;
+	  }catch(e){
+	    frontendRouteData=null;
+	    settingsSelectedUi=null;
+	    syncFrontendUiSelection();
+	    settingsSetFeedback('界面设置读取失败：'+(e&&e.message||e),'err');
+	    throw e;
+	  }
+	}
 	function settingsPresetButtons(){ return [...document.querySelectorAll('[data-settings-preset]')]; }
 	function renderSettingsPreview(value){
 	  const preset=runtimePresetForValue(value);
@@ -1377,7 +1430,7 @@
 	  settingsReturnFocus=document.activeElement;
 	  overlay.classList.add('show'); overlay.setAttribute('aria-hidden','false'); trigger.setAttribute('aria-expanded','true');
 	  $('#settingsClose').focus();
-	  try{ await loadRuntimeSettingsPanel(); }catch(_){}
+	  await Promise.allSettled([loadFrontendUiPanel(),loadRuntimeSettingsPanel()]);
 	}
 	function closeSettingsCenter(){
 	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton');
@@ -1386,7 +1439,7 @@
 	  settingsReturnFocus=null; if(target) target.focus();
 	}
 	function bindSettingsCenter(){
-	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton'), close=$('#settingsClose'), save=$('#settingsSave'), restart=$('#settingsRestart');
+	  const overlay=$('#settingsOverlay'), trigger=$('#settingsButton'), close=$('#settingsClose'), uiApply=$('#settingsUiApply'), save=$('#settingsSave'), restart=$('#settingsRestart');
 	  trigger.onclick=()=>openSettingsCenter(); close.onclick=()=>closeSettingsCenter();
 	  overlay.addEventListener('click',e=>{ if(e.target===overlay) closeSettingsCenter(); });
 	  overlay.addEventListener('keydown',e=>{
@@ -1413,6 +1466,29 @@
 	      next.focus(); next.click();
 	    });
 	  });
+	  settingsUiButtons().forEach(button=>{
+	    button.addEventListener('click',()=>{
+	      if(button.disabled||!frontendRouteData) return;
+	      settingsSelectedUi=button.dataset.settingsUiTarget;
+	      settingsSetFeedback('');
+	      syncFrontendUiSelection();
+	    });
+	  });
+	  uiApply.onclick=async()=>{
+	    if(!frontendRouteData||!['react','legacy'].includes(settingsSelectedUi)||settingsSelectedUi===frontendRouteData.target) return;
+	    await runButtonBusy(uiApply,'正在切换…',async()=>{
+	      try{
+	        const data=await settingsPost('/api/frontend/route',{target:settingsSelectedUi});
+	        frontendRouteData=data;
+	        settingsSelectedUi=data.target;
+	        syncFrontendUiSelection();
+	        location.href=data.workspace||'/workspace';
+	      }catch(e){
+	        settingsSetFeedback('界面切换失败，原选择未改变：'+(e&&e.message||e),'err');
+	      }
+	    });
+	    syncFrontendUiSelection();
+	  };
 	  save.onclick=async()=>{
 	    await runButtonBusy(save,'保存中…',async()=>{
 	    const n=Number(settingsSelectedConcurrency);

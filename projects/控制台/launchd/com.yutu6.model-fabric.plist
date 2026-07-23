@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yutu6.model-fabric</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <string>/Users/yutu6/玉兔6工作区/shared/model-fabric/server.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/yutu6/玉兔6工作区</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/yutu6</string>
+    <key>PATH</key>
+    <string>/Users/yutu6/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>YUTU6_NODE_BIN</key>
+    <string>/Users/yutu6/.local/node-v24.16.0-darwin-arm64/bin/node</string>
+    <key>HTTP_PROXY</key>
+    <string>http://127.0.0.1:10808</string>
+    <key>HTTPS_PROXY</key>
+    <string>http://127.0.0.1:10808</string>
+    <key>ALL_PROXY</key>
+    <string>http://127.0.0.1:10808</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/model-fabric/service.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/yutu6/玉兔6工作区/projects/控制台/artifacts/model-fabric/service.log</string>
+</dict>
+</plist>

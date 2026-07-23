@@ -28,10 +28,14 @@ class HookRegistry {
       failureMode: 'warn',
       mode: 'active',
       incidentRefs: [],
+      regressionTests: [],
     }, hook, { id });
     if (policy) {
       registered.mode = policy.mode || registered.mode;
       registered.incidentRefs = normalizeRefs(policy.incident_refs || policy.incidentRefs || registered.incidentRefs);
+      registered.regressionTests = normalizeRefs(
+        policy.regression_tests || policy.regressionTests || registered.regressionTests,
+      );
       registered.policyReason = policy.reason || registered.policyReason || null;
       registered.activation = policy.activation || registered.activation || null;
       registered.duplicateOf = policy.duplicate_of || policy.duplicateOf || registered.duplicateOf || null;
@@ -40,6 +44,7 @@ class HookRegistry {
       if (policy.timeout_ms != null) registered.timeoutMs = Number(policy.timeout_ms);
     } else {
       registered.incidentRefs = normalizeRefs(registered.incidentRefs);
+      registered.regressionTests = normalizeRefs(registered.regressionTests);
     }
     if (registered.enabled === false) registered.mode = 'dormant';
     if (!VALID_MODES.has(registered.mode)) throw new Error(`invalid hook mode for ${type}/${id}: ${registered.mode}`);
@@ -48,6 +53,12 @@ class HookRegistry {
       && registered.failureMode === 'block'
       && registered.incidentRefs.length === 0) {
       throw new Error(`active blocking hook lacks incidentRefs: ${type}/${id}`);
+    }
+    if (this.requireBlockingProvenance
+      && registered.mode === 'active'
+      && registered.failureMode === 'block'
+      && registered.regressionTests.length === 0) {
+      throw new Error(`active blocking hook lacks regressionTests: ${type}/${id}`);
     }
     list.push(registered);
     list.sort((a, b) => Number(a.priority || 100) - Number(b.priority || 100) || a.id.localeCompare(b.id));
@@ -75,6 +86,7 @@ class HookRegistry {
           mode: 'dormant',
           reason: hook.policyReason || 'dormant',
           incidentRefs: hook.incidentRefs || [],
+          regressionTests: hook.regressionTests || [],
           duplicateOf: hook.duplicateOf || null,
         };
         results.push(skipped);
@@ -85,6 +97,7 @@ class HookRegistry {
             mode: skipped.mode,
             reason: skipped.reason,
             incidentRefs: skipped.incidentRefs,
+            regressionTests: skipped.regressionTests,
             duplicateOf: skipped.duplicateOf,
           });
         }
@@ -98,6 +111,7 @@ class HookRegistry {
           mode,
           reason: 'condition_false',
           incidentRefs: hook.incidentRefs || [],
+          regressionTests: hook.regressionTests || [],
         };
         results.push(skipped);
         emit(this.eventlog, 'hook.skipped', {
@@ -106,6 +120,7 @@ class HookRegistry {
           mode,
           reason: skipped.reason,
           incidentRefs: skipped.incidentRefs,
+          regressionTests: skipped.regressionTests,
         });
         continue;
       }
@@ -125,6 +140,7 @@ class HookRegistry {
           mode,
           shadow: mode === 'shadow',
           incidentRefs: hook.incidentRefs || [],
+          regressionTests: hook.regressionTests || [],
           output: output || null,
         };
         if (outputFailed) {
@@ -158,6 +174,7 @@ class HookRegistry {
           failureMode: result.observedOk === false ? failureMode : undefined,
           reason: result.observedOk === false ? result.reason : undefined,
           incidentRefs: result.incidentRefs,
+          regressionTests: result.regressionTests,
         });
         if (result.observedOk === false) {
           emit(this.eventlog, 'gate.incident', {
@@ -168,6 +185,7 @@ class HookRegistry {
             reason: result.reason || 'hook validation failed',
             elapsedMs,
             incidentRefs: result.incidentRefs,
+            regressionTests: result.regressionTests,
           });
         }
       } catch (e) {
@@ -180,6 +198,7 @@ class HookRegistry {
           mode,
           shadow: mode === 'shadow',
           incidentRefs: hook.incidentRefs || [],
+          regressionTests: hook.regressionTests || [],
           reason: e && e.message || String(e),
           failureMode: hook.failureMode || 'warn',
         };
@@ -199,6 +218,7 @@ class HookRegistry {
           failureMode: failure.failureMode,
           reason: failure.reason,
           incidentRefs: failure.incidentRefs,
+          regressionTests: failure.regressionTests,
         });
         emit(this.eventlog, 'gate.incident', {
           gateId: hook.id,
@@ -208,6 +228,7 @@ class HookRegistry {
           reason: failure.reason,
           elapsedMs,
           incidentRefs: failure.incidentRefs,
+          regressionTests: failure.regressionTests,
         });
         if (failure.failureMode === 'block' && mode === 'active') ok = false;
       }

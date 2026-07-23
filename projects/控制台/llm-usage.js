@@ -11,8 +11,8 @@ const MAX_USAGE_FILE_BYTES = Math.max(256 * 1024, parseInt(process.env.LLM_USAGE
 const MAX_USAGE_READ_BYTES = Math.max(32 * 1024, parseInt(process.env.LLM_USAGE_MAX_READ_BYTES || String(96 * 1024), 10) || (96 * 1024));
 const MAX_USAGE_JSON_PARSE_BYTES = Math.max(16 * 1024, parseInt(process.env.LLM_USAGE_MAX_JSON_PARSE_BYTES || String(64 * 1024), 10) || (64 * 1024));
 const MAX_USAGE_DEPTH = Math.max(1, parseInt(process.env.LLM_USAGE_MAX_DEPTH || '7', 10) || 7);
-// 2026-07-03 Claude 复活(秘书+维修主管):用量默认展示,置 0/false/no/off 可隐藏。
-const INCLUDE_DEPRECATED_CLAUDE_USAGE = !/^(0|false|no|off)$/i.test(String(process.env.INCLUDE_DEPRECATED_CLAUDE_USAGE || ''));
+// 旧 Claude 日志只在显式诊断历史用量时展示，绝不代表活跃路由。
+const INCLUDE_DEPRECATED_CLAUDE_USAGE = /^(1|true|yes|on)$/i.test(String(process.env.INCLUDE_DEPRECATED_CLAUDE_USAGE || ''));
 
 const LOCAL_LOG_SCHEMA = {
   schemaVersion: 'yt6.llm_gateway_observation.v1',

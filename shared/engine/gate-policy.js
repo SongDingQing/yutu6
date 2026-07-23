@@ -28,6 +28,9 @@ function loadPolicy(workspaceRoot, opts = {}) {
 function validatePolicy(policy, opts = {}) {
   const errors = [];
   if (!policy || policy.schema !== SCHEMA) errors.push(`schema must be ${SCHEMA}`);
+  if (!policy || !VALID_MODES.has(policy.default_mode)) {
+    errors.push(`default_mode must be one of ${[...VALID_MODES].join(', ')}`);
+  }
   if (!policy || !policy.gates || typeof policy.gates !== 'object') {
     errors.push('gates object is required');
     return { ok: false, errors };
@@ -39,17 +42,27 @@ function validatePolicy(policy, opts = {}) {
       continue;
     }
     if (!VALID_MODES.has(gate.mode)) errors.push(`${id}: invalid mode ${gate.mode}`);
-    const refs = normalizeRefs(gate.incident_refs);
-    if (gate.mode === 'active' && gate.blocking === true && refs.length === 0) {
+    const incidentRefs = normalizeRefs(gate.incident_refs);
+    const regressionTests = normalizeRefs(gate.regression_tests);
+    if (gate.mode === 'active' && gate.blocking === true && incidentRefs.length === 0) {
       errors.push(`${id}: active blocking gate requires incident_refs`);
+    }
+    if (gate.mode === 'active' && gate.blocking === true && regressionTests.length === 0) {
+      errors.push(`${id}: active blocking gate requires regression_tests`);
     }
     if (!String(gate.reason || '').trim()) errors.push(`${id}: reason is required`);
     if (!String(gate.activation || '').trim()) errors.push(`${id}: activation is required`);
     if (opts.requireExistingRefs === true) {
-      for (const ref of refs) {
+      for (const ref of incidentRefs) {
         const file = ref.split(':')[0];
         if (!fs.existsSync(path.resolve(workspaceRoot, file))) {
           errors.push(`${id}: incident_ref does not exist: ${ref}`);
+        }
+      }
+      for (const test of regressionTests) {
+        const file = test.split(':')[0];
+        if (!fs.existsSync(path.resolve(workspaceRoot, file))) {
+          errors.push(`${id}: regression_test does not exist: ${test}`);
         }
       }
     }

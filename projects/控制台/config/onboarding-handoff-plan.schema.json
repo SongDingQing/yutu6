@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "onboarding-handoff-plan.schema.json",
+  "title": "Yutu6 onboarding handoff plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "plan_id",
+    "plan_fingerprint",
+    "agent",
+    "lifecycle",
+    "status",
+    "created_at",
+    "due_at",
+    "attempt",
+    "max_replans",
+    "selection",
+    "approval_route",
+    "handoff_package",
+    "receipt_requirements",
+    "queue_task",
+    "timeout_policy",
+    "required_events"
+  ],
+  "properties": {
+    "schema": { "const": "onboarding-handoff-plan@1" },
+    "plan_id": { "type": "string", "pattern": "^ohp-[a-f0-9]{16}$" },
+    "plan_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "ownership", "project_id", "responsibility_domain"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "ownership": { "type": "string", "minLength": 1 },
+        "project_id": { "type": ["string", "null"] },
+        "responsibility_domain": { "type": "string", "minLength": 1 }
+      }
+    },
+    "lifecycle": { "const": "probationary" },
+    "status": { "const": "assigned" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "due_at": { "type": "string", "format": "date-time" },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "max_replans": { "const": 2 },
+    "selection": {
+      "type": "object",
+      "required": ["algorithm", "status", "selected_agent", "score", "verified_provider", "evidence_refs", "reason", "considered"],
+      "properties": {
+        "algorithm": { "const": "evidence-ranked-handoff-provider@1" },
+        "status": { "enum": ["selected", "route_owner_fallback"] },
+        "selected_agent": { "type": "string", "minLength": 1 },
+        "selected_role": { "type": ["string", "null"] },
+        "score": { "type": "number", "minimum": 0 },
+        "verified_provider": { "type": "boolean" },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "reason": { "type": "string", "minLength": 1 },
+        "considered": { "type": "array" }
+      }
+    },
+    "approval_route": {
+      "type": "object",
+      "required": ["hr_precheck_owner", "route_owner", "final_approver", "repair_role", "priority"],
+      "properties": {
+        "hr_precheck_owner": { "const": "hr_manager" },
+        "route_owner": { "type": "string", "minLength": 1 },
+        "final_approver": { "type": "string", "minLength": 1 },
+        "repair_role": { "type": "string", "minLength": 1 },
+        "priority": { "type": "array", "minItems": 4, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "handoff_package": {
+      "type": "object",
+      "required": ["responsibilities", "project_background", "code_data_index", "current_status", "incidents_and_rollback", "common_tasks", "tools_and_permissions", "prohibited_actions", "acceptance", "evidence_refs"],
+      "properties": {
+        "responsibilities": {
+          "type": "object",
+          "required": ["does", "does_not"],
+          "properties": {
+            "does": { "type": "string", "minLength": 1 },
+            "does_not": { "type": "string", "minLength": 1 }
+          }
+        },
+        "project_background": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "code_data_index": {
+          "type": "object",
+          "required": ["project_root", "key_paths", "interfaces"],
+          "properties": {
+            "project_root": { "type": "string", "minLength": 1 },
+            "key_paths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+            "interfaces": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "current_status": {
+          "type": "object",
+          "required": ["phase", "last_milestone", "blockers"],
+          "properties": {
+            "phase": { "type": "string", "minLength": 1 },
+            "last_milestone": { "type": "string", "minLength": 1 },
+            "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "incidents_and_rollback": {
+          "type": "object",
+          "required": ["incident_status", "incidents", "rollback_points"],
+          "properties": {
+            "incident_status": { "enum": ["documented", "none-recorded"] },
+            "incidents": { "type": "array" },
+            "rollback_points": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "common_tasks": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "tools_and_permissions": {
+          "type": "object",
+          "required": ["tools", "read_paths", "write_paths", "expansion_forbidden"],
+          "properties": {
+            "tools": { "type": "array", "items": { "type": "string" } },
+            "read_paths": { "type": "array", "items": { "type": "string" } },
+            "write_paths": { "type": "array", "items": { "type": "string" } },
+            "expansion_forbidden": { "const": true }
+          }
+        },
+        "prohibited_actions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "acceptance": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      }
+    },
+    "receipt_requirements": { "type": "object" },
+    "queue_task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "plan_id", "agent_id", "projectId", "goal", "final_approver", "due_at", "task_fingerprint"],
+      "properties": {
+        "schema": { "const": "onboarding-handoff-task@1" },
+        "kind": { "const": "onboarding_handoff" },
+        "plan_id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "projectId": { "type": ["string", "null"] },
+        "goal": { "type": "string", "minLength": 1 },
+        "final_approver": { "type": "string", "minLength": 1 },
+        "due_at": { "type": "string", "format": "date-time" },
+        "task_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "timeout_policy": { "type": "object" },
+    "required_events": {
+      "type": "array",
+      "const": [
+        "onboarding.handoff.planned",
+        "onboarding.handoff.assigned",
+        "onboarding.handoff.received",
+        "onboarding.handoff.approved",
+        "onboarding.handoff.rejected"
+      ]
+    }
+  }
+}

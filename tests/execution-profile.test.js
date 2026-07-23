@@ -67,11 +67,40 @@ function main() {
   assert.strictEqual(EngineRunner._test.loopEngineeringEnabledForSpec(retrySpec), false);
   const hydrated = EngineRunner._test.hydrateRetryMetadata(
     { queueAgent: 'supervisor-控制台', queueId: 'fixture' },
-    { nodeRetry: 2, engineRetry: 2, retry_reason: 'node_failed' },
+    {
+      nodeRetry: 2,
+      engineRetry: 2,
+      retry_reason: 'node_failed',
+      last_engine_error: 'done_gate.logic_chain: implementation.acceptance_table 第16行证据对不上',
+    },
   );
   assert.strictEqual(hydrated.nodeRetry, 2);
   assert.strictEqual(hydrated.engineRetry, 2);
   assert.strictEqual(hydrated.retryReason, 'node_failed');
+  assert.strictEqual(
+    hydrated.retryDetail,
+    'done_gate.logic_chain: implementation.acceptance_table 第16行证据对不上',
+  );
+
+  const terminalFailure = Object.assign(
+    { last_engine_error: 'stale previous failure', last_engine_code: 1 },
+    CeoWorker._test.terminalEngineOutcomePatch(
+      { code: 3, signal: null },
+      false,
+      'failed',
+      'done_gate.logic_chain: current alignment failure',
+    ),
+  );
+  assert.strictEqual(terminalFailure.last_engine_error, 'done_gate.logic_chain: current alignment failure');
+  assert.strictEqual(terminalFailure.last_engine_code, 3);
+  const terminalSuccess = CeoWorker._test.terminalEngineOutcomePatch(
+    { code: 0, signal: null },
+    true,
+    'done',
+    null,
+  );
+  assert.strictEqual(terminalSuccess.last_engine_error, null);
+  assert.strictEqual(terminalSuccess.last_engine_code, 0);
 
   const acceptance = [
     '结构化验收表',

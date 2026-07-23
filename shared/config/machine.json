@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-03",
+  "updated_at": "2026-07-20",
   "note": "玉兔6 环境配置机器可读子集。非密——不含任何密钥值。人读版见 environment.md。",
   "machines": {
     "old": { "user": "yutu", "home": "/Users/yutu", "role": "cold_backup_reference" },
@@ -18,14 +18,15 @@
     "kb_sqlite": "~/玉兔6工作区/knowledge/kb.sqlite"
   },
   "services": {
-    "console": { "port": 41218, "bind": ["127.0.0.1", "::1"], "launchd": "com.yutu6.console" },
-    "hermes_gateway": { "status": "not_started" }
+    "unified_startup": { "launchd": "com.yutu6.startup", "run_at_login": true, "reconcile_seconds": 600 },
+    "console": { "port": 41218, "alias_port": 8799, "bind": ["127.0.0.1", "::1"], "launchd": "com.yutu6.console" },
+    "model_pool": { "port": 3000, "bind": ["127.0.0.1"], "runtime": "orbstack" },
+    "hermes_gateway": { "port": 8642, "status": "running", "launchd": "ai.hermes.gateway" },
+    "hermes_voice_wake": { "status": "managed", "launchd": "com.yutu.hermes.voicewake" }
   },
   "runners": {
-    "front_door": "claude",
-    "claude": { "cmd": "claude", "role": "secretary_front_door", "status": "active", "login": "ok" },
-    "claude-code": { "cmd": "claude", "role": "repair_lead_privileged", "status": "active", "login": "ok" },
-    "codex": { "cmd": "codex", "role": "orchestrator_and_engineering", "version": "0.140.0", "login": "ok" },
+    "front_door": "codex",
+    "codex": { "cmd": "codex", "model": "gpt-5.6-sol", "role": "secretary_orchestrator_engineering_and_repair", "version": "0.144.1", "login": "ok" },
     "hermes": { "cmd": "hermes", "role": "voice_feishu_entry_alt", "gateway": "not_started" },
     "peekaboo": { "cmd": "peekaboo", "role": "gui_desktop_control", "kind": "cli_and_mcp", "installed": true, "permissions_needed": ["screen_recording", "accessibility"] },
     "local_models": { "provider": "external_machine_endpoint", "ollama_on_mini": false }

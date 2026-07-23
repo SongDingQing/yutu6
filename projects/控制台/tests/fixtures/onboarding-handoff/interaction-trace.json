@@ -1,0 +1,9 @@
+{
+  "schema": "yutu6-interaction-trace@1",
+  "trace_id": "fixture-onboarding-control-trace",
+  "project_id": "控制台",
+  "agent_id": "worker_code",
+  "agent_role": "worker_code",
+  "observed_agents": ["supervisor-控制台", "worker_code"],
+  "status": "completed"
+}

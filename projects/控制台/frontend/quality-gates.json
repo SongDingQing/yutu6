@@ -1,0 +1,84 @@
+{
+  "schema": "yutu6-frontend-quality-gates@1",
+  "routineGate": "fast",
+  "budgets": {
+    "routineTotalMs": 120000,
+    "mainJavaScriptGzipBytes": 71680,
+    "mainCssGzipBytes": 14336,
+    "workspaceSnapshotBytes": 225280
+  },
+  "gates": [
+    {
+      "id": "fast",
+      "status": "active",
+      "trigger": "Every frontend or frontend-contract change",
+      "command": "node projects/控制台/tools/frontend-quality-gate.js --mode fast",
+      "checks": [
+        "TypeScript typecheck",
+        "contract and reducer tests",
+        "incident-backed changed-module tests",
+        "bundle and snapshot budgets"
+      ],
+      "historicalIssues": [
+        "Malformed API payloads previously crashed the single-file workspace.",
+        "Workspace polling previously transferred and reparsed complete state.",
+        "Unbounded task rendering and repeated listeners previously raised CPU and memory use."
+      ],
+      "estimatedCost": "Usually under 2 minutes on this Mac; measured on every run.",
+      "sleepCondition": "Never sleeps for frontend changes; skipped for changes outside frontend and its API contracts."
+    },
+    {
+      "id": "visual",
+      "status": "conditional",
+      "trigger": "Only when rendered UI, layout, typography, interaction or visual assets change",
+      "command": "node projects/控制台/tools/frontend-quality-gate.js --mode visual --ui-changed",
+      "checks": [
+        "Browser screenshots at desktop and compact widths",
+        "No overlap, clipping or incoherent scrolling",
+        "Changed interaction can be completed"
+      ],
+      "historicalIssues": [
+        "Task cards and office sprites have previously overflowed their containers.",
+        "Visual changes have previously looked different in the live page than in isolated inspection."
+      ],
+      "estimatedCost": "Interactive browser pass; no cost for non-UI changes.",
+      "sleepCondition": "Dormant when no user-visible pixels or interactions changed."
+    },
+    {
+      "id": "release",
+      "status": "release-only",
+      "trigger": "Default-route switch, release candidate or broad cross-view refactor",
+      "command": "node projects/控制台/tools/frontend-quality-gate.js --mode release",
+      "checks": [
+        "Fast gate",
+        "Cross-view and settings regressions",
+        "Production route and rollback command",
+        "Canary readiness"
+      ],
+      "historicalIssues": [
+        "A production route once served a stale page after a partial frontend restart.",
+        "Settings and office views previously depended on legacy-only behavior."
+      ],
+      "estimatedCost": "Several minutes; intentionally excluded from routine work.",
+      "sleepCondition": "Dormant outside release, route-switch and broad shell changes."
+    },
+    {
+      "id": "long-stability",
+      "status": "release-only",
+      "trigger": "After a React default-route switch",
+      "command": "node projects/控制台/tools/frontend-canary.js --duration-hours 8",
+      "checks": [
+        "HTTP and snapshot continuity",
+        "event sequence monotonicity",
+        "server RSS trend",
+        "automatic legacy rollback after repeated hard failures"
+      ],
+      "historicalIssues": [
+        "Long-running workers and polling loops have previously accumulated memory.",
+        "Single early HTTP probes have previously misclassified slow startup as failure."
+      ],
+      "estimatedCost": "8 hours wall time with a low-frequency local probe.",
+      "sleepCondition": "Dormant for routine development; starts only for release canaries."
+    }
+  ]
+}

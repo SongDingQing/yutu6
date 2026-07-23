@@ -35,6 +35,24 @@ function assertFixture(name) {
   if (data.expected.node_terminal_event_count != null) {
     assert.strictEqual(chain.terminal.node_terminal_events.length, data.expected.node_terminal_event_count);
   }
+  if (data.expected.node_terminal_tasks) {
+    assert.deepStrictEqual(
+      chain.terminal.node_terminal_events.map(item => item.task),
+      data.expected.node_terminal_tasks,
+    );
+  }
+  if (data.expected.terminal_history_outcomes) {
+    assert.deepStrictEqual(
+      chain.terminal.terminal_history.map(item => item.outcome),
+      data.expected.terminal_history_outcomes,
+    );
+  }
+  if (data.expected.final_state_source_seqs) {
+    assert.deepStrictEqual(
+      chain.terminal.final_state_source.map(item => item.seq),
+      data.expected.final_state_source_seqs,
+    );
+  }
   return chain;
 }
 
@@ -135,6 +153,40 @@ function assertUnknownAndWarningCases() {
   ]);
   assert.strictEqual(duplicate.status, 'completed');
   assert.strictEqual(duplicate.final_state, 'done');
+
+  const missingTraceRootQueue = ChainTerminal.reduceChainTerminal(simpleChain({
+    traces: [{
+      trace_id: 'missing-root-queue-trace',
+      root_task_id: 'simple-root',
+      task_id: 'simple-root',
+      status: 'completed',
+    }],
+  }), [taskDone(15), queueDone(16)]);
+  assert.strictEqual(missingTraceRootQueue.status, 'unknown');
+  assert.match(missingTraceRootQueue.unknown_reason, /^terminal_channels_missing:queue$/);
+  assert.strictEqual(
+    missingTraceRootQueue.rejected_terminal_events[0].reason,
+    'root_queue_lineage_mismatch',
+  );
+
+  const routeData = fixture('route-fail-then-success');
+  const forgedDownstreamEvents = routeData.terminal_events.map(event => {
+    if (event.type !== 'project.route.done' && event.type !== 'project.route.failed') return event;
+    return {
+      ...event,
+      downstreamQueueAgent: 'forged-supervisor',
+      downstreamQueueId: 'forged-queue',
+    };
+  });
+  const forgedDownstream = ChainTerminal.buildChains(
+    routeData.index_events,
+    forgedDownstreamEvents,
+  )[0].terminal;
+  assert.strictEqual(forgedDownstream.status, 'unknown');
+  assert.match(forgedDownstream.unknown_reason, /^terminal_channels_missing:project_route$/);
+  assert(forgedDownstream.rejected_terminal_events.every(item => {
+    return item.reason === 'project_route_downstream_queue_unverified';
+  }));
 }
 
 function assertStableContentHashAndPlanFields() {
@@ -242,17 +294,22 @@ function main() {
   const productionWiring = productionWiringReplay();
   const report = {
     ok: true,
-    scenarios: 14,
+    scenarios: 16,
     fixtures: {
       route_fail_then_success: {
         status: routeFixture.status,
         final_state: routeFixture.terminal.final_state,
         span_failures: routeFixture.span_failures,
+        node_terminal_events: routeFixture.terminal.node_terminal_events,
+        terminal_history_outcomes: routeFixture.terminal.terminal_history.map(item => item.outcome),
+        final_state_source_seqs: routeFixture.terminal.final_state_source.map(item => item.seq),
       },
       repair_lead_fallback_success: {
         status: repairFixture.status,
         final_state: repairFixture.terminal.final_state,
         span_failures: repairFixture.span_failures,
+        terminal_history_outcomes: repairFixture.terminal.terminal_history.map(item => item.outcome),
+        final_state_source_seqs: repairFixture.terminal.final_state_source.map(item => item.seq),
       },
     },
     unknown_warning_cases: [
@@ -265,6 +322,8 @@ function main() {
       'later-invalid-lineage',
       'timestamp-order-warning',
       'exact-duplicate-idempotency',
+      'missing-trace-root-queue',
+      'forged-downstream-queue',
     ],
     actual_event_log_replay: actual,
     production_wiring_replay: productionWiring,

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "test:contracts": "tsc -p tsconfig.contract-tests.json && node --test .contract-test-dist/tests/*.test.js",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

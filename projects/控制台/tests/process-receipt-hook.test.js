@@ -181,12 +181,12 @@ async function run() {
     const runsDir = path.join(temp, 'runs');
     fs.mkdirSync(runsDir, { recursive: true });
     const syncDir = writeLegacyTrace(runsDir, 'execute', 1, 'codex', consoleConfig.runners.codex);
-    const asyncDir = writeLegacyTrace(runsDir, 'review', 2, 'claude', consoleConfig.runners.claude);
+    const asyncDir = writeLegacyTrace(runsDir, 'review', 2, 'codex-privileged', consoleConfig.runners['codex-privileged']);
     const boardDir = writeLegacyTrace(runsDir, 'board', 3, 'deepseek-board-direct', consoleConfig.runners['deepseek-board-direct']);
     const base = function base(node, _ctx, attempt) {
       return structuredResult(syncDir, 'codex');
     };
-    base.runNodeAsync = async () => structuredResult(asyncDir, 'claude');
+    base.runNodeAsync = async () => structuredResult(asyncDir, 'codex-privileged');
     base.runBoardNodeAsync = async () => structuredResult(boardDir, 'deepseek-board-direct');
     const disabled = Hook.makeProcessReceiptRunner(base, {
       config: featureConfig,

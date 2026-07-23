@@ -31,6 +31,7 @@ const PROJECT_SCOPE = 'project/控制台';
 const TEST_COMMAND = 'node projects/控制台/tests/review-negative-routing-contract.test.js';
 const IMPLEMENTATION_SOURCE_REL = 'projects/控制台/review-negative-routing-fixture/implementation-source.md';
 const IMPLEMENTATION_FAILURE_RECEIPT_SCHEMA = 'implementation-failure-receipt@1';
+const SUPERVISOR_REVIEW_BINDING_SCHEMA = 'supervisor-review-binding@1';
 const IMPLEMENTATION_OBSERVED = 'observed_route=hard_block_expected_route=rework';
 const POST_IMPLEMENTATION_MUTATION_OBSERVED = 'observed_route=forged_after_implement';
 const UNRELATED_SOURCE_CLAIM = 'release_calendar_2026_q4';
@@ -106,7 +107,7 @@ function attachIssueEvidence(root, evidence, review, options = {}) {
   const issues = reviewIssueValues(review);
   if (!issues.length) return;
   const rows = review.verification.acceptance_table;
-  const issueEvidence = `${evidence}.issue-evidence.md`;
+  const issueEvidence = `${evidence}.issue-evidence.${options.canonicalJsonBinding === true ? 'jsonl' : 'md'}`;
   const issueEvidenceFile = path.join(root, issueEvidence);
   const evidenceLines = [];
   let sourceEvidence = IMPLEMENTATION_SOURCE_REL;
@@ -143,12 +144,50 @@ function attachIssueEvidence(root, evidence, review, options = {}) {
     }
     const recordedIssue = options.omitIssueFromEvidence === true
       ? `UNRELATED_EVIDENCE_FOR_ISSUE_${issueIndex}` : issue;
-    const evidenceLine = [
+    const legacyEvidenceLine = [
       `issue=${recordedIssue}`,
       `acceptance_id=${row.acceptance_id}`,
       row.point,
       `核对结果=${row.status}`,
     ].join(' | ');
+    let evidenceLine = legacyEvidenceLine;
+    if (options.canonicalJsonBinding === true) {
+      const bindingReceipt = {
+        schema: SUPERVISOR_REVIEW_BINDING_SCHEMA,
+        issue: recordedIssue,
+        acceptance_id: row.acceptance_id,
+        source_hash: row.source_hash,
+        required_row_point: row.point,
+        '核对结果': row.status,
+      };
+      if (issueIndex === 0) {
+        if (options.canonicalBindingIssueMismatch === true) {
+          bindingReceipt.issue = `MISMATCHED_ISSUE_${issueIndex}`;
+        }
+        if (options.canonicalBindingAcceptanceMismatch === true) {
+          bindingReceipt.acceptance_id = 'acc_000000000000000000000000';
+        }
+        if (options.canonicalBindingHashMismatch === true) {
+          bindingReceipt.source_hash = `sha256:${'0'.repeat(64)}`;
+        }
+        if (options.canonicalBindingPointMismatch === true) {
+          bindingReceipt.required_row_point = '任务验收: 与合同无关的验收原文。';
+        }
+        if (options.canonicalBindingStatusMismatch === true) {
+          bindingReceipt['核对结果'] = row.status === '部分' ? '完成' : '部分';
+        }
+        if (options.canonicalBindingIncludeLegacyDecoy === true) {
+          bindingReceipt.legacy_compatibility_decoy = legacyEvidenceLine;
+        }
+        if (options.canonicalBindingSchemaMismatch === true) {
+          bindingReceipt.schema = 'supervisor-review-binding@0';
+        }
+      }
+      evidenceLine = JSON.stringify(bindingReceipt);
+      if (issueIndex === 0 && options.canonicalBindingMalformed === true) {
+        evidenceLine = evidenceLine.slice(0, -1);
+      }
+    }
     evidenceLines.push(evidenceLine);
     const mapping = {
       issue_index: issueIndex,
@@ -419,6 +458,64 @@ function runClassificationCases() {
       rework.vars.implementation.failure_receipts[0],
       Object.assign({}, sourceReceipt, { evidence: `${IMPLEMENTATION_SOURCE_REL}:1` }),
     );
+
+    const canonicalRework = classify(root, {
+      name: 'canonical-jsonl-rework',
+      pass: false,
+      severity: 'high',
+      canonicalJsonBinding: true,
+    });
+    assert.strictEqual(canonicalRework.result.ok, true, canonicalRework.result.reason);
+    assert.strictEqual(canonicalRework.result.route, 'rework');
+    const canonicalBindingPointer = canonicalRework.vars.review.verification.issue_evidence[0].evidence;
+    const canonicalBindingFile = canonicalBindingPointer.replace(/:\d+$/, '');
+    const canonicalBinding = JSON.parse(fs.readFileSync(path.join(root, canonicalBindingFile), 'utf8').trim());
+    assert.strictEqual(canonicalBinding.schema, SUPERVISOR_REVIEW_BINDING_SCHEMA);
+    assert.strictEqual(canonicalBinding.issue, canonicalRework.vars.review.issues[0]);
+    assert.strictEqual(
+      canonicalBinding.acceptance_id,
+      canonicalRework.vars.review.verification.acceptance_table[0].acceptance_id,
+    );
+    assert.strictEqual(
+      canonicalBinding.source_hash,
+      canonicalRework.vars.review.verification.acceptance_table[0].source_hash,
+    );
+    assert.strictEqual(
+      canonicalBinding.required_row_point,
+      canonicalRework.vars.review.verification.acceptance_table[0].point,
+    );
+    assert.strictEqual(
+      canonicalBinding['核对结果'],
+      canonicalRework.vars.review.verification.acceptance_table[0].status,
+    );
+
+    const canonicalBindingMismatchCases = [
+      ['issue', 'canonicalBindingIssueMismatch'],
+      ['acceptance-id', 'canonicalBindingAcceptanceMismatch'],
+      ['source-hash', 'canonicalBindingHashMismatch'],
+      ['required-row-point', 'canonicalBindingPointMismatch'],
+      ['status', 'canonicalBindingStatusMismatch'],
+      ['schema', 'canonicalBindingSchemaMismatch'],
+    ];
+    for (const [name, option] of canonicalBindingMismatchCases) {
+      const mismatch = classify(root, {
+        name: `canonical-jsonl-${name}-mismatch`,
+        pass: false,
+        canonicalJsonBinding: true,
+        canonicalBindingIncludeLegacyDecoy: true,
+        [option]: true,
+      });
+      assertHardBlock(mismatch.result, /未同时支持 issue.*acceptance_id.*requiredRows/);
+    }
+
+    const malformedCanonicalBinding = classify(root, {
+      name: 'canonical-jsonl-malformed-with-legacy-decoy',
+      pass: false,
+      canonicalJsonBinding: true,
+      canonicalBindingIncludeLegacyDecoy: true,
+      canonicalBindingMalformed: true,
+    });
+    assertHardBlock(malformedCanonicalBinding.result, /未同时支持 issue.*acceptance_id.*requiredRows/);
 
     const realReviewEnvelope = buildEnvelope({ id: 'review', agent_role: 'supervisor' }, rework.vars);
     assert.match(realReviewEnvelope, /"issues":\["observed_route=hard_block_expected_route=rework：每项为非空具体问题"\]/);

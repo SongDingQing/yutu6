@@ -153,7 +153,6 @@ function fakeTask(runner, changedFiles) {
 
 const RUNNERS_CONFIG = {
   'codex-privileged': { execution: { privileged: true, allowedWritePaths: ALLOWED } },
-  'claude-code': { execution: { privileged: true, allowedWritePaths: ALLOWED } },
   codex: { execution: { canWriteFiles: true } },
 };
 
@@ -331,11 +330,11 @@ function testIntegNonPrivilegedUntouched() {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
 
-// 13) 生产 config.json:两个特权 runner 都声明了 allowedWritePaths(声明式消费点存在)
+// 13) 生产 config.json:活跃特权 runner 声明 allowedWritePaths(声明式消费点存在)
 function testProductionConfigDeclares() {
   const cfg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../projects/控制台/config.json'), 'utf8'));
   const priv = WriteAudit.privilegedRunnersWithAllowedPaths(cfg.runners);
-  for (const id of ['codex-privileged', 'claude-code']) {
+  for (const id of ['codex-privileged']) {
     assert(Array.isArray(priv[id]) && priv[id].length, `${id} 必须声明 execution.allowedWritePaths`);
     assert(priv[id].includes('shared/'), `${id} 允许区应含 shared/`);
     assert(priv[id].includes('VERSION.json'), `${id} 允许区应含 VERSION.json`);

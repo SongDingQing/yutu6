@@ -1,0 +1,130 @@
+{
+  "schema": "yutu6-startup-components@1",
+  "updated_at": "2026-07-20",
+  "description": "Single source of truth for services reconciled after macOS login.",
+  "docker": {
+    "app": "OrbStack",
+    "compose_file": "artifacts/new-api/docker-compose.yml",
+    "wait_seconds": 120,
+    "containers": [
+      {
+        "id": "new-api",
+        "name": "yutu6-new-api",
+        "required": true
+      },
+      {
+        "id": "zhipu-coding-proxy",
+        "name": "yutu6-zhipu-coding-proxy",
+        "required": true,
+        "adopt_unmanaged": true,
+        "ephemeral": true
+      }
+    ],
+    "health_urls": [
+      "http://127.0.0.1:3000/api/status"
+    ]
+  },
+  "launch_agents": [
+    {
+      "id": "console",
+      "label": "com.yutu6.console",
+      "source": "launchd/com.yutu6.console.plist",
+      "kind": "service",
+      "tier": "core",
+      "health_urls": [
+        "http://127.0.0.1:41218/api/health",
+        "http://127.0.0.1:8799/workspace"
+      ]
+    },
+    {
+      "id": "model-fabric",
+      "label": "com.yutu6.model-fabric",
+      "source": "launchd/com.yutu6.model-fabric.plist",
+      "kind": "service",
+      "tier": "core",
+      "health_urls": [
+        "http://127.0.0.1:3020/health"
+      ]
+    },
+    {
+      "id": "hermes-gateway",
+      "label": "ai.hermes.gateway",
+      "external_plist": "~/Library/LaunchAgents/ai.hermes.gateway.plist",
+      "kind": "service",
+      "tier": "core",
+      "health_urls": [
+        "http://127.0.0.1:8642/health"
+      ]
+    },
+    {
+      "id": "hermes-voice-wake",
+      "label": "com.yutu.hermes.voicewake",
+      "source": "launchd/com.yutu.hermes.voicewake.plist",
+      "kind": "service",
+      "tier": "core"
+    },
+    {
+      "id": "yuanxiao-decision-pull",
+      "label": "com.yutu6.yuanxiao-decision-pull",
+      "source": "launchd/com.yutu6.yuanxiao-decision-pull.plist",
+      "kind": "scheduled",
+      "tier": "core"
+    },
+    {
+      "id": "yuanxiao-tasks-push",
+      "label": "com.yutu6.yuanxiao-tasks-push",
+      "source": "launchd/com.yutu6.yuanxiao-tasks-push.plist",
+      "kind": "scheduled",
+      "tier": "core"
+    },
+    {
+      "id": "console-watchdog",
+      "label": "com.yutu6.watchdog",
+      "source": "launchd/com.yutu6.watchdog.plist",
+      "kind": "service",
+      "tier": "maintenance"
+    },
+    {
+      "id": "ram-watchdog",
+      "label": "com.yutu6.ram-watchdog",
+      "source": "launchd/com.yutu6.ram-watchdog.plist",
+      "kind": "scheduled",
+      "tier": "maintenance"
+    },
+    {
+      "id": "long-run-maintenance",
+      "label": "com.yutu6.console-long-run-maintenance",
+      "source": "launchd/com.yutu6.console-long-run-maintenance.plist",
+      "kind": "scheduled",
+      "tier": "maintenance"
+    },
+    {
+      "id": "worker-orphan-reaper",
+      "label": "com.yutu6.worker-orphan-reaper",
+      "source": "launchd/com.yutu6.worker-orphan-reaper.plist",
+      "kind": "scheduled",
+      "tier": "maintenance"
+    },
+    {
+      "id": "daily-governance-hardening",
+      "label": "com.yutu6.daily-governance-hardening",
+      "source": "launchd/com.yutu6.daily-governance-hardening.plist",
+      "kind": "scheduled",
+      "tier": "maintenance"
+    }
+  ],
+  "excluded": [
+    {
+      "id": "frontend-canary",
+      "reason": "bounded release observation job; never a permanent boot service"
+    },
+    {
+      "id": "repair-memory-maintenance",
+      "reason": "legacy maintenance entry; replaced by ram-watchdog and long-run-maintenance"
+    },
+    {
+      "id": "queue-workers",
+      "reason": "owned and supervised by the console server; separate boot jobs would duplicate workers"
+    }
+  ]
+}

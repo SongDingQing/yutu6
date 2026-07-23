@@ -467,7 +467,7 @@ function testNegativeVisualSemanticsDoNotInjectOrTriggerVisualGate() {
     'default no-visual policy must not auto-inject a visual row',
   );
 
-  const incidentReference = '- 风险/偏差: Claude Fable 5 董事: 绕过 orchestrator 后若任务链元数据(rootQueueId/rootTaskId)不再由 CEO 节点补齐，rollup/董事会审计链会断(参考案例:ui-optimizer 案例事件必须带任务链)';
+  const incidentReference = '- 风险/偏差: GPT-5.6-Sol 董事: 绕过 orchestrator 后若任务链元数据(rootQueueId/rootTaskId)不再由 CEO 节点补齐，rollup/董事会审计链会断(参考案例:ui-optimizer 案例事件必须带任务链)';
   assert.strictEqual(
     DoneGate.positiveVisualRequirement(incidentReference),
     false,
@@ -607,6 +607,68 @@ function testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows() {
   assert(!acceptance.includes('memory/decisions.md:504'), 'must not inject old agent-infra board-review memory row');
   assert(rows.some(row => row.point.includes('在 控制台 项目 scope 内跑 review-loop')));
   assert(rows.some(row => row.point.includes('更新 projects/控制台/status.md')));
+}
+
+function testNegatedDesignPlaceholderDoesNotRequireDecisionRow() {
+  const goal = '交付可运行的真实代码，不得只交设计稿或自述完成。';
+  const point = '元宵移动端与玉兔6消息桥接存在可运行的真实代码改动，不以设计稿或完成自述代替实现。';
+  const acceptance = structuredAcceptance(goal, point);
+  assert.strictEqual(
+    DoneGate.parseStructuredAcceptanceRows(acceptance).some(row => /^设计对照/.test(row.point)),
+    false,
+    'negated anti-placeholder wording must not inject a decisions.md row',
+  );
+  const rows = fillAcceptanceRows(acceptance);
+  const gate = DoneGate.validateStructuredAcceptanceTable({
+    goal,
+    acceptance,
+    implementation: { acceptance_table: rows },
+    review: { verification: { acceptance_table: rows } },
+  }, { workspaceRoot: repoRoot });
+  assert.strictEqual(gate.ok, true, gate.reason);
+
+  const safeAcceptance = structuredAcceptance(
+    '交付可运行的真实代码',
+    '真实代码实现和定向回归测试均完成',
+  );
+  const safeRows = fillAcceptanceRows(safeAcceptance);
+  for (const negativeGoal of [
+    '本任务不按设计稿执行。',
+    '本任务不需要参考设计稿。',
+    '设计稿不能代替实现。',
+  ]) {
+    const negativeGate = DoneGate.validateStructuredAcceptanceTable({
+      goal: negativeGoal,
+      acceptance: safeAcceptance,
+      implementation: { acceptance_table: safeRows },
+      review: { verification: { acceptance_table: safeRows } },
+    }, { workspaceRoot: repoRoot });
+    assert.strictEqual(negativeGate.ok, true, `${negativeGoal}: ${negativeGate.reason}`);
+  }
+}
+
+function testPositiveDesignDirectionsAndExplicitLineRemainFailClosed() {
+  const acceptance = structuredAcceptance(
+    '交付可运行的真实代码',
+    '真实代码实现和定向回归测试均完成',
+  );
+  const rows = fillAcceptanceRows(acceptance);
+  for (const goal of [
+    '实现必须按设计稿完成。',
+    '实现必须对照设计稿完成。',
+    '实现必须参考设计稿完成。',
+    '实现参考设计稿，但设计稿不能代替真实代码交付。',
+    '实现必须对照 memory/decisions.md:289 完成。',
+  ]) {
+    const gate = DoneGate.validateStructuredAcceptanceTable({
+      goal,
+      acceptance,
+      implementation: { acceptance_table: rows },
+      review: { verification: { acceptance_table: rows } },
+    }, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, `${goal} must fail closed without a decisions.md row`);
+    assert.match(gate.reason, /对照设计门缺少 decisions\.md:行号 要点/);
+  }
 }
 
 function queueMergeImplementation() {
@@ -1001,6 +1063,42 @@ function testStructuredAcceptanceTableRejectsMismatchedEvidence() {
   assert.match(gate.reason, /证据不可核|不存在/);
 }
 
+function testStructuredAcceptanceVerifiesAbsolutePathLinePointers() {
+  const root = fs.mkdtempSync(path.join(repoRoot, '.tmp-done-gate-absolute-'));
+  const indexFile = path.join(root, 'AGENT_CODE_INDEX.md');
+  fs.writeFileSync(indexFile, '# Agent code index\nsecond line\n');
+  try {
+    const point = '仓库根目录存在 AGENT_CODE_INDEX.md';
+    const acceptance = structuredAcceptance(point, point);
+    const makeTask = evidence => reviewLoopTask({
+      goal: point,
+      acceptance,
+      implementation: structuredImplementation(acceptance, { evidence }),
+      review: structuredReview(acceptance),
+    });
+    const validate = evidence => DoneGate.validateReviewLoopCompletion(makeTask(evidence), {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+
+    for (const evidence of [`${indexFile}:1`, `${indexFile}#L2`]) {
+      const gate = validate(evidence);
+      assert.strictEqual(gate.ok, true, `${evidence}: ${gate.reason}`);
+    }
+
+    for (const evidence of [`${indexFile}:999`, `${indexFile}.missing:1`]) {
+      const gate = validate(evidence);
+      assert.strictEqual(gate.ok, false, `${evidence} must fail closed`);
+      assert.match(gate.reason, /证据不可核|不存在/);
+    }
+
+    const relativeGate = validate(path.relative(repoRoot, indexFile).split(path.sep).join('/'));
+    assert.strictEqual(relativeGate.ok, true, relativeGate.reason);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testStructuredAcceptanceTableRejectsExistingUnrelatedEvidence() {
   const acceptance = structuredAcceptance(
     '维修工单: done gate 结构化验收表, 对照 memory/decisions.md 第289行',
@@ -1021,6 +1119,45 @@ function testStructuredAcceptanceTableRejectsExistingUnrelatedEvidence() {
   });
   assert.strictEqual(gate.ok, false);
   assert.match(gate.reason, /证据对不上/);
+}
+
+function testStructuredAcceptanceProductionWriteEvidenceNeedsSemanticAlignment() {
+  const root = fs.mkdtempSync(path.join(repoRoot, '.tmp-done-gate-production-write-'));
+  const integrityFile = path.join(root, 'source-integrity.json');
+  fs.writeFileSync(integrityFile, JSON.stringify({
+    schema: 'source-integrity@1',
+    production_source: {
+      before_sha256: 'same',
+      after_sha256: 'same',
+      before_stat: 'same',
+      after_stat: 'same',
+      mutated: false,
+    },
+  }, null, 2));
+  try {
+    const point = '影子投影验收已证明生产 project-route 未发生写入。';
+    const acceptance = structuredAcceptance(point, point);
+    const rows = fillAcceptanceRows(acceptance);
+    const taskRow = rows.find(row => /^任务验收:/.test(row.point));
+    assert(taskRow, 'fixture must contain a task acceptance row');
+    taskRow.evidence = `${path.relative(repoRoot, integrityFile).split(path.sep).join('/')}:3`;
+    taskRow.notes = '冻结 eventlog 与版本快照的 SHA-256、size、mtime、mode 前后一致，mutated=false。';
+    const vars = {
+      goal: point,
+      acceptance,
+      implementation: { acceptance_table: rows },
+      review: { verification: { acceptance_table: rows } },
+    };
+    let gate = DoneGate.validateStructuredAcceptanceTable(vars, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, false, 'opaque structured fields must not bypass semantic alignment');
+    assert.match(gate.reason, /证据对不上/);
+
+    taskRow.notes += ' 影子投影验收证明生产 project-route 未发生写入。';
+    gate = DoneGate.validateStructuredAcceptanceTable(vars, { workspaceRoot: repoRoot });
+    assert.strictEqual(gate.ok, true, gate.reason);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function testStructuredAcceptanceTableRejectsDesignRowWithoutDecisionLineEvidence() {
@@ -1102,6 +1239,68 @@ function testStructuredAcceptanceRejectsOnlyStatementNotes() {
   assert.match(gate.reason, /使用不可核声明作证据/);
 }
 
+function testStructuredAcceptanceDistinguishesNoEvidencePolicyFromPlaceholderNotes() {
+  const point = '缺少可解析证据或仅由单一角色无证据提出的机制不得直接成为硬验收，只能标记为实验或待主人拍板';
+  const acceptance = structuredAcceptance(point, point);
+  const policyNotes = '无证据建议执行 MERGE-R1 并保持 experiment；单人普通受信证据也只进入 owner_decision，不能自行成为 acceptance。';
+  const policyTask = reviewLoopTask({
+    goal: point,
+    acceptance,
+    implementation: structuredImplementation(acceptance, { notes: policyNotes }),
+    review: structuredReview(acceptance, { notes: policyNotes }),
+  });
+  let gate = DoneGate.validateReviewLoopCompletion(policyTask, {
+    workspaceRoot: repoRoot,
+    requireDeliveryEvidence: true,
+  });
+  assert.strictEqual(gate.ok, true, gate.reason);
+
+  for (const notes of ['无证据', '只写声明', '待补', '无证据建议保持 experiment；证据待补']) {
+    const placeholderTask = reviewLoopTask({
+      goal: point,
+      acceptance,
+      implementation: structuredImplementation(acceptance, { notes }),
+      review: structuredReview(acceptance),
+    });
+    gate = DoneGate.validateReviewLoopCompletion(placeholderTask, {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(gate.ok, false, `standalone placeholder notes must fail closed: ${notes}`);
+    assert.match(gate.reason, /使用不可核声明作证据/);
+  }
+}
+
+function testStructuredAcceptanceDistinguishesCommandNullFromPlaceholderEvidence() {
+  const point = '完整结果回退使用可追溯的上一轮脱敏完整产物，且与差量引用的数据版本一致';
+  const acceptance = structuredAcceptance(point, point);
+  const commandEvidence = 'tests/done-gate.test.js; node -e "console.log(JSON.stringify({accepted:r.ok,reason:r.reason||null}))" exit 0';
+  const commandTask = reviewLoopTask({
+    goal: point,
+    acceptance,
+    implementation: structuredImplementation(acceptance, { evidence: commandEvidence }),
+    review: structuredReview(acceptance, { evidence: commandEvidence }),
+  });
+  let gate = DoneGate.validateReviewLoopCompletion(commandTask, {
+    workspaceRoot: repoRoot,
+    requireDeliveryEvidence: true,
+  });
+  assert.strictEqual(gate.ok, true, gate.reason);
+
+  const placeholderTask = reviewLoopTask({
+    goal: point,
+    acceptance,
+    implementation: structuredImplementation(acceptance, { evidence: 'null' }),
+    review: structuredReview(acceptance),
+  });
+  gate = DoneGate.validateReviewLoopCompletion(placeholderTask, {
+    workspaceRoot: repoRoot,
+    requireDeliveryEvidence: true,
+  });
+  assert.strictEqual(gate.ok, false, 'bare null evidence must fail closed');
+  assert.match(gate.reason, /使用不可核声明作证据|证据不可核/);
+}
+
 function testStructuredAcceptanceAllowsPlaceholderWordInExplanatoryNotes() {
   const acceptance = structuredAcceptance(
     'LiteLLM canary 分析, 对照 memory/decisions.md 第534行',
@@ -1147,6 +1346,57 @@ function testVisualStructuredAcceptanceAllowsDisclosureStatementNotes() {
       requireDeliveryEvidence: true,
     });
     assert.strictEqual(gate.ok, true, gate.reason);
+  });
+}
+
+function testVisualStructuredAcceptanceStillRejectsClaimsOutsideRows() {
+  withVisualFixtureEvidence(({ evidence, runtimeVisualInput, visualObservations }) => {
+    const goal = 'UI 非行证据坏词覆盖回归';
+    const acceptance = structuredAcceptance(
+      goal,
+      '视觉/UI 类必须 peekaboo 截图 + Codex 对照设计挑错',
+    );
+    function makeTask() {
+      const acceptanceTable = filledAcceptanceRowsWithEvidence(
+        acceptance,
+        evidence,
+        'acceptance rows contain concrete visual evidence',
+      );
+      const implementation = baseImplementation(['tests/done-gate.test.js']);
+      implementation.acceptance_table = acceptanceTable;
+      const review = baseReview(['tests/done-gate.test.js']);
+      review.verification.checked = review.verification.checked.concat(['implementation.acceptance_table']);
+      review.verification.acceptance_table = acceptanceTable;
+      review.verification.runtime_visual_input = runtimeVisualInput;
+      review.verification.visual_observations = visualObservations;
+      return reviewLoopTask({ goal, acceptance, implementation, review });
+    }
+
+    const badLogicEvidence = makeTask();
+    badLogicEvidence.vars.implementation.logic_chain.evidence.push({
+      kind: 'analysis',
+      path: 'tests/done-gate.test.js',
+      summary: '只写声明',
+    });
+    let gate = DoneGate.validateReviewLoopCompletion(badLogicEvidence, {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(gate.ok, false, 'logic_chain evidence outside acceptance rows must remain covered');
+    assert.match(gate.reason, /视觉\/UI 验收含不可核自验收声明/);
+
+    const badReviewEvidence = makeTask();
+    badReviewEvidence.vars.review.verification.evidence.push({
+      kind: 'analysis',
+      path: 'tests/done-gate.test.js',
+      summary: '证据待补',
+    });
+    gate = DoneGate.validateReviewLoopCompletion(badReviewEvidence, {
+      workspaceRoot: repoRoot,
+      requireDeliveryEvidence: true,
+    });
+    assert.strictEqual(gate.ok, false, 'review evidence outside acceptance rows must remain covered');
+    assert.match(gate.reason, /视觉\/UI 验收含不可核自验收声明/);
   });
 }
 
@@ -1426,6 +1676,8 @@ testNegativeVisualSemanticsDoNotInjectOrTriggerVisualGate();
 testAcceptanceNumberingOnlySplitsAtExplicitBoundaries();
 testPositiveVisualSemanticsStillInjectAndFailClosed();
 testPlainResearchTaskDoesNotInjectUnrelatedDecisionRows();
+testNegatedDesignPlaceholderDoesNotRequireDecisionRow();
+testPositiveDesignDirectionsAndExplicitLineRemainFailClosed();
 testQueueMergeTaskRequiresHardRegressionTests();
 testQueueMergeHardRegressionCoveragePasses();
 testQueueMergeHardRegressionReadsReferencedEvidenceArtifact();
@@ -1440,13 +1692,18 @@ testStructuredAcceptanceUsesTemplateReference();
 testStructuredAcceptanceTablePassesWhenFilled();
 testStructuredAcceptanceTableRejectsBlankEvidence();
 testStructuredAcceptanceTableRejectsMismatchedEvidence();
+testStructuredAcceptanceVerifiesAbsolutePathLinePointers();
 testStructuredAcceptanceTableRejectsExistingUnrelatedEvidence();
+testStructuredAcceptanceProductionWriteEvidenceNeedsSemanticAlignment();
 testStructuredAcceptanceTableRejectsDesignRowWithoutDecisionLineEvidence();
 testStructuredAcceptancePlaceholderWordsNeedTokenBoundaries();
 testStructuredAcceptanceRejectsStandalonePlaceholderEvidence();
 testStructuredAcceptanceRejectsOnlyStatementNotes();
+testStructuredAcceptanceDistinguishesNoEvidencePolicyFromPlaceholderNotes();
+testStructuredAcceptanceDistinguishesCommandNullFromPlaceholderEvidence();
 testStructuredAcceptanceAllowsPlaceholderWordInExplanatoryNotes();
 testVisualStructuredAcceptanceAllowsDisclosureStatementNotes();
+testVisualStructuredAcceptanceStillRejectsClaimsOutsideRows();
 testAutoVisualRowDoesNotForceDecisionRows();
 testVisualStructuredAcceptanceRequiresPeekabooAndCodex();
 testVisualImplementationRequiresEvidenceButNotReviewReceipt();

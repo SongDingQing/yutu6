@@ -248,7 +248,20 @@ function main() {
     }, ''), null);
     assert.strictEqual(_test.defaultNodeTimeoutSec({ queueAgent: 'supervisor-控制台' }, 'review-loop'), 1800);
     assert.strictEqual(_test.defaultNodeTimeoutSec({ queueAgent: 'supervisor-控制台', nodeTimeoutSec: 1 }, 'review-loop'), 1);
+    assert.strictEqual(_test.defaultNodeTimeoutSec({ queueAgent: 'repair-lead' }, 'agent-once'), 1800);
+    assert.strictEqual(_test.defaultNodeTimeoutSec({ queueAgent: 'repair-lead', nodeTimeoutSec: 1 }, 'agent-once'), 1);
     assert.strictEqual(_test.defaultNodeTimeoutSec({ queueAgent: 'worker_code' }, 'agent-once'), 900);
+    assert.strictEqual(workerTest.taskNodeTimeoutMs({
+      queueAgent: 'repair-lead',
+      flowId: 'agent-once',
+      task: {},
+    }), 1800 * 1000);
+    assert.strictEqual(workerTest.taskNodeTimeoutMs({
+      queueAgent: 'repair-lead',
+      flowId: 'agent-once',
+      nodeTimeoutSec: 1,
+      task: {},
+    }), 1000);
     const doneGateSpec = workerTest.makeSpec({
       id: 'doneGateTemplateSpec',
       task: {

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { pushToInbox } = require('./tools/notify-yuanxiao-approval');
+const { pushToInbox, pushToYuanxiaoPath } = require('./tools/notify-yuanxiao-approval');
 const { redactReportText } = require('./repair-report');
 
 function readJson(file, fallback = {}) {
@@ -48,6 +48,7 @@ function buildYuanxiaoPayload(report, html) {
     format: 'markdown',
     source: 'repair-report',
     task_id: report.ticketId,
+    dedupe_key: deliveryKey(report),
     files: [{
       document_update: true,
       document_folder: '维修报告',
@@ -60,6 +61,45 @@ function buildYuanxiaoPayload(report, html) {
       preview_text: preview,
       find_hint: `元宵文档 / 维修报告 / ${report.ticketId}.html`,
     }],
+  };
+}
+
+function buildTypedReportCard(report) {
+  const sections = report.sections || {};
+  const severity = compact(sections.severity, 80) || '未单列';
+  const rootCause = compact(sections.rootCause, 260) || compact(report.summary, 260) || '见维修报告';
+  const actions = compact(sections.actions, 320) || '见维修报告';
+  const verification = compact(sections.verification, 260) || '见维修报告';
+  const risks = compact(sections.risks, 260) || '无新增风险';
+  const owner = compact(report.owner || '维修主管', 80);
+  return {
+    card_id: `repair-report-${String(report.ticketId).replace(/[^a-zA-Z0-9_.-]/g, '-').slice(0, 90)}`,
+    card_type: 'report',
+    task_id: report.ticketId,
+    status: 'resolved',
+    title: `问题处理报告 · ${compact(report.title, 100)}`,
+    summary: rootCause,
+    renderer: 'android_native_v2',
+    actions: [{ id: 'open_report', label: '打开维修报告' }],
+    payload: {
+      report_kind: 'issue',
+      severity,
+      root_cause: rootCause,
+      handling_process: actions,
+      verification,
+      remaining_risk: risks,
+      responsible_party: owner,
+      owner,
+      handling_status: '已完成并复核',
+      report_document_name: `${report.ticketId}.html`,
+      report_document_folder: '维修报告',
+      artifact_refs: [{
+        kind: 'repair_html',
+        name: `${report.ticketId}.html`,
+        sha256: report.sha256,
+      }],
+    },
+    actor: 'repair-report-delivery',
   };
 }
 
@@ -87,33 +127,66 @@ function deliverYuanxiao(report, options = {}) {
   const html = fs.readFileSync(report.file, 'utf8');
   const payload = buildYuanxiaoPayload(report, html);
   const sender = options.sender || pushToInbox;
+  const cardSender = options.cardSender || pushToYuanxiaoPath;
   const attempt = Number(previous && previous.attempts || 0) + 1;
+  let receiptId = previous && previous.receipt_id || null;
+  let inboxSent = Boolean(previous && previous.inbox_sent);
   try {
-    const pushed = sender(payload);
-    if (!pushed || !pushed.ok) throw new Error(`yuanxiao HTTP ${pushed && pushed.code || 0}`);
-    let receiptId = pushed.receiptId ? String(pushed.receiptId).slice(0, 160) : null;
-    if (!receiptId) {
-      try {
-        const parsed = JSON.parse(String(pushed.raw || '{}'));
-        receiptId = parsed && parsed.message && parsed.message.id ? String(parsed.message.id).slice(0, 160) : null;
-      } catch (_) {}
+    if (!inboxSent) {
+      const pushed = sender(payload);
+      if (!pushed || !pushed.ok) throw new Error(`yuanxiao HTTP ${pushed && pushed.code || 0}`);
+      receiptId = pushed.receiptId ? String(pushed.receiptId).slice(0, 160) : null;
+      if (!receiptId) {
+        try {
+          const parsed = JSON.parse(String(pushed.raw || '{}'));
+          receiptId = parsed && parsed.message && parsed.message.id ? String(parsed.message.id).slice(0, 160) : null;
+        } catch (_) {}
+      }
+      inboxSent = true;
+      state.deliveries[key] = {
+        ticket_id: report.ticketId,
+        report_sha256: report.sha256,
+        status: 'card_pending',
+        inbox_sent: true,
+        attempts: attempt,
+        receipt_id: receiptId,
+        sent_at: new Date().toISOString(),
+      };
+      writeJsonAtomic(stateFile, state);
     }
+
+    const taskResult = cardSender('/api/v1/tasks', {
+      task_id: report.ticketId,
+      title: compact(report.title, 160),
+      kind: 'repair',
+      route: 'repair',
+      status: 'done',
+      progress: 100,
+      project_id: '控制台',
+      message: compact(report.summary || report.sections && report.sections.rootCause, 600),
+    });
+    if (!taskResult || !taskResult.ok) throw new Error(`yuanxiao typed task HTTP ${taskResult && taskResult.code || 0}`);
+    const cardResult = cardSender('/api/v1/cards', buildTypedReportCard(report));
+    if (!cardResult || !cardResult.ok) throw new Error(`yuanxiao typed card HTTP ${cardResult && cardResult.code || 0}`);
     state.deliveries[key] = {
       ticket_id: report.ticketId,
       report_sha256: report.sha256,
       status: 'sent',
+      inbox_sent: true,
+      native_card_sent: true,
       attempts: attempt,
       receipt_id: receiptId,
-      http_code: Number(pushed.code || 0),
+      http_code: 200,
       sent_at: new Date().toISOString(),
     };
     writeJsonAtomic(stateFile, state);
-    return { ok: true, sent: true, skipped: false, receiptId, code: Number(pushed.code || 0), key };
+    return { ok: true, sent: true, skipped: false, receiptId, nativeCard: true, code: 200, key };
   } catch (error) {
     state.deliveries[key] = {
       ticket_id: report.ticketId,
       report_sha256: report.sha256,
       status: 'failed',
+      inbox_sent: inboxSent,
       attempts: attempt,
       reason_class: classifyError(error),
       failed_at: new Date().toISOString(),
@@ -126,5 +199,6 @@ function deliverYuanxiao(report, options = {}) {
 module.exports = {
   deliveryKey,
   buildYuanxiaoPayload,
+  buildTypedReportCard,
   deliverYuanxiao,
 };

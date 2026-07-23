@@ -24,11 +24,13 @@ function main() {
   assert(vite.includes("../public/app"));
 
   const app = text(path.join(frontend, 'src', 'App.tsx'));
+  const shell = text(path.join(frontend, 'src', 'app', 'WorkspaceShell.tsx'));
   const api = text(path.join(frontend, 'src', 'lib', 'api.ts'));
-  const composer = text(path.join(frontend, 'src', 'components', 'TaskComposer.tsx'));
-  const board = text(path.join(frontend, 'src', 'components', 'TaskBoard.tsx'));
-  assert(app.includes('<TaskComposer'));
-  assert(app.includes('<TaskBoard'));
+  const home = text(path.join(frontend, 'src', 'features', 'workspace', 'WorkspaceHome.tsx'));
+  const composer = text(path.join(frontend, 'src', 'features', 'tasks', 'TaskComposer.tsx'));
+  const board = text(path.join(frontend, 'src', 'features', 'tasks', 'TaskBoard.tsx'));
+  assert(shell.includes('<TaskComposer'));
+  assert(home.includes('<TaskBoard'));
   assert(api.includes('/api/queues/overview'));
   assert(api.includes('/api/task-board/ceo'));
   assert(api.includes('/api/queue/'));

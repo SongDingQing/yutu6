@@ -1,0 +1,162 @@
+{
+  "schema": "yutu6-agent-platforms@1",
+  "updated_at": "2026-07-20",
+  "policy": {
+    "default_platform": "yutu6-native",
+    "default_model_plane": "yutu6-fabric",
+    "external_autostart": false,
+    "heavy_start_confirmation": "--confirm-heavy",
+    "credential_policy": "local_file_or_environment_only",
+    "external_completion_policy": "external output is evidence, not a trusted done verdict"
+  },
+  "platforms": [
+    {
+      "id": "yutu6-native",
+      "label": "玉兔6原生编排",
+      "kind": "native_file_queue",
+      "enabled": true,
+      "autostart": true,
+      "heavy": false,
+      "summary": "现有文件队列、CEO/主管/员工链路、统一模型池与 done gate；继续作为唯一主控制面。",
+      "local_path": ".",
+      "health_urls": [
+        "http://127.0.0.1:41218/api/health",
+        "http://127.0.0.1:3000/api/status"
+      ],
+      "model_pool": {
+        "base_url": "http://127.0.0.1:3000/v1",
+        "runner_config": "projects/控制台/config.json",
+        "routing_config": "shared/routing/model-routing.yaml"
+      },
+      "launch": {
+        "manager": "start-all.sh",
+        "start_args": [
+          "start"
+        ],
+        "status_args": [
+          "status"
+        ]
+      }
+    },
+    {
+      "id": "yutu6-fabric",
+      "label": "玉兔6模型与智能体中枢",
+      "kind": "native_model_agent_fabric",
+      "enabled": true,
+      "autostart": true,
+      "heavy": false,
+      "summary": "模型调用的统一 OpenAI 兼容前门，以及本机 Agent、共享能力和外部 A2A 平台的发现目录；任务完成仍由玉兔6 done gate 判定。",
+      "local_path": "shared/model-fabric",
+      "ports": {
+        "http": 3020
+      },
+      "health_urls": [
+        "http://127.0.0.1:3020/health"
+      ],
+      "model_pool": {
+        "base_url": "http://127.0.0.1:3020/v1",
+        "compatibility_upstream": "http://127.0.0.1:3000/v1",
+        "config": "projects/控制台/config/model-fabric.json"
+      },
+      "a2a": {
+        "agent_catalog": "http://127.0.0.1:3020/api/fabric/agents",
+        "agent_card_template": "http://127.0.0.1:3020/a2a/agents/<agent-id>/.well-known/agent-card.json"
+      },
+      "launch": {
+        "label": "com.yutu6.model-fabric",
+        "manager": "start-all.sh"
+      },
+      "adoption": {
+        "current_phase": "shadow_front_door",
+        "rollback": "stop model fabric and restore client base_url to http://127.0.0.1:3000/v1",
+        "retire_new_api_only_when": [
+          "direct provider coverage is complete",
+          "usage ledger is reconciled",
+          "rollback drill passes",
+          "owner explicitly approves"
+        ]
+      }
+    },
+    {
+      "id": "nexent",
+      "label": "Nexent 外部智能体平台",
+      "kind": "external_a2a",
+      "enabled": false,
+      "autostart": false,
+      "heavy": true,
+      "summary": "可选的零代码 Agent 设计与发布平台；通过 A2A 接入 Model Fabric，不替换玉兔6队列或 done gate。",
+      "upstream": {
+        "repository": "https://github.com/ModelEngine-Group/nexent.git",
+        "branch": "develop",
+        "license": "MIT"
+      },
+      "local_path": "~/AgentPlatforms/nexent",
+      "resources": {
+        "minimum_cpu_cores": 4,
+        "recommended_cpu_cores": 8,
+        "minimum_memory_gib": 8,
+        "recommended_memory_gib": 16,
+        "minimum_disk_gib": 40,
+        "recommended_disk_gib": 100
+      },
+      "ports": {
+        "upstream_web": 3000,
+        "yutu6_web": 3100,
+        "northbound_a2a": 5013
+      },
+      "health_urls": [
+        "http://127.0.0.1:3100",
+        "http://127.0.0.1:5013/nb/v1/health"
+      ],
+      "model_pool": {
+        "base_url_from_container": "http://host.docker.internal:3000/v1",
+        "credential_policy": "configure a local new-api internal token in Nexent; never copy a provider key into source"
+      },
+      "a2a": {
+        "base_url": "http://127.0.0.1:5013/nb/a2a",
+        "agent_card_suffix": "/.well-known/agent-card.json",
+        "send_suffix": "/message:send",
+        "protocols": [
+          "http-json",
+          "jsonrpc"
+        ]
+      },
+      "launch": {
+        "command": [
+          "bash",
+          "deploy.sh",
+          "docker",
+          "--defaults",
+          "--components",
+          "infrastructure,application",
+          "--port-policy",
+          "production",
+          "--image-source",
+          "general"
+        ],
+        "temporary_port_rewrite": {
+          "files": [
+            "deploy/docker/compose/docker-compose.yml",
+            "deploy/docker/compose/docker-compose.prod.yml"
+          ],
+          "from": "\"3000:3000\"",
+          "to": "\"127.0.0.1:3100:3000\""
+        }
+      },
+      "adoption": {
+        "use_now": [
+          "A2A Agent Card discovery",
+          "A2A task invocation",
+          "OpenAI-compatible model-pool reuse",
+          "progressive skill disclosure principles"
+        ],
+        "defer": [
+          "full platform autostart",
+          "duplicate model credentials",
+          "replacement of the Yutu6 file queue",
+          "automatic trust of external completion claims"
+        ]
+      }
+    }
+  ]
+}

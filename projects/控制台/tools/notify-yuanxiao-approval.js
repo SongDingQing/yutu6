@@ -57,7 +57,7 @@ function buildImageEntry(image) {
   } catch (e) { return { note: `图读取失败: ${String(e.message).slice(0, 80)}`, skipped: true }; }
 }
 
-function buildBody(seq, args) {
+function buildBody(seq, args, nativeCardAvailable = false) {
   const L = [];
   L.push(`## 审批 · ${args.title || '(未命名)'}  （编号 ${seq}）`);
   L.push('');
@@ -67,15 +67,20 @@ function buildBody(seq, args) {
   if (args.result) L.push(`**结果**：${args.result}`);
   if (args.note) L.push(`**说明**：${args.note}`);
   L.push('');
-  L.push(`**决策项**：回复「采纳 ${seq}」或「不采纳 ${seq}」即可（也可加一句理由）。`);
+  L.push(nativeCardAvailable
+    ? '**决策项**：请在任务页原生决策卡直接点「同意」或「拒绝」；旧版仍可回复文字。'
+    : `**决策项**：回复「采纳 ${seq}」或「不采纳 ${seq}」即可（也可加一句理由）。`);
   return L.join('\n');
 }
 
-function pushToInbox(payload) {
+function pushToYuanxiaoPath(apiPath, payload) {
+  const safePath = String(apiPath || '').trim();
+  if (!/^\/api\/[a-zA-Z0-9_/?=&.-]+$/.test(safePath)) throw new Error('invalid YuanXiao API path');
   const json = JSON.stringify(payload);
   const sshBase = ['-i', SSH_KEY, '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10'];
   // 通过 stdin 传 payload,避免命令行转义/在服务器落临时文件
-  const remoteCmd = `curl -sk --max-time 10 -X POST '${INBOX_ADMIN_URL}' -H 'Content-Type: application/json' --data-binary @- -w '\\nHTTP:%{http_code}'`;
+  const target = safePath === '/api/inbox/admin' ? INBOX_ADMIN_URL : `https://localhost${safePath}`;
+  const remoteCmd = `curl -sk --max-time 10 -X POST '${target}' -H 'Content-Type: application/json' --data-binary @- -w '\\nHTTP:%{http_code}'`;
   const out = execFileSync('ssh', [...sshBase, SSH_DEST, remoteCmd], { input: json, encoding: 'utf8', timeout: 30000 });
   const m = out.match(/HTTP:(\d+)\s*$/);
   const code = m ? parseInt(m[1], 10) : 0;
@@ -88,13 +93,80 @@ function pushToInbox(payload) {
   return { code, ok: code >= 200 && code < 300, raw: body.slice(0, 500), receiptId };
 }
 
+function pushToInbox(payload) {
+  return pushToYuanxiaoPath('/api/inbox/admin', payload);
+}
+
+function buildTypedApprovalPayload(seq, cardId, taskId, args) {
+  return {
+    card_id: cardId,
+    card_type: 'decision',
+    task_id: taskId,
+    status: 'pending',
+    title: String(args.title || '').slice(0, 160),
+    summary: String(args.result || args.note || args.cause || '等待主人拍板').slice(0, 500),
+    renderer: 'android_native_v2',
+    actions: [
+      { id: 'approve', label: '同意' },
+      { id: 'reject', label: '拒绝' },
+    ],
+    payload: {
+      decision_ref: { kind: 'yutu6_approval', card_id: cardId },
+      approval_seq: seq,
+      cause: args.cause || '',
+      source: args.source || '',
+      progress: args.progress || '',
+      result: args.result || '',
+      note: args.note || '',
+    },
+    actor: 'yutu6-approval',
+  };
+}
+
+function pushTypedApprovalCard(seq, cardId, taskId, args, sender = pushToYuanxiaoPath) {
+  const task = sender('/api/v1/tasks', {
+    task_id: taskId,
+    title: String(args.title || '').slice(0, 160),
+    kind: 'decision',
+    route: 'yutu6',
+    status: 'paused',
+    progress: 0,
+    project_id: String(args.project || '控制台').slice(0, 120),
+    message: String(args.cause || args.result || args.title || '').slice(0, 1200),
+  });
+  if (!task || !task.ok) return { ok: false, stage: 'task', code: task && task.code || 0 };
+  const card = sender('/api/v1/cards', buildTypedApprovalPayload(seq, cardId, taskId, args));
+  return { ok: Boolean(card && card.ok), stage: 'card', code: card && card.code || 0, receiptId: card && card.receiptId || null };
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.title) { console.error('需要 --title'); process.exit(2); }
   const seq = nextSeq();
   const cardId = `ap-${Date.now()}-${seq}`;
+  const taskId = String(args['task-id'] || `yuanxiao-decision-${cardId}`).slice(0, 120);
   const image = buildImageEntry(args.image);
-  const body = buildBody(seq, args);
+  // 先持久化权威 pending 账本，再对外创建卡；避免极快点击先于本地决策记录落盘。
+  const record = {
+    seq, cardId, taskId, title: args.title,
+    fields: { cause: args.cause || null, source: args.source || null, progress: args.progress || null, result: args.result || null, note: args.note || null },
+    image: image && image.skipped ? { skipped: image.note } : (args.image ? { ref: args.image } : null),
+    status: 'pending',
+    verdict: null,
+    created_at: new Date().toISOString(),
+    decided_at: null,
+    pushed: false,
+    push_code: null,
+    native_card: false,
+    native_card_code: null,
+    native_card_stage: 'not-attempted',
+  };
+  fs.mkdirSync(APPROVALS_DIR, { recursive: true });
+  fs.writeFileSync(path.join(APPROVALS_DIR, `${seq}.json`), JSON.stringify(record, null, 2));
+  let nativeCard = { ok: false, code: 0, stage: 'not-attempted' };
+  try { nativeCard = pushTypedApprovalCard(seq, cardId, taskId, args); }
+  catch (error) { nativeCard = { ok: false, code: 0, stage: 'transport', error: String(error.message || error).slice(0, 120) }; }
+  const body = buildBody(seq, args, nativeCard.ok);
 
   const payload = {
     text: body,
@@ -105,28 +177,27 @@ function main() {
     approval_required: true,
     approval_card_id: cardId,
     approval_surface: 'yuanxiao_app',
+    typed_card_id: cardId,
+    task_id: taskId,
+    fallback: !nativeCard.ok,
   };
   if (image && !image.skipped) payload.images = [image];
 
   let push = { ok: false, code: 0 };
   try { push = pushToInbox(payload); } catch (e) { push = { ok: false, code: 0, error: String(e.message || e).slice(0, 200) }; }
 
-  // 记账本(无论推送成败都记,便于下行/人工核对;推送失败标记 push_failed)
-  const record = {
-    seq, cardId, title: args.title,
-    fields: { cause: args.cause || null, source: args.source || null, progress: args.progress || null, result: args.result || null, note: args.note || null },
-    image: image && image.skipped ? { skipped: image.note } : (args.image ? { ref: args.image } : null),
-    status: 'pending',
-    verdict: null,
-    created_at: new Date().toISOString(),
-    decided_at: null,
-    pushed: !!push.ok,
-    push_code: push.code || null,
-  };
-  fs.mkdirSync(APPROVALS_DIR, { recursive: true });
-  fs.writeFileSync(path.join(APPROVALS_DIR, `${seq}.json`), JSON.stringify(record, null, 2));
+  // 回填两条下行通道结果；决策状态仍只由回调或旧文字通道更新。
+  const recordFile = path.join(APPROVALS_DIR, `${seq}.json`);
+  let latestRecord = record;
+  try { latestRecord = JSON.parse(fs.readFileSync(recordFile, 'utf8')); } catch (_) {}
+  latestRecord.pushed = !!push.ok;
+  latestRecord.push_code = push.code || null;
+  latestRecord.native_card = !!nativeCard.ok;
+  latestRecord.native_card_code = nativeCard.code || null;
+  latestRecord.native_card_stage = nativeCard.stage || null;
+  fs.writeFileSync(recordFile, JSON.stringify(latestRecord, null, 2));
 
-  const result = { ok: !!push.ok, seq, cardId, pushed: !!push.ok, http: push.code || null, ledger: path.join('projects/控制台/artifacts/yuanxiao-approvals', `${seq}.json`) };
+  const result = { ok: !!push.ok, seq, cardId, taskId, nativeCard: !!nativeCard.ok, pushed: !!push.ok, http: push.code || null, ledger: path.join('projects/控制台/artifacts/yuanxiao-approvals', `${seq}.json`) };
   if (args.json) process.stdout.write(JSON.stringify(result) + '\n');
   else {
     if (push.ok) console.error(`✓ 审批卡已推元宵(编号 ${seq}, card ${cardId})。老板可回「采纳 ${seq}」/「不采纳 ${seq}」`);
@@ -136,4 +207,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { buildBody, buildImageEntry, parseArgs, pushToInbox };
+module.exports = { buildBody, buildImageEntry, buildTypedApprovalPayload, parseArgs, pushToInbox, pushToYuanxiaoPath, pushTypedApprovalCard };

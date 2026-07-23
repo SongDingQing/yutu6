@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { makeCliRunner, buildEnvelope, extractJson } = require('../../shared/engine/cli-runner');
 const InteractionTrace = require('../../shared/engine/interaction-trace');
+const ZhipuCodingPlan = require('../../shared/model-fabric/zhipu-coding-plan');
 
 function sanitizeBoardContext(ctx) {
   const source = ctx && typeof ctx === 'object' ? ctx : {};
@@ -75,6 +76,8 @@ function safeFailure(value, max = 500) {
 }
 
 function providerConfig(runner, opts) {
+  const contracted = ZhipuCodingPlan.resolveRunner(runner);
+  if (contracted) return contracted;
   const envFile = resolveConfigPath(runner.tokenFile || runner.envFile, opts.workdir);
   const fileEnv = readEnvFile(envFile);
   const baseUrl = String(runner.baseUrl || fileEnv.NEW_API_BASE_URL || '').replace(/\/+$/, '');
@@ -84,14 +87,17 @@ function providerConfig(runner, opts) {
     || '';
   return {
     baseUrl,
+    chatUrl: baseUrl ? `${baseUrl}/chat/completions` : '',
     token,
     model: runner.model || fileEnv.NEW_API_MODEL || 'glm-5.2',
   };
 }
 
 async function fetchBoardProvider(runner, prompt, opts) {
-  const config = providerConfig(runner, opts);
-  if (!config.baseUrl || !config.token) {
+  let config;
+  try { config = providerConfig(runner, opts); }
+  catch (error) { return { fail: safeFailure(error.message), stdout: '', stderr: '', usage: null, status: null }; }
+  if (!config.chatUrl || !config.token) {
     return { fail: 'openai_http 缺 baseUrl 或 token', stdout: '', stderr: '', usage: null, status: null };
   }
   const timeoutMs = Math.max(1000, Number(opts.nodeTimeoutSec || 900) * 1000);
@@ -99,7 +105,31 @@ async function fetchBoardProvider(runner, prompt, opts) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   if (timer && typeof timer.unref === 'function') timer.unref();
   try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    if (config.contract === ZhipuCodingPlan.CONTRACT_ID) {
+      const result = await ZhipuCodingPlan.requestChatCompletion({
+        token: config.token,
+        messages: runner.systemPrompt
+          ? [{ role: 'system', content: runner.systemPrompt }, { role: 'user', content: prompt }]
+          : [{ role: 'user', content: prompt }],
+        temperature: runner.temperature == null ? 0.3 : runner.temperature,
+        maxTokens: runner.maxTokens || 2048,
+        maxAttempts: 3,
+        signal: controller.signal,
+      });
+      if (!result.ok) return {
+        fail: `GLM Coding Plan ${result.errorClass}${result.providerCode ? ` (code ${result.providerCode})` : ''}`,
+        stdout: '', stderr: '', usage: null, status: result.status,
+      };
+      const message = result.body && result.body.choices && result.body.choices[0] && result.body.choices[0].message || {};
+      return {
+        fail: '',
+        stdout: String(message.content || message.reasoning_content || ''),
+        stderr: '',
+        usage: normalizeRunnerUsage(result.body && result.body.usage),
+        status: result.status,
+      };
+    }
+    const response = await fetch(config.chatUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

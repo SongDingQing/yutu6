@@ -1,0 +1,8 @@
+id: invalid-join
+nodes:
+  - { id: start, type: agent }
+  - { id: merge, type: join }
+  - { id: done, type: end }
+edges:
+  - { from: start, to: merge }
+  - { from: merge, to: done }

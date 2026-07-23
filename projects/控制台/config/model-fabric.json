@@ -1,0 +1,157 @@
+{
+  "schema": "yutu6-model-fabric@1",
+  "name": "玉兔6 模型与智能体中枢",
+  "version": "0.1.0",
+  "mode": "shadow_front_door",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3020
+  },
+  "storage": {
+    "root": "projects/控制台/artifacts/model-fabric"
+  },
+  "routing": {
+    "max_attempts": 2,
+    "failure_threshold": 3,
+    "cooldown_ms": 90000,
+    "request_timeout_ms": 180000,
+    "health_timeout_ms": 8000,
+    "health_interval_ms": 1800000
+  },
+  "control_plane": {
+    "console_base_url": "http://127.0.0.1:41218",
+    "agent_root": "shared/agents",
+    "capability_registry": "shared/capability_registry/registry.json",
+    "platform_catalog": "projects/控制台/config/agent-platforms.json",
+    "allow_privileged_dispatch": false,
+    "privileged_agents": [
+      "repair",
+      "repair-lead",
+      "gui-desktop-control"
+    ]
+  },
+  "migration": {
+    "phase": "fabric_front_door_new_api_compatibility_upstream",
+    "front_door": "http://127.0.0.1:3020/v1",
+    "compatibility_upstream": "new-api-compat",
+    "target": "direct providers plus explicit compatibility fallback",
+    "rollback": "把 runner baseUrl 改回 http://127.0.0.1:3000/v1，或停止 com.yutu6.model-fabric；new-api 数据与配置不变。"
+  },
+  "providers": [
+    {
+      "id": "new-api-compat",
+      "label": "new-api 兼容上游",
+      "kind": "openai_compatible",
+      "enabled": true,
+      "base_url": "http://127.0.0.1:3000/v1",
+      "health_path": "/models",
+      "priority": 50,
+      "accepts_unlisted_models": true,
+      "credential": {
+        "file": "projects/控制台/artifacts/new-api/internal-token.env",
+        "key": "NEW_API_TOKEN"
+      },
+      "role": "compatibility_and_rollback"
+    },
+    {
+      "id": "zhipu-coding-plan",
+      "label": "GLM Coding Plan 专属直连",
+      "kind": "openai_compatible",
+      "enabled": true,
+      "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+      "strip_v1_prefix": true,
+      "health_mode": "chat_completion",
+      "health_model": "glm-5.2",
+      "priority": 10,
+      "accepts_unlisted_models": false,
+      "credential": {
+        "file": "~/.config/yutu6-secrets/secrets.env",
+        "key": "ZHIPU_API_KEY"
+      },
+      "role": "coding_plan_direct"
+    }
+  ],
+  "models": [
+    {
+      "id": "MiniMax-M3",
+      "label": "MiniMax M3",
+      "modalities": ["text"],
+      "capabilities": ["chat", "reasoning", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "MiniMax-M3", "priority": 50 }
+      ]
+    },
+    {
+      "id": "deepseek-chat",
+      "label": "DeepSeek Chat",
+      "modalities": ["text"],
+      "capabilities": ["chat", "reasoning", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "deepseek-chat", "priority": 50 }
+      ]
+    },
+    {
+      "id": "deepseek-reasoner",
+      "label": "DeepSeek Reasoner",
+      "modalities": ["text"],
+      "capabilities": ["chat", "reasoning", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "deepseek-reasoner", "priority": 50 }
+      ]
+    },
+    {
+      "id": "glm-4-flash",
+      "label": "GLM-4 Flash",
+      "modalities": ["text"],
+      "capabilities": ["chat", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "glm-4-flash", "priority": 50 }
+      ]
+    },
+    {
+      "id": "glm-5",
+      "label": "GLM-5",
+      "modalities": ["text"],
+      "capabilities": ["chat", "reasoning", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "glm-5", "priority": 50 }
+      ]
+    },
+    {
+      "id": "glm-5.2",
+      "label": "GLM-5.2",
+      "modalities": ["text", "image"],
+      "capabilities": ["chat", "reasoning", "vision", "streaming"],
+      "deployments": [
+        { "provider": "zhipu-coding-plan", "model": "glm-5.2", "priority": 10 }
+      ]
+    },
+    {
+      "id": "glm-5v",
+      "label": "GLM-5V",
+      "modalities": ["text", "image"],
+      "capabilities": ["chat", "vision", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "glm-5v", "priority": 50 }
+      ]
+    },
+    {
+      "id": "k3",
+      "label": "Kimi K3",
+      "modalities": ["text"],
+      "capabilities": ["chat", "reasoning", "long_context", "streaming"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "k3", "priority": 50 }
+      ]
+    },
+    {
+      "id": "cogview-4",
+      "label": "CogView-4",
+      "modalities": ["text", "image"],
+      "capabilities": ["image_generation"],
+      "deployments": [
+        { "provider": "new-api-compat", "model": "cogview-4", "priority": 50 }
+      ]
+    }
+  ]
+}

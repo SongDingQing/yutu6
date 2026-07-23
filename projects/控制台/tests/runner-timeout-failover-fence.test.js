@@ -137,13 +137,24 @@ async function defaultOffAndLeaseContract(root) {
   assert.strictEqual(Fence._test.releaseTaskWriteLease(leaseRoot, other, { reason: 'fixture-complete' }).released, true);
   const markerlessReceipt = Fence._test.validatedSettlement({
     schema: Fence.RECEIPT_SCHEMA,
+    settlement_nonce: 'current-settlement-nonce',
     task_id: 'task-one',
     node_id: 'implement',
     runner_id: 'primary',
     timeout: { timed_out: true },
-    termination: {},
+    termination: {
+      root_pid: 4242,
+      marker_tracking_required: true,
+      marker_observation_available: true,
+      marker_observed_pids: [],
+    },
     settle: { tree_exited: true, process_observation_available: true, survivors: [], survivor_process_groups: [] },
-  }, { taskId: 'task-one', nodeId: 'implement', resolved: { runnerId: 'primary' } });
+  }, {
+    taskId: 'task-one',
+    nodeId: 'implement',
+    settlementNonce: 'current-settlement-nonce',
+    resolved: { runnerId: 'primary' },
+  });
   assert.strictEqual(markerlessReceipt.treeExited, false,
     'a legacy receipt without detached-descendant marker observation must fail closed');
   return {
@@ -466,6 +477,94 @@ async function unconfirmedReadOnlyPrimaryStillBlocksWritableFallback(root) {
   };
 }
 
+async function staleSettlementReceiptCannotAuthorizeFallback(root) {
+  const workdir = path.join(root, 'stale-receipt-worktree');
+  initDirtyRepo(workdir);
+  const fallbackMarker = path.join(root, 'stale-receipt-forbidden-fallback');
+  const fallbackScript = path.join(root, 'stale-receipt-fallback.js');
+  write(fallbackScript, `require('fs').writeFileSync(process.argv[2],'started');\n`);
+
+  const sockets = new Set();
+  const server = http.createServer((_req, _res) => {});
+  server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert(address && typeof address !== 'string');
+  const taskId = 'task-stale-settlement-receipt';
+  const events = eventSink(path.join(root, 'stale-receipt-events.jsonl'));
+  const runners = {
+    'primary-runner': {
+      kind: 'openai_http',
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      token: 'fixture-token-not-logged',
+      model: 'fixture-model',
+      execution: { canWriteFiles: true, canRunCommands: false },
+    },
+    codex: {
+      cmd: [process.execPath, fallbackScript, fallbackMarker],
+      promptVia: 'stdin',
+      execution: { canWriteFiles: true, canRunCommands: true },
+    },
+  };
+  const opts = runnerOptions(workdir, runners, events.sink, taskId, 0.15);
+  const staleReceipt = path.join(opts.runsDir, 'implement-1', 'process-settlement.json');
+  write(staleReceipt, `${JSON.stringify({
+    schema: Fence.RECEIPT_SCHEMA,
+    settlement_nonce: 'nonce-from-an-older-candidate-run',
+    task_id: taskId,
+    node_id: 'implement',
+    runner_id: 'primary-runner',
+    timeout: { timed_out: true },
+    termination: {
+      marker_tracking_required: true,
+      marker_observation_available: true,
+      marker_observed_pids: [424242],
+    },
+    settle: {
+      tree_exited: true,
+      process_observation_available: true,
+      survivors: [],
+      survivor_process_groups: [],
+    },
+    dirty_worktree: { mtime_changes: [] },
+  }, null, 2)}\n`);
+  const runner = Fence.makeCliRunner(opts, {
+    config: approvedConfig({ maxUninterruptibleGraceMs: 0 }),
+    env: { [FLAG]: '1' },
+    artifactsRoot: path.join(workdir, 'artifacts'),
+  });
+  const result = await runner.runNodeAsync(
+    { id: 'implement', agent_role: 'worker_code' },
+    writableContext(taskId, 0),
+    1,
+  );
+  for (const socket of sockets) socket.destroy();
+  await new Promise(resolve => server.close(resolve));
+  assert(result.fail && result.fail.includes('writable fallback blocked'), JSON.stringify({ result, events: events.events }));
+  assert.strictEqual(fs.existsSync(fallbackMarker), false,
+    'a receipt from an older candidate run must not authorize writable fallback');
+  const evidence = JSON.parse(fs.readFileSync(path.join(opts.runsDir, 'implement-1', 'timeout-fence-evidence.json'), 'utf8'));
+  assert.strictEqual(evidence.child_receipt, staleReceipt);
+  assert.strictEqual(evidence.receipt_nonce_valid, false);
+  assert.strictEqual(evidence.receipt_identity_valid, false);
+  assert.strictEqual(evidence.tree_exited, false);
+  const leaseDir = path.join(workdir, 'artifacts', 'runner-timeout-failover', 'leases');
+  const leaseFiles = fs.readdirSync(leaseDir);
+  assert.strictEqual(leaseFiles.length, 1);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(leaseDir, leaseFiles[0]), 'utf8')).state, 'blocked_unconfirmed');
+  return {
+    stale_receipt_present: true,
+    receipt_nonce_valid: evidence.receipt_nonce_valid,
+    receipt_identity_valid: evidence.receipt_identity_valid,
+    tree_exited: evidence.tree_exited,
+    writable_fallback_started: fs.existsSync(fallbackMarker),
+    retained_lease_state: JSON.parse(fs.readFileSync(path.join(leaseDir, leaseFiles[0]), 'utf8')).state,
+  };
+}
+
 async function main() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-timeout-fence-'));
   try {
@@ -475,6 +574,7 @@ async function main() {
       detached_historical_descendant: await detachedHistoricalDescendantIsSettled(root),
       unconfirmed_timeout: await unconfirmedTreeBlocksWritableFallback(root),
       readonly_unconfirmed_timeout: await unconfirmedReadOnlyPrimaryStillBlocksWritableFallback(root),
+      stale_settlement_receipt: await staleSettlementReceiptCannotAuthorizeFallback(root),
     };
     const engineSource = fs.readFileSync(path.join(PROJECT, 'engine-runner.js'), 'utf8');
     const workerSource = fs.readFileSync(path.join(PROJECT, 'ceo-worker.js'), 'utf8');
@@ -495,6 +595,7 @@ async function main() {
         'confirmed-lease-transfer-before-fallback',
         'unconfirmed-tree-blocks-writable-fallback',
         'unconfirmed-readonly-primary-blocks-writable-fallback',
+        'stale-settlement-receipt-replay-blocked',
       ],
       results,
     };

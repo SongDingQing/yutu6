@@ -1,9 +1,29 @@
 {
   "schema": "yutu6-gate-policy@1",
-  "updated_at": "2026-07-16T00:00:00.000Z",
+  "updated_at": "2026-07-20T00:00:00.000Z",
   "owner": "quality_ops",
   "default_mode": "dormant",
   "principle": "Only incident-backed or foundational gates may block. Duplicate and unproven gates stay dormant; observational gates stay shadow.",
+  "proposal_policy": {
+    "default_decision": "dormant",
+    "always_active_classes": [
+      "secret-hygiene",
+      "authentication-integrity",
+      "permission-boundary",
+      "external-side-effect-authorization"
+    ],
+    "activation_requirements": [
+      "real incident reference",
+      "minimal reproducible regression test",
+      "bounded local runtime cost",
+      "shadow observation before blocking unless foundational security"
+    ],
+    "runtime_rules": [
+      "active hooks must not call a model or network",
+      "heavy scans and full suites run offline only",
+      "dormant hooks do not execute or emit events by default"
+    ]
+  },
   "gates": {
     "engine.done_gate": {
       "kind": "primary",
@@ -15,6 +35,9 @@
         "projects/控制台/artifacts/done-gate-audit-2026-06-23.md",
         "board/repair-tickets/auto-20260622182621-92d857a28bf118c5.md"
       ],
+      "regression_tests": [
+        "tests/done-gate.test.js"
+      ],
       "activation": "Always active for review-loop completion.",
       "review_after_days_without_hit": 90
     },
@@ -25,8 +48,7 @@
       "class": "completion-integrity",
       "reason": "Observe legacy result/implementation/review schema conflicts before owner-approved fail-closed activation; explicit false signals are already blocked by the primary direct completion gate.",
       "incident_refs": [
-        "projects/控制台/artifacts/engine-runs/cr-1784019435832-74298708/execute-1/result.redacted.md",
-        "projects/控制台/artifacts/engine-runs/cr-1784020905877-d6be4147/execute-1/result.redacted.md"
+        "docs/incidents/2026-07-14-completion-conflict.md"
       ],
       "activation": "Shadow by default; change to active only after owner approval and conflict-ledger review.",
       "review_after_days_without_hit": 30
@@ -40,7 +62,25 @@
       "incident_refs": [
         "projects/控制台/artifacts/done-gate-audit-2026-06-23.md"
       ],
+      "regression_tests": [
+        "tests/hardening-hooks.test.js"
+      ],
       "activation": "Always active for task.true_done; no model call and near-zero runtime cost.",
+      "review_after_days_without_hit": 90
+    },
+    "acceptance-contract-consumers": {
+      "kind": "hook",
+      "mode": "active",
+      "blocking": true,
+      "class": "acceptance-integrity",
+      "reason": "Prevents orchestrator acceptance atoms from being lost, generalized or polluted before implementation and review consume them.",
+      "incident_refs": [
+        "docs/incidents/2026-07-14-acceptance-handoff-loss.md"
+      ],
+      "regression_tests": [
+        "projects/控制台/tests/acceptance-handoff.test.js"
+      ],
+      "activation": "Always active only when an acceptance_contract is present; local structural comparison with no model or network call.",
       "review_after_days_without_hit": 90
     },
     "console.protocol_gate": {
@@ -91,6 +131,9 @@
       "reason": "True completion with trusted releaseImpact must update the auditable version ledger exactly once.",
       "incident_refs": [
         "board/repair-tickets/auto-20260622182621-92d857a28bf118c5.md"
+      ],
+      "regression_tests": [
+        "tests/version-progress-hook.test.js"
       ],
       "activation": "Runs only after true completion; missing or manual releaseImpact remains a non-bumping manual path.",
       "review_after_days_without_hit": 90

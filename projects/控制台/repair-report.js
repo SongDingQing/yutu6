@@ -5,6 +5,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { redactMemoryCandidate } = require('./memory-redaction');
 
+const SHA256_HEX_RE = /^[A-Fa-f0-9]{64}$/;
+
 const SECTION_DEFS = [
   ['chainEvidence', '链路证据'],
   ['handoffVerdict', '需求传递判断'],
@@ -49,7 +51,10 @@ function readJson(file, fallback = null) {
 function redactReportText(value, max = 100000) {
   return redactMemoryCandidate(String(value || ''), max)
     .replace(/\b(?:sk|ma_live|ghp|github_pat)_[A-Za-z0-9_-]{12,}\b/g, '[REDACTED]')
-    .replace(/\b[A-Za-z0-9+/]{32,}={0,2}\b/g, token => token.length >= 48 ? '[REDACTED]' : token);
+    .replace(/\b[A-Za-z0-9+/]{32,}={0,2}\b/g, token => {
+      if (token.length < 48 || SHA256_HEX_RE.test(token)) return token;
+      return '[REDACTED]';
+    });
 }
 
 function escapeHtml(value) {
@@ -96,12 +101,13 @@ function parseResultSections(result) {
     .sort((a, b) => b.length - a.length)
     .map(label => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('|');
-  const headingRe = new RegExp(`^(?:#{1,6}\\s*)?(?:[-*]\\s*)?(${labels})(?:\\s*[:：]\\s*(.*)|\\s*)$`);
+  const markdownHeadingRe = new RegExp(`^#{1,6}[ \\t]+(${labels})(?:[ \\t]*[:：][ \\t]*(.*?))?[ \\t]*#*[ \\t]*$`);
+  const plainLabelRe = new RegExp(`^(${labels})(?:\\s*[:：]\\s*(.*)|\\s*)$`);
 
   for (const rawLine of normalizeResultLines(result)) {
     const line = rawLine.trim();
     if (!line) continue;
-    const match = line.match(headingRe);
+    const match = line.match(markdownHeadingRe) || line.match(plainLabelRe);
     if (match) {
       current = LABEL_TO_KEY.get(match[1]) || null;
       const inline = String(match[2] || '').trim();

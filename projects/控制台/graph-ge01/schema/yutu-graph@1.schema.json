@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yutu-graph@1",
+  "title": "Yutu6 GE-01 canonical graph manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "graphId", "graphVersion", "projectId", "objectiveRef", "sourceSha256", "startNode", "nodes", "edges", "budgets", "policies", "manifestHash"],
+  "properties": {
+    "schemaVersion": {"const": "yutu-graph@1"},
+    "graphId": {"type": "string", "minLength": 1, "maxLength": 96},
+    "graphVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "projectId": {"type": "string", "minLength": 1, "maxLength": 96},
+    "objectiveRef": {"type": "string", "minLength": 1, "maxLength": 256},
+    "sourceSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "startNode": {"type": "string", "minLength": 1, "maxLength": 96},
+    "nodes": {
+      "type": "array", "minItems": 1, "maxItems": 128,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "type", "agentRole", "timeoutMs"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,96}$"},
+          "type": {"enum": ["agent", "tool", "script", "router", "human_gate", "end", "fanout", "join", "subgraph"]},
+          "agentRole": {"type": "string", "maxLength": 96},
+          "timeoutMs": {"type": "integer", "minimum": 0, "maximum": 7200000}
+        }
+      }
+    },
+    "edges": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["from", "to", "when", "reasonCode", "delivery"],
+        "properties": {
+          "from": {"type": "string", "minLength": 1, "maxLength": 96},
+          "to": {"type": "string", "minLength": 1, "maxLength": 96},
+          "when": {"type": "string", "maxLength": 512},
+          "reasonCode": {"type": "string", "minLength": 1, "maxLength": 96},
+          "delivery": {"enum": ["single", "fanout", "join"]}
+        }
+      }
+    },
+    "budgets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maxLoops", "wallTimeoutMs", "maxInputBytes", "maxManifestBytes", "maxMemoryBytes"],
+      "properties": {
+        "maxLoops": {"type": "integer", "minimum": 1, "maximum": 3},
+        "wallTimeoutMs": {"type": "integer", "minimum": 1, "maximum": 7200000},
+        "maxInputBytes": {"const": 1048576},
+        "maxManifestBytes": {"const": 1048576},
+        "maxMemoryBytes": {"const": 8388608}
+      }
+    },
+    "policies": {
+      "type": "object", "additionalProperties": false,
+      "required": ["acceptanceRequired", "shadowOnly", "defaultEnabled", "onNoEdge", "unsupportedRuntimeTypes"],
+      "properties": {
+        "acceptanceRequired": {"type": "boolean"},
+        "shadowOnly": {"const": true},
+        "defaultEnabled": {"const": false},
+        "onNoEdge": {"type": "string", "maxLength": 96},
+        "unsupportedRuntimeTypes": {"const": ["fanout", "join", "subgraph"]}
+      }
+    },
+    "manifestHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

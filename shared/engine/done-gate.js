@@ -15,6 +15,7 @@ const STRUCTURED_ACCEPTANCE_MARKER = '结构化验收表';
 const STRUCTURED_ACCEPTANCE_PROTOCOL = 'structured-acceptance@2';
 const STRUCTURED_ACCEPTANCE_PROTOCOL_MARKER = `验收表协议: ${STRUCTURED_ACCEPTANCE_PROTOCOL}`;
 const STRUCTURED_ACCEPTANCE_COLUMNS = ['要点', '完成状态(完成/部分/未完成)', '证据位置(文件:行 / git diff / 截图路径)', '备注'];
+const STRUCTURED_ACCEPTANCE_HEADER_METADATA_RE = /证据位置\s*\(\s*文件\s*[:：]\s*行\s*\/\s*git\s+diff\s*\/\s*截图路径\s*\)/gi;
 const STRUCTURED_ACCEPTANCE_TEMPLATE_REL = 'templates/structured-acceptance-table.md';
 const ACCEPTANCE_DONE_STATUS = '完成';
 const ACCEPTANCE_NOT_APPLICABLE_STATUS = 'not_applicable';
@@ -25,6 +26,7 @@ const NEGATIVE_REVIEW_VERDICTS = new Set([
   '假', '失败', '未通过', '不通过', '部分', '打回',
 ]);
 const IMPLEMENTATION_FAILURE_RECEIPT_SCHEMA = 'implementation-failure-receipt@1';
+const SUPERVISOR_REVIEW_BINDING_SCHEMA = 'supervisor-review-binding@1';
 const REVIEW_SEVERITIES = new Set(['low', 'medium', 'high']);
 const DESIGN_GATE_RE = /(decisions\.md|memory\/decisions|board\/decisions|设计(?:文件|记忆|条目|决策|对照)|按设计|对照设计|设计稿)/i;
 // A generic audit pointer such as "董事会记录见 memory/decisions.md" must not turn
@@ -32,6 +34,10 @@ const DESIGN_GATE_RE = /(decisions\.md|memory\/decisions|board\/decisions|设计
 // for task text that explicitly asks to follow or compare a design source. Exact
 // decisions.md line references remain authoritative via explicitDecisionLines().
 const IMPLICIT_DECISION_LOOKUP_RE = /(?:按|对照|参考|参照|依据|读取).{0,20}(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md)|设计(?:对照|规范|方案|稿)/i;
+const DIRECTED_DECISION_LOOKUP_RE = /(?:按|对照|参考|参照|依据|读取).{0,20}(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md)/i;
+const NEGATED_DECISION_DIRECTION_RE = /(?:不(?:需要|需|必须|必|用|要|应该|应|该|可以|可|能|得)?|无(?:需|须)|不用|禁止|避免)\s*(?:再)?\s*(?:按|对照|参考|参照|依据|读取).{0,20}(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md)/gi;
+const NEGATED_DECISION_PLACEHOLDER_RE = /(?:(?:不(?:得|能|应该?|可以?|需要)?|不可|禁止|避免|拒绝)\s*(?:仅|只)?\s*(?:以|把|将|用|拿|靠)\s*(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md).{0,20}(?:代替|替代|冒充|充当|当作|视为|作为).{0,12}(?:实现|代码|交付|完成|证据|产物|验收)|(?:不得|不能|不可|禁止|避免|拒绝)\s*(?:仅|只)\s*(?:交|提交|提供|输出|产出|交付)?\s*(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md)(?:.{0,12}(?:自述|声明))?(?:.{0,8}(?:完成|交付))?)/gi;
+const POST_NEGATED_DECISION_PLACEHOLDER_RE = /(?:设计(?:文件|记忆|条目|决策|规范|方案|稿)|(?:memory\/|board\/)?decisions\.md).{0,12}(?:不能|不得|不可|不应|不该|不可以|并非|不是)\s*(?:用来|用于)?\s*(?:代替|替代|冒充|充当|作为|当作|视为).{0,12}(?:实现|代码|交付|完成|证据|产物|验收)/gi;
 const VISUAL_DESIGN_REVIEW_PHRASE_RE = /(?:Codex|GPT[-_. ]?5[-_. ]?Codex)\s*对照设计挑错/gi;
 // UI must be a standalone token (or touch non-ASCII text). Without boundaries,
 // ordinary identifiers such as `build` and audit references such as
@@ -78,6 +84,7 @@ const BAD_ACCEPTANCE_EVIDENCE_RE = new RegExp([
   `${ACCEPTANCE_PLACEHOLDER_BOUNDARY}(?:见上|同上|略|N\\/A|NA|none|null)${ACCEPTANCE_PLACEHOLDER_END}`,
 ].join('|'), 'i');
 const BAD_ACCEPTANCE_NOTES_RE = /自验收已归档|自验收|无证据|待补|稍后补|只写声明|仅写声明|口头声明/i;
+const ACCEPTANCE_NO_EVIDENCE_POLICY_RE = /(?:无证据(?:建议|提议|意见|机制|候选)|(?:建议|提议|意见|机制|候选).{0,16}无证据)/gi;
 const IMAGE_PATH_RE = /\.(?:png|jpe?g|webp|gif)\b/i;
 const VISUAL_EVIDENCE_MISSING_AUDIT_RE = /(?:visual[_ ]?evidence[_ ]?count\s*[:=]\s*0|(?:截图|截屏|图片|图像|视觉(?:\s*\/\s*UI)?证据).{0,24}(?:数量|count).{0,8}(?:为|[:=])?\s*0|(?:缺少|未找到|找不到|不存在|没有|未提供|未附|未提交).{0,24}(?:截图|截屏|图片|图像|视觉(?:\s*\/\s*UI)?证据)|(?:截图|截屏|图片|图像|视觉(?:\s*\/\s*UI)?证据).{0,24}(?:缺失|缺件|未找到|不存在|没有|未提供|未附|未提交))/i;
 
@@ -241,7 +248,7 @@ function pathExists(file, workspaceRoot) {
 
 function extractPathPointers(text) {
   const out = [];
-  const re = /((?:\/Users\/[^\s'"`，,。；;)]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]\d+)?/g;
+  const re = /((?:\/Users\/[^\s'"`，,。；;:)#]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]\d+)?/g;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const raw = m[1].replace(/[)\]}.,;，。；]+$/g, '');
@@ -252,7 +259,7 @@ function extractPathPointers(text) {
 
 function extractPathPointerDetails(text) {
   const out = [];
-  const re = /((?:\/Users\/[^\s'"`，,。；;)]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]L?(\d+))?/g;
+  const re = /((?:\/Users\/[^\s'"`，,。；;:)#]+)|(?:[A-Za-z0-9_\-.\u3400-\u9fff]+\/[A-Za-z0-9_\-./\u3400-\u9fff]+))(?:[:#]L?(\d+))?/g;
   let m;
   while ((m = re.exec(String(text || '')))) {
     const raw = m[1].replace(/[)\]}.,;，。；]+$/g, '');
@@ -706,6 +713,25 @@ function findAcceptanceRow(required, filledRows) {
   return null;
 }
 
+function acceptanceEvidenceUsesUnverifiableClaim(evidence) {
+  // Commands can legitimately serialize an absent optional value (for example
+  // `reason:r.reason||null`). Do not mistake that source-code token for an
+  // evidence placeholder; a bare `null` remains blocked by the original regex.
+  const commandAwareEvidence = normalizePoint(evidence)
+    .replace(/\|\|\s*(?:none|null)\b/gi, ' logical-fallback-value ');
+  return BAD_ACCEPTANCE_EVIDENCE_RE.test(commandAwareEvidence);
+}
+
+function acceptanceNotesUseUnverifiableClaim(notes) {
+  const text = normalizePoint(notes);
+  // Notes may describe the policy under test (for example an "无证据建议"
+  // being kept as an experiment). Concrete evidence is still required and
+  // verified independently below; mask only the policy phrase so another real
+  // placeholder in the same notes (such as "待补") still fails closed.
+  const policyAwareNotes = text.replace(ACCEPTANCE_NO_EVIDENCE_POLICY_RE, ' evidence-policy ');
+  return BAD_ACCEPTANCE_NOTES_RE.test(policyAwareNotes);
+}
+
 function validateFilledAcceptanceRows(requiredRows, filledRows, opts = {}) {
   const label = opts.label || 'implementation.acceptance_table';
   const allowedStatuses = opts.allowedStatuses instanceof Set
@@ -760,7 +786,7 @@ function validateFilledAcceptanceRows(requiredRows, filledRows, opts = {}) {
       && /(?:not_applicable|N\s*\/\s*A|不适用)/i.test(`${evidence}\n${notes}`)) {
       return { ok: false, reason: `${rowLabel} 禁止“完成+不适用”混填: ${required.point}` };
     }
-    if (BAD_ACCEPTANCE_EVIDENCE_RE.test(evidence) || BAD_ACCEPTANCE_NOTES_RE.test(notes)) {
+    if (acceptanceEvidenceUsesUnverifiableClaim(evidence) || acceptanceNotesUseUnverifiableClaim(notes)) {
       return { ok: false, reason: `${rowLabel} 使用不可核声明作证据: ${required.point}` };
     }
     if (!evidencePointerIsVerifiable([evidence], opts)) {
@@ -890,7 +916,7 @@ function validateVisualAcceptanceEvidence(vars, implementationRows, reviewRows, 
     logicChainFromVars(vars) && logicChainFromVars(vars).tests,
     reviewVerificationFromVars(vars) && reviewVerificationFromVars(vars).evidence,
   ]).join('\n');
-  if (BAD_ACCEPTANCE_NOTES_RE.test(hay)) {
+  if (acceptanceNotesUseUnverifiableClaim(hay)) {
     return { ok: false, reason: '视觉/UI 验收含不可核自验收声明' };
   }
   const images = visualEvidenceImagePaths(hay, workspaceRoot);
@@ -1168,8 +1194,16 @@ function explicitDecisionLines(text) {
 }
 
 function implicitDecisionLookupRequested(text) {
-  const normalized = String(text || '').replace(VISUAL_DESIGN_REVIEW_PHRASE_RE, ' ');
-  return IMPLICIT_DECISION_LOOKUP_RE.test(normalized);
+  const normalized = String(text || '')
+    .replace(VISUAL_DESIGN_REVIEW_PHRASE_RE, ' ')
+    .replace(NEGATED_DECISION_DIRECTION_RE, ' ')
+    .replace(NEGATED_DECISION_PLACEHOLDER_RE, ' ');
+  // A directed positive instruction remains authoritative even when followed by
+  // an anti-placeholder qualifier, e.g. "参考设计稿，但设计稿不能代替实现".
+  if (DIRECTED_DECISION_LOOKUP_RE.test(normalized)) return true;
+  return IMPLICIT_DECISION_LOOKUP_RE.test(
+    normalized.replace(POST_NEGATED_DECISION_PLACEHOLDER_RE, ' '),
+  );
 }
 
 // The classifier and the done gate intentionally share this single text signal
@@ -1178,7 +1212,12 @@ function implicitDecisionLookupRequested(text) {
 function visualRequirementSignals(text) {
   let explicit = false;
   let positive = false;
-  for (const line of String(text || '').split(/\r?\n/)) {
+  // Completed-task summaries may embed the canonical structured-acceptance
+  // header inside a later non-visual goal. Mask only that fixed metadata cell;
+  // table-body UI work and explicit screenshot requirements remain visible.
+  const intentText = String(text || '')
+    .replace(STRUCTURED_ACCEPTANCE_HEADER_METADATA_RE, ' structured-acceptance evidence column ');
+  for (const line of intentText.split(/\r?\n/)) {
     const explicitRequest = EXPLICIT_VISUAL_EVIDENCE_REQUEST_RE.test(line);
     // Provenance/audit lines may cite a UI agent or an HTML/CSS file without
     // making that historical reference part of the current delivery surface.
@@ -1906,6 +1945,46 @@ function exactEvidencePointerLine(pointer, opts = {}) {
   }
 }
 
+function reviewBindingLineSupportsRequiredRow(line, expected = {}) {
+  const normalizedLine = normalizePoint(line);
+  if (!normalizedLine) return false;
+
+  let parsed;
+  let parsedAsJson = false;
+  try {
+    parsed = JSON.parse(normalizedLine);
+    parsedAsJson = true;
+  } catch (_) {
+    // A JSON-looking binding must not fall back to substring matching when its
+    // JSON is malformed. Legacy compatibility is reserved for the historical
+    // non-JSON text receipt format.
+    if (/^[\[{]/.test(normalizedLine)) return false;
+  }
+
+  if (parsedAsJson) {
+    if (!isPlainObject(parsed) || parsed.schema !== SUPERVISOR_REVIEW_BINDING_SCHEMA) return false;
+    const requiredStringFields = ['issue', 'acceptance_id', 'source_hash', 'required_row_point', '核对结果'];
+    if (requiredStringFields.some(field => typeof parsed[field] !== 'string')) return false;
+    const expectedSourceHash = normalizePoint(expected.sourceHash).toLowerCase();
+    return normalizePoint(parsed.issue) === normalizePoint(expected.issue)
+      && normalizePoint(parsed.acceptance_id) === normalizePoint(expected.acceptanceId)
+      && !!expectedSourceHash
+      && normalizePoint(parsed.source_hash).toLowerCase() === expectedSourceHash
+      && normalizePoint(parsed.required_row_point) === normalizePoint(expected.requiredPoint)
+      && normalizePoint(parsed['核对结果']) === normalizePoint(expected.status);
+  }
+
+  const expectedIssue = normalizePoint(expected.issue);
+  const acceptanceId = normalizePoint(expected.acceptanceId);
+  const requiredPoint = normalizePoint(expected.requiredPoint);
+  const status = normalizePoint(expected.status);
+  return normalizedLine.includes(expectedIssue)
+    && normalizedLine.includes(acceptanceId)
+    && normalizedLine.includes(requiredPoint)
+    && !!status
+    && normalizedLine.includes(normalizePoint(`核对结果=${status}`));
+}
+
 function realWorkspaceFile(pointer, opts = {}) {
   if (!pointer || !pointerExists(pointer, opts.workspaceRoot)) return null;
   const workspaceRoot = opts.workspaceRoot || process.cwd();
@@ -2047,9 +2126,14 @@ function validateReviewIssueEvidenceContract(vars, opts = {}) {
     }
     const line = normalizePoint(exactEvidencePointerLine(pointer, opts));
     const requiredPoint = normalizePoint(required.point);
-    const expectedResult = normalizePoint(`核对结果=${status}`);
-    if (!line || !line.includes(expectedIssue) || !line.includes(acceptanceId)
-      || !line.includes(requiredPoint) || !status || !line.includes(expectedResult)) {
+    const bindingSourceHash = normalizePoint(required.source_hash || required.sourceHash).toLowerCase();
+    if (!reviewBindingLineSupportsRequiredRow(line, {
+      issue: expectedIssue,
+      acceptanceId,
+      sourceHash: bindingSourceHash,
+      requiredPoint,
+      status,
+    })) {
       return {
         ok: false,
         reason: `verification.issue_evidence[${mappingIndex}] 指向行未同时支持 issue、acceptance_id、requiredRows 原文和行状态`,
