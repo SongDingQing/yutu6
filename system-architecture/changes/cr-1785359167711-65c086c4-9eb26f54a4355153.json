@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "taskId": "cr-1785359167711-65c086c4",
+  "projectId": "控制台",
+  "completionEventId": "cr-1785359167711-65c086c4:review-loop:true_done",
+  "completionHash": "9eb26f54a43551532fc087d1d36defbb6e32e677b131afa982ea99cf3a22397c",
+  "trueCompletionVerdict": {
+    "ok": true,
+    "source": "engine.done_gate+version_hook.recheck"
+  },
+  "changedFiles": [
+    "tests/.serial-smoke-evidence-20260729210607549-16007-dabd3d113a16.md"
+  ],
+  "reviewer": null,
+  "remote": "github",
+  "branch": "machine/yutu6-latest",
+  "publishedAt": "2026-07-29T21:06:08.984Z"
+}
