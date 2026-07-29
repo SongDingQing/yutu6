@@ -20,6 +20,9 @@ const LOCK_WAIT_MS = 90000;
 const LOCK_STALE_MS = 120000;
 const PUSH_TIMEOUT_MS = 45000;
 const RELEASE_IMPACTS = new Set(['fix', 'minor', 'major', 'manual', 'none']);
+const SYSTEM_ARCH_MANIFEST_REL = path.join('system-architecture', 'manifest.json');
+const SYSTEM_ARCH_CHANGES_REL = path.join('system-architecture', 'changes');
+const ARCHITECTURE_AUTO_PUBLISH_CONFIG = 'yutu6.architectureAutoPublish';
 
 function nowIso() {
   return new Date().toISOString();
@@ -531,7 +534,7 @@ function currentBranch(root) {
   return b && b !== 'HEAD' ? b : 'main';
 }
 
-function declaredChangedFiles(task, gate) {
+function rawDeclaredChangedFiles(task, gate) {
   const vars = task && task.vars || {};
   const impl = vars.implementation && typeof vars.implementation === 'object' ? vars.implementation : {};
   const raw = [];
@@ -544,10 +547,243 @@ function declaredChangedFiles(task, gate) {
     const file = f.trim();
     if (seen.has(file)) continue;
     seen.add(file);
-    if (SECRET_PATH_RE.test(file)) continue;   // 红线:密钥路径不提交
     out.push(file);
   }
   return out;
+}
+
+function declaredChangedFiles(task, gate) {
+  return rawDeclaredChangedFiles(task, gate).filter(file => !SECRET_PATH_RE.test(file));
+}
+
+function normalizeRepoRelativePath(root, value) {
+  if (typeof value !== 'string' || !value.trim() || path.isAbsolute(value)) return null;
+  const normalized = path.posix.normalize(value.trim().replace(/\\/g, '/')).replace(/^\.\//, '');
+  if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../')) return null;
+  if (normalized === '.git' || normalized.startsWith('.git/')) return null;
+  const absolute = path.resolve(root, normalized);
+  if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) return null;
+  return normalized;
+}
+
+function loadSystemArchitectureManifest(root) {
+  const manifest = readJson(path.join(root, SYSTEM_ARCH_MANIFEST_REL), null);
+  if (!manifest || Number(manifest.schema_version) !== 1) {
+    return { ok: false, reason: 'architecture_manifest_missing_or_invalid', manifest: null };
+  }
+  return { ok: true, manifest };
+}
+
+function architecturePathOwned(file, manifest) {
+  const prefixes = Array.isArray(manifest.owned_prefixes) ? manifest.owned_prefixes : [];
+  const files = Array.isArray(manifest.owned_files) ? manifest.owned_files : [];
+  const excludedPrefixes = Array.isArray(manifest.excluded_prefixes) ? manifest.excluded_prefixes : [];
+  const excludedSuffixes = Array.isArray(manifest.excluded_suffixes) ? manifest.excluded_suffixes : [];
+  if (excludedPrefixes.some(prefix => file.startsWith(prefix))) return false;
+  if (excludedSuffixes.some(suffix => file.endsWith(suffix))) return false;
+  return files.includes(file) || prefixes.some(prefix => file.startsWith(prefix));
+}
+
+function classifySystemArchitectureFiles(root, task, gate) {
+  const loaded = loadSystemArchitectureManifest(root);
+  const raw = rawDeclaredChangedFiles(task, gate);
+  const normalized = [];
+  const rejected = [];
+  for (const value of raw) {
+    const file = normalizeRepoRelativePath(root, value);
+    if (!file || SECRET_PATH_RE.test(value)) {
+      rejected.push(value);
+      continue;
+    }
+    if (!normalized.includes(file)) normalized.push(file);
+  }
+  if (!loaded.ok) {
+    return {
+      ok: false,
+      eligible: false,
+      reason: loaded.reason,
+      declaredFiles: normalized,
+      rejectedFiles: rejected,
+      architectureFiles: [],
+      nonArchitectureFiles: normalized,
+    };
+  }
+  const architectureFiles = normalized.filter(file => architecturePathOwned(file, loaded.manifest));
+  const nonArchitectureFiles = normalized.filter(file => !architecturePathOwned(file, loaded.manifest));
+  const eligible = raw.length > 0
+    && rejected.length === 0
+    && normalized.length > 0
+    && nonArchitectureFiles.length === 0
+    && architectureFiles.length === normalized.length;
+  return {
+    ok: true,
+    eligible,
+    reason: eligible ? null : (rejected.length ? 'architecture_path_rejected' : 'architecture_scope_mixed_or_empty'),
+    declaredFiles: normalized,
+    rejectedFiles: rejected,
+    architectureFiles,
+    nonArchitectureFiles,
+    manifest: loaded.manifest,
+  };
+}
+
+function architectureAutoPublishEnabled(root, opts = {}) {
+  if (typeof opts.architectureAutoPublishEnabled === 'boolean') {
+    return opts.architectureAutoPublishEnabled;
+  }
+  if (!isGitRepo(root)) return false;
+  const res = runGit(['config', '--bool', '--get', ARCHITECTURE_AUTO_PUBLISH_CONFIG], root);
+  return !res.error && res.status === 0 && String(res.stdout || '').trim() === 'true';
+}
+
+function architectureReceiptPath(taskId, completionHash) {
+  const safeTaskId = String(taskId || 'unknown')
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .slice(0, 80) || 'unknown';
+  const safeHash = String(completionHash || 'nohash').replace(/[^a-f0-9]/gi, '').slice(0, 16) || 'nohash';
+  return path.posix.join(SYSTEM_ARCH_CHANGES_REL.replace(/\\/g, '/'), `${safeTaskId}-${safeHash}.json`);
+}
+
+function resetExactFiles(root, files) {
+  if (!files.length) return;
+  runGit(['reset', '--', ...files], root);
+}
+
+// 系统架构专用发布器：不改 VERSION.json，只提交真完成任务精确声明的架构文件及审计回执。
+function architectureCommitPushPublisher(ctx = {}) {
+  const root = ctx.root;
+  if (!isGitRepo(root)) {
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'not_git_repository' };
+  }
+  if (!architectureAutoPublishEnabled(root, ctx.opts || {})) {
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'architecture_auto_publish_disabled' };
+  }
+  const classification = ctx.classification || classifySystemArchitectureFiles(root, ctx.task, ctx.gate);
+  if (!classification.eligible) {
+    return {
+      ok: false,
+      mode: 'architecture_auto_commit_push',
+      reason: classification.reason || 'architecture_scope_not_eligible',
+      nonArchitectureFiles: classification.nonArchitectureFiles || [],
+      rejectedFiles: classification.rejectedFiles || [],
+    };
+  }
+  const preStaged = String(runGit(['diff', '--cached', '--name-only'], root).stdout || '').trim();
+  if (preStaged) {
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'git_index_not_clean' };
+  }
+
+  const remote = ctx.remoteName || classification.manifest.auto_publish && classification.manifest.auto_publish.remote || 'github';
+  const branch = currentBranch(root);
+  const receipt = architectureReceiptPath(ctx.taskId, ctx.completionHash);
+  const receiptTracked = runGit(['ls-files', '--error-unmatch', '--', receipt], root);
+  if (!receiptTracked.error && receiptTracked.status === 0) {
+    return {
+      ok: true,
+      mode: 'architecture_auto_commit_push',
+      decision: 'skip',
+      reason: 'architecture_already_published',
+      remote,
+      branch,
+      receipt,
+    };
+  }
+
+  const declared = classification.architectureFiles;
+  const addRes = runGit(['add', '--', ...declared], root);
+  if (addRes.error || addRes.status !== 0) {
+    resetExactFiles(root, declared);
+    return {
+      ok: false,
+      mode: 'architecture_auto_commit_push',
+      reason: 'git_add_failed',
+      error: String(addRes.stderr || addRes.error && addRes.error.message || '').slice(0, 300),
+    };
+  }
+  const stagedDeclared = String(runGit(['diff', '--cached', '--name-only'], root).stdout || '')
+    .split(/\r?\n/)
+    .filter(Boolean);
+  if (!stagedDeclared.length) {
+    resetExactFiles(root, declared);
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'nothing_staged' };
+  }
+  if (stagedDeclared.some(file => !declared.includes(file))) {
+    resetExactFiles(root, declared);
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'staged_scope_mismatch' };
+  }
+
+  const receiptFile = path.join(root, receipt);
+  writeJsonAtomic(receiptFile, {
+    schema_version: 1,
+    taskId: ctx.taskId || null,
+    projectId: ctx.projectId || null,
+    completionEventId: ctx.completionEventId || null,
+    completionHash: ctx.completionHash || null,
+    trueCompletionVerdict: {
+      ok: true,
+      source: ctx.trueCompletionVerdict && ctx.trueCompletionVerdict.source || 'engine.done_gate+version_hook.recheck',
+    },
+    changedFiles: stagedDeclared,
+    reviewer: ctx.reviewer || null,
+    remote,
+    branch,
+    publishedAt: nowIso(),
+  });
+  const receiptAdd = runGit(['add', '--', receipt], root);
+  if (receiptAdd.error || receiptAdd.status !== 0) {
+    resetExactFiles(root, [...declared, receipt]);
+    try { fs.rmSync(receiptFile, { force: true }); } catch (_) {}
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'receipt_add_failed' };
+  }
+  const expected = new Set([...stagedDeclared, receipt]);
+  const stagedFinal = String(runGit(['diff', '--cached', '--name-only'], root).stdout || '')
+    .split(/\r?\n/)
+    .filter(Boolean);
+  if (stagedFinal.length !== expected.size || stagedFinal.some(file => !expected.has(file))) {
+    resetExactFiles(root, [...declared, receipt]);
+    try { fs.rmSync(receiptFile, { force: true }); } catch (_) {}
+    return { ok: false, mode: 'architecture_auto_commit_push', reason: 'final_staged_scope_mismatch' };
+  }
+  const leak = secretScanStaged(root);
+  if (leak) {
+    resetExactFiles(root, [...declared, receipt]);
+    try { fs.rmSync(receiptFile, { force: true }); } catch (_) {}
+    return {
+      ok: false,
+      mode: 'architecture_auto_commit_push',
+      reason: 'secret_detected',
+      detail: '架构暂存区命中疑似密钥，已撤销暂存并拒绝提交',
+    };
+  }
+
+  const goal = firstString(ctx.task && ctx.task.vars && ctx.task.vars.goal, '系统架构真完成自动提交');
+  const summary = `architecture: ${String(goal).replace(/\s+/g, ' ').slice(0, 60)}`;
+  const commitRes = runGit(['commit', '-m', summary], root);
+  if (commitRes.error || commitRes.status !== 0) {
+    resetExactFiles(root, [...declared, receipt]);
+    try { fs.rmSync(receiptFile, { force: true }); } catch (_) {}
+    return {
+      ok: false,
+      mode: 'architecture_auto_commit_push',
+      reason: 'git_commit_failed',
+      error: String(commitRes.stderr || commitRes.error && commitRes.error.message || '').slice(0, 300),
+    };
+  }
+  const sha = String(runGit(['rev-parse', '--short', 'HEAD'], root).stdout || '').trim();
+  const pushRes = runGit(['push', remote, branch], root, PUSH_TIMEOUT_MS);
+  const pushed = !pushRes.error && pushRes.status === 0;
+  return {
+    ok: true,
+    mode: 'architecture_auto_commit_push',
+    decision: 'architecture_publish',
+    remote,
+    commit: sha,
+    branch,
+    receipt,
+    changedFiles: stagedDeclared,
+    pushed,
+    pushWarning: pushed ? null : String(pushRes.stderr || pushRes.error && pushRes.error.message || 'push failed').slice(0, 300),
+  };
 }
 
 // 软约束(逻辑链层):真完成自动提交前扫描暂存区密钥。
@@ -631,6 +867,81 @@ function giteeCommitPushPublisher(ctx = {}) {
   };
 }
 
+function publishArchitectureCompletion(event, task, context, opts) {
+  const {
+    root,
+    taskId,
+    projectId,
+    reviewer,
+    completionEventId,
+    hash,
+    trueCompletionVerdict,
+    classification,
+  } = context;
+  const release = acquireVersionLock(root, opts);
+  try {
+    const publisher = typeof opts.architecturePublisher === 'function'
+      ? opts.architecturePublisher
+      : architectureCommitPushPublisher;
+    let publishResult;
+    try {
+      publishResult = publisher({
+        root,
+        opts,
+        task,
+        gate: event.gate,
+        taskId,
+        projectId,
+        reviewer,
+        completionEventId,
+        completionHash: hash,
+        trueCompletionVerdict,
+        classification,
+      });
+    } catch (error) {
+      publishResult = {
+        ok: false,
+        mode: 'architecture_auto_commit_push',
+        reason: 'architecture_publisher_threw',
+        error: error && error.message || String(error),
+      };
+    }
+    const entry = {
+      at: nowIso(),
+      timestamp: nowIso(),
+      hook: HOOK_ID,
+      hook_framework: 'shared/engine/hook-registry',
+      decision: publishResult && publishResult.decision === 'skip' ? 'skip' : 'architecture_publish',
+      reason: publishResult && publishResult.reason || null,
+      taskId,
+      projectId,
+      reviewer,
+      completionEventId,
+      eventId: completionEventId,
+      trueCompletionVerdict,
+      completionHash: hash,
+      completion_hash: hash,
+      evidenceRefs: trueCompletionVerdict.evidenceRefs,
+      architectureFiles: classification.architectureFiles,
+      publishResult,
+    };
+    appendAudit(root, opts, entry);
+    if (!publishResult || publishResult.ok === false) {
+      appendErrorLog(root, opts, {
+        level: 'error',
+        decision: 'architecture_publish_failed',
+        reason: publishResult && publishResult.reason || 'architecture_publish_failed',
+        taskId,
+        eventId: completionEventId,
+      });
+      return Object.assign({ ok: false }, entry);
+    }
+    return Object.assign({ ok: true }, entry);
+  } finally {
+    release();
+  }
+}
+
 function handleTrueDone(event = {}, opts = {}) {
   const root = repoRoot(opts);
   const task = normalizedTaskForGate(event.task || {}, event);
@@ -638,9 +949,6 @@ function handleTrueDone(event = {}, opts = {}) {
   const projectId = projectIdFor(task, event);
   const reviewer = reviewerFor(task, event);
 
-  if (projectId !== PROJECT_ID) {
-    return skip(root, opts, { taskId, projectId, reviewer, reason: 'project_not_console' });
-  }
   if (isSelfTriggered(task, event)) {
     return skip(root, opts, { taskId, projectId, reviewer, reason: 'self_triggered_by_version_hook' });
   }
@@ -662,7 +970,53 @@ function handleTrueDone(event = {}, opts = {}) {
     });
   }
 
+  const classification = classifySystemArchitectureFiles(root, task, event.gate);
   const impact = extractReleaseImpact(task, event);
+  const architectureImpactAllowed = impact.ok
+    ? impact.releaseImpact !== 'major' || majorApproved(task)
+    : impact.reason === 'missing_release_impact' || impact.reason === 'release_impact_none';
+  if (classification.eligible
+    && architectureImpactAllowed
+    && (projectId !== PROJECT_ID || !impact.ok)) {
+    if (!architectureAutoPublishEnabled(root, opts)) {
+      return skip(root, opts, {
+        taskId,
+        projectId,
+        reviewer,
+        completionEventId,
+        trueCompletionVerdict,
+        reason: 'architecture_auto_publish_disabled',
+        completionHash: hash,
+        completion_hash: hash,
+        architectureFiles: classification.architectureFiles,
+        evidenceRefs: trueCompletionVerdict.evidenceRefs,
+      });
+    }
+    return publishArchitectureCompletion(event, task, {
+      root,
+      taskId,
+      projectId,
+      reviewer,
+      completionEventId,
+      hash,
+      trueCompletionVerdict,
+      classification,
+    }, opts);
+  }
+
+  if (projectId !== PROJECT_ID) {
+    return skip(root, opts, {
+      taskId,
+      projectId,
+      reviewer,
+      completionEventId,
+      trueCompletionVerdict,
+      reason: 'project_not_console',
+      completionHash: hash,
+      completion_hash: hash,
+      evidenceRefs: trueCompletionVerdict.evidenceRefs,
+    });
+  }
   if (!impact.ok) {
     return skip(root, opts, {
       taskId,
@@ -890,6 +1244,9 @@ module.exports = {
   trueCompletionVerdictFor,
   extractReleaseImpact,
   extractGranularity,
+  classifySystemArchitectureFiles,
+  architectureAutoPublishEnabled,
+  architectureCommitPushPublisher,
   handleTrueDone,
   giteeCommitPushPublisher,
   registerVersionProgressHook,

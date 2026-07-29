@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "owner": "玉兔6系统架构",
+  "canonical_root": "system-architecture/",
+  "auto_publish": {
+    "trigger": "task.true_done",
+    "git_config_key": "yutu6.architectureAutoPublish",
+    "remote": "github",
+    "branch_policy": "current_branch",
+    "require_all_declared_files_owned": true,
+    "require_clean_index": true,
+    "secret_scan": true
+  },
+  "owned_prefixes": [
+    "system-architecture/",
+    "shared/engine/",
+    "shared/agents/",
+    "shared/routing/",
+    "shared/capability_registry/",
+    "shared/model-fabric/",
+    "security/",
+    "tests/"
+  ],
+  "owned_files": [
+    "projects/控制台/engine-runner.js",
+    "projects/控制台/ceo-worker.js",
+    "projects/控制台/server.js",
+    "projects/控制台/config.json",
+    "projects/控制台/version-progress-hook.js",
+    "projects/控制台/watchdog-daemon.js",
+    "projects/控制台/resource-locks.js",
+    "projects/控制台/board-review.js"
+  ],
+  "excluded_prefixes": [
+    "projects/控制台/artifacts/",
+    "projects/控制台/logs/",
+    "node_modules/"
+  ],
+  "excluded_suffixes": [
+    ".env",
+    ".key",
+    ".pem",
+    ".p12"
+  ]
+}

@@ -446,6 +446,7 @@ function initGitRoot() {
   git(['config', 'user.email', 't@t'], root);
   git(['config', 'user.name', 't'], root);
   git(['config', 'commit.gpgsign', 'false'], root);
+  git(['config', 'yutu6.architectureAutoPublish', 'true'], root);
   git(['remote', 'add', 'github', bare], root); // 2026-07-05 引擎默认发布远端切 github
   write(path.join(root, 'VERSION.json'), JSON.stringify({
     schema_version: 1,
@@ -456,9 +457,145 @@ function initGitRoot() {
     parts: VersionManager.PART_LABELS,
   }, null, 2) + '\n');
   write(path.join(root, 'README.md'), 'seed\n');
+  write(path.join(root, 'system-architecture', 'manifest.json'), JSON.stringify({
+    schema_version: 1,
+    auto_publish: {
+      remote: 'github',
+    },
+    owned_prefixes: [
+      'system-architecture/',
+      'shared/engine/',
+      'tests/',
+    ],
+    owned_files: [
+      'projects/控制台/version-progress-hook.js',
+    ],
+    excluded_prefixes: [
+      'projects/控制台/artifacts/',
+    ],
+    excluded_suffixes: [
+      '.env',
+      '.key',
+      '.pem',
+    ],
+  }, null, 2) + '\n');
   git(['add', '-A'], root);
   git(['commit', '-qm', 'seed'], root);
   return { root, bare, git };
+}
+
+function testArchitectureOnlyAutoPublish() {
+  const first = initGitRoot();
+  try {
+    const changed = 'shared/engine/architecture-fixture.js';
+    const res = bump(first.root, task(first.root, 'architecture-only', null, {
+      changedFile: changed,
+      projectId: '控制台',
+      goal: '补充系统架构能力',
+    }));
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.decision, 'architecture_publish');
+    assert.strictEqual(res.publishResult.mode, 'architecture_auto_commit_push');
+    assert.strictEqual(res.publishResult.pushed, true, res.publishResult.pushWarning || '架构提交应推送成功');
+    assert.strictEqual(VersionManager.readVersionState(first.root).version, '0.0.0.0', '架构旁路不应误改版本号');
+    const names = first.git(['show', '--format=', '--name-only', 'HEAD'], first.root).stdout.trim().split(/\r?\n/);
+    assert(names.includes(changed), '架构声明文件应进入提交');
+    assert(names.some(file => /^system-architecture\/changes\/architecture-only-/.test(file)), '应提交机器可读架构回执');
+    assert(!names.includes('VERSION.json'), '无 releaseImpact 的架构提交不得夹带 VERSION.json');
+    assert(/architecture: 补充系统架构能力/.test(first.git(['log', '-1', '--pretty=%s'], first.bare).stdout));
+
+    const replay = bump(first.root, task(first.root, 'architecture-only', null, {
+      changedFile: changed,
+      projectId: '控制台',
+      goal: '补充系统架构能力',
+      writeChanged: false,
+    }));
+    assert.strictEqual(replay.ok, true);
+    assert.strictEqual(replay.decision, 'skip');
+    assert.strictEqual(replay.reason, 'architecture_already_published');
+  } finally {
+    fs.rmSync(first.root, { recursive: true, force: true });
+    fs.rmSync(first.bare, { recursive: true, force: true });
+  }
+
+  const crossProject = initGitRoot();
+  try {
+    const changed = 'shared/engine/cross-project-architecture.js';
+    const res = bump(crossProject.root, task(crossProject.root, 'cross-project-architecture', 'fix', {
+      changedFile: changed,
+      projectId: 'Simulaid',
+      goal: '跨项目修正共享引擎架构',
+    }));
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.decision, 'architecture_publish');
+    assert.strictEqual(VersionManager.readVersionState(crossProject.root).version, '0.0.0.0');
+  } finally {
+    fs.rmSync(crossProject.root, { recursive: true, force: true });
+    fs.rmSync(crossProject.bare, { recursive: true, force: true });
+  }
+}
+
+function testArchitectureAutoPublishGuards() {
+  const mixed = initGitRoot();
+  try {
+    const architectureFile = 'shared/engine/mixed-architecture.js';
+    const featureFile = 'projects/demo/feature.js';
+    write(path.join(mixed.root, architectureFile), 'module.exports = true;\n');
+    write(path.join(mixed.root, featureFile), 'module.exports = true;\n');
+    const t = task(mixed.root, 'mixed-scope', null, {
+      changedFile: architectureFile,
+      writeChanged: false,
+      implementation: implementation([architectureFile, featureFile]),
+      review: review([architectureFile, featureFile]),
+    });
+    const res = bump(mixed.root, t);
+    assert.strictEqual(res.decision, 'skip');
+    assert.strictEqual(res.reason, 'missing_release_impact');
+    assert.strictEqual(mixed.git(['log', '--oneline'], mixed.root).stdout.trim().split(/\r?\n/).length, 1);
+
+    const manual = task(mixed.root, 'manual-architecture', 'manual', {
+      changedFile: 'shared/engine/manual-architecture.js',
+    });
+    const manualRes = bump(mixed.root, manual);
+    assert.strictEqual(manualRes.decision, 'skip');
+    assert.strictEqual(manualRes.reason, 'manual_release_required');
+  } finally {
+    fs.rmSync(mixed.root, { recursive: true, force: true });
+    fs.rmSync(mixed.bare, { recursive: true, force: true });
+  }
+
+  const dirtyIndex = initGitRoot();
+  try {
+    write(path.join(dirtyIndex.root, 'README.md'), 'pre-staged owner change\n');
+    dirtyIndex.git(['add', '--', 'README.md'], dirtyIndex.root);
+    const res = bump(dirtyIndex.root, task(dirtyIndex.root, 'dirty-index-architecture', null, {
+      changedFile: 'shared/engine/dirty-index-architecture.js',
+    }));
+    assert.strictEqual(res.ok, false);
+    assert.strictEqual(res.publishResult.reason, 'git_index_not_clean');
+    assert.strictEqual(dirtyIndex.git(['diff', '--cached', '--name-only'], dirtyIndex.root).stdout.trim(), 'README.md');
+  } finally {
+    fs.rmSync(dirtyIndex.root, { recursive: true, force: true });
+    fs.rmSync(dirtyIndex.bare, { recursive: true, force: true });
+  }
+
+  const secret = initGitRoot();
+  try {
+    const changed = 'shared/engine/architecture-secret-fixture.js';
+    const fakeAccessKey = ['AK', 'IA', '1234567890ABCDEF'].join('');
+    write(path.join(secret.root, changed), `const credential = "${fakeAccessKey}";\n`);
+    const res = bump(secret.root, task(secret.root, 'architecture-secret', null, {
+      changedFile: changed,
+      writeChanged: false,
+    }));
+    assert.strictEqual(res.ok, false);
+    assert.strictEqual(res.publishResult.reason, 'secret_detected');
+    assert.strictEqual(secret.git(['diff', '--cached', '--name-only'], secret.root).stdout.trim(), '');
+    assert.strictEqual(secret.git(['log', '--oneline'], secret.root).stdout.trim().split(/\r?\n/).length, 1);
+  } finally {
+    fs.rmSync(secret.root, { recursive: true, force: true });
+    fs.rmSync(secret.bare, { recursive: true, force: true });
+  }
 }
 
 // P0-B 守卫:真完成 → 默认发布器真 commit 声明文件 + 真 push 到 gitee 远端
@@ -501,6 +638,8 @@ function testPublisherSecretGuardRollsBack() {
 
 async function main() {
   await testReleaseImpactAndTrueDone();
+  testArchitectureOnlyAutoPublish();
+  testArchitectureAutoPublishGuards();
   testAutoCommitPushToGitee();
   testPublisherSecretGuardRollsBack();
   testFalseDoneMissingVerdictAndImpactSkip();
