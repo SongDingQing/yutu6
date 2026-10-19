@@ -30,7 +30,7 @@
     },
     {
       "path": "apps/rescue/native/Program.cs",
-      "sha256": "8a6e6868b01c46153076655a4c681711af6d245777215b5b80d8331433cc7eac"
+      "sha256": "8e5446333124f364d0f1747a8da8be21a7d024107c88d3e370e99d5db618c9a2"
     },
     {
       "path": "apps/rescue/native/YutuRescue.csproj",
