@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "port": 48950,
+  "appRoot": "REPLACE_WITH_MAIN_PROGRAM_SOURCE_DIRECTORY",
+  "rescueHome": "REPLACE_WITH_SEPARATE_RESCUE_STATE_DIRECTORY",
+  "editableFiles": ["app.mjs"],
+  "ownerTokenEnv": "YUTU_RESCUE_OWNER_TOKEN",
+  "ownerActor": "owner-maintainer",
+  "actors": [
+    { "id": "owner-maintainer", "read": true, "write": true, "activate": true },
+    { "id": "remote-maintainer", "tokenEnv": "YUTU_RESCUE_REMOTE_TOKEN", "read": true, "write": true, "activate": false },
+    { "id": "api-maintainer", "read": true, "write": true, "activate": false }
+  ],
+  "apiActor": "api-maintainer",
+  "providersFile": "REPLACE_WITH_EXTERNAL_PROVIDERS_JSON",
+  "apiModelId": "assistant",
+  "apiMaxCalls": 8,
+  "apiMaxOutputTokens": 1024,
+  "activationEnabled": false,
+  "healthUrl": "http://127.0.0.1:3080/health",
+  "commands": {}
+}

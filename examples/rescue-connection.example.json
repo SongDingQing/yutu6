@@ -1,0 +1,7 @@
+{
+  "kind": "ssh",
+  "target": "REPLACE_USER@REPLACE_HOST",
+  "identityFile": "/REPLACE/ABSOLUTE/PATH/TO/DEDICATED_SSH_KEY",
+  "port": 48950,
+  "tokenEnv": "YUTU_RESCUE_REMOTE_TOKEN"
+}

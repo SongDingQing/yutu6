@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "source": "explicit-reviewed-source-map",
+  "legacy_history_imported": false,
+  "scope": "portable-provider-and-independent-rescue-preview",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "2eb3f54fbd6f193e6d539957a8bc1a4a38de9f7dc723f839dc26fc659d770043"
+    },
+    {
+      "path": "packages/model-providers/index.mjs",
+      "sha256": "b31a8f08ae2cf790798fcb3e290d96edd03c7338c56ca6632af21ff899ed1cb5"
+    },
+    {
+      "path": "apps/rescue/rescue-core.mjs",
+      "sha256": "701929c78cf25d70218d50cb468214ca45047c683a39c1bcfcaa58df4c2ee532"
+    },
+    {
+      "path": "apps/rescue/rescue-service.mjs",
+      "sha256": "54b4aa7d9e098a1d091b0965da1a800ed67f64775bc6742a6fd7072825c87706"
+    },
+    {
+      "path": "apps/rescue/rescue-ui.html",
+      "sha256": "eec148fb2b900de62df71d39662560a66914e21a1508a8dac635bf5b1642f81e"
+    },
+    {
+      "path": "apps/rescue/rescue-client.mjs",
+      "sha256": "bf7e05ddafdd2e7a3f44b39dd428062e934b8f86f4b3878aa8cbff739b207f2e"
+    },
+    {
+      "path": "apps/rescue/native/Program.cs",
+      "sha256": "8a6e6868b01c46153076655a4c681711af6d245777215b5b80d8331433cc7eac"
+    },
+    {
+      "path": "apps/rescue/native/YutuRescue.csproj",
+      "sha256": "73c9d188352b6468565c62693d62abde952ab93c862a307c9af25eb845831372"
+    },
+    {
+      "path": "examples/providers.example.json",
+      "sha256": "3b9155d5b950593fc51af48030b7459a61791f3fffe8b0b3322d51e7a54729a9"
+    },
+    {
+      "path": "examples/rescue.example.json",
+      "sha256": "bb51b141d4232726b8259915259b6bf5eeda888f19fdfe17bbfe808f89b074ad"
+    },
+    {
+      "path": "examples/rescue-connection.example.json",
+      "sha256": "49d36c01b5a06a49621d6b8fbee4ed958928bd2170a68908df8692e9bdcb55df"
+    },
+    {
+      "path": "tests/model-providers.test.mjs",
+      "sha256": "d702511c5d215c18a351f774788885d08b69f1f61845e9bcc0f841d72c62484f"
+    },
+    {
+      "path": "tests/rescue.test.mjs",
+      "sha256": "cfd2cadfc2f95086e48bcdb9edbcf4e8246053cac9977963782ca660ad487261"
+    }
+  ],
+  "excluded": [
+    "personal configuration",
+    "credentials",
+    "conversations and memory",
+    "artifacts and media",
+    "model weights",
+    "legacy Git history",
+    "full application pending audit"
+  ]
+}

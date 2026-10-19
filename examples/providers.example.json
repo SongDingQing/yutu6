@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "standalone": true,
+  "providers": [
+    { "id": "personal-api", "baseUrl": "https://api.example.invalid/v1", "apiKeyEnv": "YUTU_MODEL_API_KEY" }
+  ],
+  "models": [
+    { "id": "assistant", "provider": "personal-api", "model": "replace-with-your-model-id", "label": "我的模型", "capabilities": { "vision": false, "tools": true } }
+  ]
+}

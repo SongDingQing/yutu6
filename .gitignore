@@ -1,0 +1,12 @@
+node_modules/
+**/bin/
+**/obj/
+runtime/
+**/runtime/
+private/
+**/private/
+*.env
+*.token
+*.log
+progress.json
+api-budget.json
